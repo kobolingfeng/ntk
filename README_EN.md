@@ -373,6 +373,24 @@ See [SKILL.md](SKILL.md) for detailed skill documentation.
 
 Thanks to the [LINUX DO](https://linux.do) community for their support.
 
+## Sponsors
+
+If NTK helps you, consider supporting the project:
+
+<div align="center">
+<table>
+<tr>
+<td align="center"><b>WeChat</b></td>
+<td align="center"><b>LDXP Store</b></td>
+<td align="center"><b>PayPal</b></td>
+</tr>
+<tr>
+<td align="center"><img src="assets/wechat-sponsor.png" width="200" /></td>
+<td align="center"><img src="assets/ldxp-sponsor.png" width="200" /></td>
+<td align="center"><a href="https://paypal.me/koboling">paypal.me/koboling</a></td>
+</tr>
+</table>
+</div>
 
 ## License
 
