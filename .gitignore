@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+*.log
+ai_conversations
+
+# Benchmark / experiment data (internal)
+benchmark-*.json
+benchmark-*.md
+benchmark-report.md
+probe-result.json
+test-results.md
+src/benchmark*.ts
+src/probe.ts

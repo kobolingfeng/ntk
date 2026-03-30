@@ -1,0 +1,397 @@
+<div align="center">
+
+# 🔒 NTK
+
+### Need To Know
+
+**Know less. Do more.**
+
+*当所有多Agent框架都在让AI看更多信息时，*
+*我们问了一个不同的问题：如果让AI看更少呢？*
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-ESM-blue)]()
+[![License](https://img.shields.io/badge/License-MIT-green)]()
+[![MCP](https://img.shields.io/badge/MCP-Compatible-purple)]()
+[![LINUX DO](https://img.shields.io/badge/LINUX%20DO-社区-orange)](https://linux.do)
+
+**[English](README_EN.md)** | 中文
+
+</div>
+
+---
+
+## 这是什么
+
+每一个多Agent框架都在做同一件事：给每个Agent尽可能多的上下文。更长的对话历史、更大的记忆库、更复杂的工具链——期望AI从海量信息中找到答案。
+
+**NTK 做相反的事。**
+
+军事情报领域有一个原则叫 "Need-to-Know Basis"——即使你有最高安全权限，你也只会被告知完成任务所必须知道的最小信息集。NTK 把这个原则带进了多Agent系统：
+
+> **每个Agent只收到它完成任务所需的最少信息，一个字都不多给。**
+
+这不是限制，这是优势。认知科学告诉我们，**选择性注意力**才是实现专注的本质——不是看到更多，而是忽略更多。LLM 同理：短上下文比长上下文更精确、更遵循指令、更不容易幻觉。给得越少，做得越好。
+
+### 核心技术
+
+- **信息熵路由 (Information Entropy Routing)** — 基于任务信息熵自动评估复杂度，将高熵任务分配给多阶段管线，低熵任务一步直出。不同密度的信息走不同的处理通道。
+- **选择性遗忘 (Selective Forgetting)** — Agent 间不传递原始上下文，而是经过信息密度压缩后按需投递。每个 Agent 只看到经过裁剪的最小充分信息集。
+- **零开销分级 (Zero-Overhead Classification)** — 63% 的任务通过正则快速路径在微秒级完成分级，完全绕过 LLM 分类器，实现零额外 token 消耗。
+- **渐进式管线深度 (Progressive Pipeline Depth)** — 四级深度自适应：direct → light → standard → full，像 TCP 慢启动一样，只在必要时才升级复杂度。
+- **双模型成本分离 (Dual-Model Cost Isolation)** — 95%+ token 走廉价模型，仅 2-5% 高信息密度决策使用强模型，实现类似混合精度训练的成本结构。
+
+## 为什么选 NTK
+
+### 🎯 自适应，不过度
+
+大多数"智能"框架对所有任务走同一个复杂管道。写一个斐波那契函数？也要经过规划→调研→执行→验证四步。
+
+NTK 不这样做。它先用**零开销正则分类器**（处理 63% 的常见任务）判断复杂度，只在必要时才启动更深的管道：
+
+| 你的任务 | NTK 怎么做 | 开销 |
+|---------|-----------|------|
+| "写个排序函数" | 一步直出 | **~400 tok, 4秒** |
+| "设计 REST API" | 调研→执行 | ~2500 tok, 19秒 |
+| "微服务架构设计" | 完整管线 | ~3000 tok, 20秒 |
+
+写斐波那契和设计微服务架构**不该花一样的钱**。NTK 确保不会。
+
+### 💰 95%+ 成本节省，零质量损失
+
+NTK 的秘密武器是**双模型策略**：95% 的工作交给廉价模型，只有真正需要深度推理的规划步骤（约 2-5% token）才用强模型。
+
+实测数据（9类任务，9/9全部通过，0 bug）：
+
+| | 传统全强模型 | NTK |
+|---|---|---|
+| 平均 token | ~2000 | **1098** |
+| 强模型 token 占比 | 100% | **< 5%** |
+| 平均执行时间 | ~37s | **10.5s** |
+| 代码质量 (bug数) | — | **0** |
+
+### 🧪 经过验证，不是 demo
+
+这不是一个概念验证。NTK 经过了 50+ 次系统性实验，包括：
+
+- **6 种配置 × 多复杂度任务** 的优化矩阵
+- **手动代码审查** 的质量验证（逐行检查 bug 和需求完成度）
+- **消融实验** 证明每个模块的必要性
+- **对比发现**：复杂管道处理简单任务时反而引入 bug（过度分解问题）
+
+其中最有力的一组数据——同一个函数（mergeIntervals, 6 项需求），三种深度：
+
+| 深度 | Token | 时间 | Bug | 需求完成 |
+|------|-------|------|-----|---------|
+| Direct (NTK推荐) | **654** | **4.2s** | **0** | 6/6 |
+| Full (完整管线) | 13,216 | 63.5s | 1 | 6/6 |
+
+Direct 用了 Full **1/20 的 token**，零 bug。Full 因为过度分解反而引入了 1 个 bug。**越简单的任务越不该用复杂管道**——这正是自适应路由存在的意义。
+
+## 快速开始
+
+```bash
+git clone https://github.com/kobolingfeng/ntk.git
+cd ntk && npm install
+cp .env.example .env  # 填入你的 API Key
+```
+
+### 一条命令
+
+```bash
+npx tsx src/cli.ts run "用Python写一个LRU缓存"
+```
+
+### MCP 一键接入
+
+NTK 原生支持 [MCP 协议](https://modelcontextprotocol.io)，可直接接入 VS Code Copilot、Claude Desktop、OpenClaw 等任何支持 MCP 的客户端。
+
+**方式一：npm 全局安装（推荐）**
+
+```bash
+npm install -g ntk
+```
+
+```json
+{
+  "mcpServers": {
+    "ntk": {
+      "command": "ntk",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**方式二：从源码运行**
+
+```bash
+git clone https://github.com/kobolingfeng/ntk.git
+cd ntk && npm install
+```
+
+```json
+{
+  "mcpServers": {
+    "ntk": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp/server.ts"],
+      "cwd": "/path/to/ntk"
+    }
+  }
+}
+```
+
+接入后获得 3 个工具：
+- **ntk_run** — 自适应管线（自动选择最优深度）
+- **ntk_run_fast** — 极速模式（直接执行，最低开销）
+- **ntk_compress** — 信息密度压缩
+
+### 各平台接入指南
+
+<details>
+<summary><b>VS Code Copilot (GitHub Copilot Chat)</b></summary>
+
+在项目根目录创建 `.vscode/mcp.json`：
+
+```json
+{
+  "servers": {
+    "ntk": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp/server.ts"],
+      "cwd": "/path/to/ntk"
+    }
+  }
+}
+```
+
+重启 VS Code 后，在 Copilot Chat 中即可使用 `ntk_run` 等工具。
+
+</details>
+
+<details>
+<summary><b>Claude Desktop</b></summary>
+
+编辑 `~/Library/Application Support/Claude/claude_desktop_config.json`（macOS）或 `%APPDATA%\Claude\claude_desktop_config.json`（Windows）：
+
+```json
+{
+  "mcpServers": {
+    "ntk": {
+      "command": "ntk",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+需要先 `npm install -g ntk`。
+
+</details>
+
+<details>
+<summary><b>OpenClaw / 其他 MCP 客户端</b></summary>
+
+在你的 MCP 配置中添加 ntk server。所有支持 MCP 协议的客户端都可以使用 stdio transport 接入：
+
+```json
+{
+  "mcpServers": {
+    "ntk": {
+      "command": "ntk",
+      "args": ["mcp"],
+      "env": {
+        "API_ENDPOINT_1_KEY": "sk-your-key",
+        "API_ENDPOINT_1_URL": "https://your-api.com/v1"
+      }
+    }
+  }
+}
+```
+
+环境变量可以通过 `env` 字段传入，也可以在 ntk 项目目录下的 `.env` 文件中配置。
+
+</details>
+
+### 工具使用示例
+
+接入 MCP 后，在任意 AI 客户端中可以这样使用：
+
+```
+// 自适应执行 —— 自动选择最优深度
+ntk_run({ task: "用Python写一个支持TTL的LRU缓存" })
+
+// 极速执行 —— 简单任务一步直出
+ntk_run_fast({ task: "写一个合并区间的函数" })
+
+// 强制指定深度
+ntk_run({ task: "设计微服务架构", forceDepth: "full" })
+
+// 信息压缩
+ntk_compress({ text: "很长的文本...", level: "aggressive" })
+```
+
+### 其他运行方式
+
+```bash
+npx tsx src/cli.ts interactive                # 交互模式
+npx tsx src/cli.ts serve --port 3210          # HTTP API 服务
+npx tsx src/cli.ts mcp                        # MCP stdio 服务
+```
+
+## 配置
+
+NTK 需要你自备 OpenAI 兼容的 API 端点。**不内置任何 API Key**，你需要提供自己的。
+
+### 基本配置
+
+复制示例文件并编辑：
+
+```bash
+cp .env.example .env
+```
+
+**最简配置**（单端点 + 单模型）：
+
+```env
+API_ENDPOINT_1_KEY=sk-your-api-key
+API_ENDPOINT_1_URL=https://api.openai.com/v1
+API_ENDPOINT_1_NAME=openai
+MODEL=gpt-4o
+```
+
+设置 `MODEL` 会让所有 Agent 使用同一模型。
+
+### 双模型策略（推荐）
+
+NTK 的核心优势是**只让规划使用强模型，其余全部用廉价模型**：
+
+```env
+API_ENDPOINT_1_KEY=sk-your-api-key
+API_ENDPOINT_1_URL=https://api.openai.com/v1
+API_ENDPOINT_1_NAME=openai
+
+PLANNER_MODEL=gpt-4o          # 强模型 — 仅 full 深度规划使用
+COMPRESSOR_MODEL=gpt-4o-mini  # 廉价模型 — Scout/Executor/Verifier 全用这个
+```
+
+63% 的任务走 Direct 路径根本不触发 Planner，所以绝大部分请求都在用廉价模型。
+
+### 多端点故障转移
+
+配置多个 API 端点，NTK 启动时并行探测，自动选最快的可用端点：
+
+```env
+API_ENDPOINT_1_KEY=sk-key-a
+API_ENDPOINT_1_URL=https://api.openai.com/v1
+API_ENDPOINT_1_NAME=openai
+
+API_ENDPOINT_2_KEY=sk-key-b
+API_ENDPOINT_2_URL=https://your-backup.com/v1
+API_ENDPOINT_2_NAME=backup
+
+PLANNER_MODEL=gpt-4o
+COMPRESSOR_MODEL=gpt-4o-mini
+```
+
+如果当前端点挂了，自动切换到下一个。
+
+### 兼容的 API 提供商
+
+任何 OpenAI 兼容接口都可以用，包括但不限于：
+
+| 提供商 | URL 示例 | 说明 |
+|--------|----------|------|
+| OpenAI | `https://api.openai.com/v1` | 官方 API |
+| Azure OpenAI | `https://your-resource.openai.azure.com/v1` | 企业级 |
+| Ollama (本地) | `http://localhost:11434/v1` | 免费，需本地运行模型 |
+| LM Studio (本地) | `http://localhost:1234/v1` | 免费，GUI 管理模型 |
+| DeepSeek | `https://api.deepseek.com/v1` | 国产高性价比 |
+| 其他转发站 | `https://your-proxy.com/v1` | 任何 OpenAI 兼容代理 |
+
+### MCP 客户端中的配置
+
+通过 MCP 接入时，可以在 `env` 字段里直接传 API 配置，不需要 `.env` 文件：
+
+```json
+{
+  "mcpServers": {
+    "ntk": {
+      "command": "ntk",
+      "args": ["mcp"],
+      "env": {
+        "API_ENDPOINT_1_KEY": "sk-your-key",
+        "API_ENDPOINT_1_URL": "https://api.openai.com/v1",
+        "API_ENDPOINT_1_NAME": "openai",
+        "PLANNER_MODEL": "gpt-4o",
+        "COMPRESSOR_MODEL": "gpt-4o-mini"
+      }
+    }
+  }
+}
+```
+
+### 调试
+
+```env
+DEBUG=true  # 开启详细日志，显示路由决策和 Agent 调用链
+```
+
+## 架构
+
+```
+用户请求
+  ↓
+🔀 自适应分类器 (正则快速路径 / LLM)
+  │
+  ├── direct  →  🔧 Executor → 结果       ← 63%的任务走这里
+  ├── light   →  🔧 Executor → 结果
+  ├── standard → 🔍 Scout → 🔧 Executor → 结果
+  └── full    →  🧠 Planner(强模型) → 🔧 Executor×N → ✅ Verifier → 结果
+```
+
+5 类 Agent，按信息密度分工：
+- **Planner** — 唯一使用强模型，处理高密度决策（仅 full 深度触发）
+- **Scout / Summarizer** — 廉价模型，信息收集与压缩
+- **Executor** — 廉价模型，核心任务执行
+- **Verifier** — 廉价模型，结果校验
+
+## 研究实验
+
+NTK 附带完整的基准测试工具链：
+
+```bash
+npx tsx src/cli.ts test       # 9任务回归测试
+npx tsx src/cli.ts baseline   # NTK vs 直接LLM对比
+npx tsx src/cli.ts ablation   # 消融实验（各模块贡献）
+npx tsx src/cli.ts optimize   # 6配置优化矩阵
+```
+
+详细 Skill 文档见 [SKILL.md](SKILL.md)。
+
+## 社区
+
+感谢 [LINUX DO](https://linux.do) 社区提供的支持。
+
+## 赞助
+
+如果 NTK 对你有帮助，欢迎支持一下：
+
+<div align="center">
+<table>
+<tr>
+<td align="center"><b>微信赞赏</b></td>
+<td align="center"><b>链动小铺</b></td>
+<td align="center"><b>PayPal</b></td>
+</tr>
+<tr>
+<td align="center"><img src="assets/wechat-sponsor.png" width="200" /></td>
+<td align="center"><img src="assets/ldxp-sponsor.png" width="200" /></td>
+<td align="center"><a href="https://paypal.me/koboling">paypal.me/koboling</a></td>
+</tr>
+</table>
+</div>
+
+## License
+
+MIT

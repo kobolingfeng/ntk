@@ -1,0 +1,43 @@
+{
+  "name": "ntk",
+  "version": "0.1.0",
+  "description": "NeedToKnow — Multi-agent framework based on information density routing. Know less. Do more.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "ntk": "./bin/ntk.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts interactive",
+    "start": "tsx src/cli.ts",
+    "serve": "tsx src/cli.ts serve",
+    "mcp": "tsx src/mcp/server.ts",
+    "test:run": "tsx src/cli.ts test",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "multi-agent",
+    "ai",
+    "llm",
+    "agent-framework",
+    "information-density",
+    "need-to-know",
+    "token-efficient"
+  ],
+  "author": "kobolingfeng",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "chalk": "^5.4.1",
+    "dotenv": "^16.5.0",
+    "openai": "^4.91.1",
+    "ora": "^8.2.0",
+    "tsx": "^4.19.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "^5.8.2"
+  }
+}

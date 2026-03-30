@@ -1,0 +1,289 @@
+/**
+ * NTK API Server — HTTP interface for AI-to-AI calling.
+ *
+ * Endpoints:
+ *   POST /run          — Run a full pipeline task
+ *   POST /compress     — Compress text (standalone utility)
+ *   GET  /health       — Health check
+ *   GET  /stats        — Get last run stats
+ *
+ * This lets other AI agents (like Antigravity, Codex, etc.)
+ * call NTK as a tool via HTTP.
+ */
+
+import http from 'node:http';
+import { Pipeline } from '../pipeline/pipeline.js';
+import type { PipelineEvent, PipelineResult } from '../pipeline/pipeline.js';
+import { Compressor } from '../core/compressor.js';
+import { LLMClient } from '../core/llm.js';
+import type { NTKConfig } from '../core/protocol.js';
+
+export class NTKServer {
+  private server: http.Server;
+  private config: NTKConfig;
+  private lastResult: PipelineResult | null = null;
+  private runHistory: Array<{
+    request: string;
+    result: PipelineResult;
+    timestamp: number;
+    durationMs: number;
+  }> = [];
+
+  constructor(config: NTKConfig) {
+    this.config = config;
+    this.server = http.createServer(this.handleRequest.bind(this));
+  }
+
+  start(port: number = 3210): Promise<void> {
+    return new Promise((resolve) => {
+      this.server.listen(port, () => {
+        console.log(`🔒 NTK API Server running on http://localhost:${port}`);
+        console.log(`   POST /run          — Run a pipeline task`);
+        console.log(`   POST /compress     — Compress text`);
+        console.log(`   GET  /health       — Health check`);
+        console.log(`   GET  /stats        — Run statistics`);
+        console.log(`   GET  /history      — Run history`);
+        resolve();
+      });
+    });
+  }
+
+  stop(): Promise<void> {
+    return new Promise((resolve) => {
+      this.server.close(() => resolve());
+    });
+  }
+
+  private async handleRequest(
+    req: http.IncomingMessage,
+    res: http.ServerResponse
+  ): Promise<void> {
+    // CORS headers for flexibility
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+
+    const url = new URL(req.url || '/', `http://${req.headers.host}`);
+    const path = url.pathname;
+
+    try {
+      switch (path) {
+        case '/health':
+          this.handleHealth(res);
+          break;
+        case '/run':
+          await this.handleRun(req, res);
+          break;
+        case '/run/stream':
+          await this.handleRunStream(req, res);
+          break;
+        case '/compress':
+          await this.handleCompress(req, res);
+          break;
+        case '/stats':
+          this.handleStats(res);
+          break;
+        case '/history':
+          this.handleHistory(res);
+          break;
+        default:
+          this.sendJson(res, 404, { error: 'Not found', endpoints: ['/run', '/run/stream', '/compress', '/health', '/stats', '/history'] });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.sendJson(res, 500, { error: message });
+    }
+  }
+
+  private handleHealth(res: http.ServerResponse): void {
+    this.sendJson(res, 200, {
+      status: 'ok',
+      framework: 'NTK — NeedToKnow',
+      version: '0.1.0',
+      model: this.config.planner.model,
+      uptime: process.uptime(),
+      totalRuns: this.runHistory.length,
+    });
+  }
+
+  private async handleRun(
+    req: http.IncomingMessage,
+    res: http.ServerResponse
+  ): Promise<void> {
+    if (req.method !== 'POST') {
+      this.sendJson(res, 405, { error: 'Method not allowed, use POST' });
+      return;
+    }
+
+    const body = await this.readBody(req);
+    const { task, debug } = JSON.parse(body);
+
+    if (!task) {
+      this.sendJson(res, 400, { error: 'Missing "task" field in request body' });
+      return;
+    }
+
+    const config = { ...this.config, debug: debug ?? this.config.debug };
+    const events: PipelineEvent[] = [];
+
+    const pipeline = new Pipeline(config, (event) => {
+      events.push(event);
+    });
+
+    const startTime = Date.now();
+    const result = await pipeline.run(task);
+    const durationMs = Date.now() - startTime;
+
+    this.lastResult = result;
+    this.runHistory.push({ request: task, result, timestamp: startTime, durationMs });
+
+    this.sendJson(res, 200, {
+      success: result.success,
+      report: result.report,
+      tokenUsage: result.tokenReport,
+      routerStats: result.routerStats,
+      blockedCount: result.blockedMessages.length,
+      events: events.map((e) => ({ type: e.type, phase: e.phase, detail: e.detail })),
+      durationMs,
+    });
+  }
+
+  private async handleRunStream(
+    req: http.IncomingMessage,
+    res: http.ServerResponse
+  ): Promise<void> {
+    if (req.method !== 'POST') {
+      this.sendJson(res, 405, { error: 'Method not allowed, use POST' });
+      return;
+    }
+
+    const body = await this.readBody(req);
+    const { task, debug } = JSON.parse(body);
+
+    if (!task) {
+      this.sendJson(res, 400, { error: 'Missing "task" field in request body' });
+      return;
+    }
+
+    // Server-Sent Events for streaming
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+
+    const config = { ...this.config, debug: debug ?? false };
+
+    const pipeline = new Pipeline(config, (event) => {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    });
+
+    const startTime = Date.now();
+    const result = await pipeline.run(task);
+    const durationMs = Date.now() - startTime;
+
+    this.lastResult = result;
+    this.runHistory.push({ request: task, result, timestamp: startTime, durationMs });
+
+    res.write(`data: ${JSON.stringify({
+      type: 'final',
+      phase: 'report',
+      detail: JSON.stringify({
+        success: result.success,
+        report: result.report,
+        tokenUsage: result.tokenReport,
+        routerStats: result.routerStats,
+        durationMs,
+      }),
+    })}\n\n`);
+
+    res.end();
+  }
+
+  private async handleCompress(
+    req: http.IncomingMessage,
+    res: http.ServerResponse
+  ): Promise<void> {
+    if (req.method !== 'POST') {
+      this.sendJson(res, 405, { error: 'Method not allowed, use POST' });
+      return;
+    }
+
+    const body = await this.readBody(req);
+    const { text, level } = JSON.parse(body);
+
+    if (!text) {
+      this.sendJson(res, 400, { error: 'Missing "text" field' });
+      return;
+    }
+
+    const llm = new LLMClient(this.config.compressor);
+    const compressor = new Compressor(llm);
+    const result = await compressor.compress(text, level || 'standard');
+
+    this.sendJson(res, 200, result);
+  }
+
+  private handleStats(res: http.ServerResponse): void {
+    if (!this.lastResult) {
+      this.sendJson(res, 200, { message: 'No runs yet' });
+      return;
+    }
+
+    const totalRuns = this.runHistory.length;
+    const avgDuration = this.runHistory.reduce((sum, r) => sum + r.durationMs, 0) / totalRuns;
+    const totalTokens = this.runHistory.reduce(
+      (sum, r) => sum + r.result.tokenReport.totalInput + r.result.tokenReport.totalOutput,
+      0
+    );
+
+    this.sendJson(res, 200, {
+      totalRuns,
+      avgDurationMs: Math.round(avgDuration),
+      totalTokensUsed: totalTokens,
+      avgTokensPerRun: Math.round(totalTokens / totalRuns),
+      lastRun: {
+        tokenReport: this.lastResult.tokenReport,
+        routerStats: this.lastResult.routerStats,
+        blockedCount: this.lastResult.blockedMessages.length,
+      },
+    });
+  }
+
+  private handleHistory(res: http.ServerResponse): void {
+    this.sendJson(res, 200, {
+      total: this.runHistory.length,
+      runs: this.runHistory.map((r) => ({
+        request: r.request,
+        success: r.result.success,
+        reportPreview: r.result.report.slice(0, 200),
+        totalTokens: r.result.tokenReport.totalInput + r.result.tokenReport.totalOutput,
+        durationMs: r.durationMs,
+        timestamp: new Date(r.timestamp).toISOString(),
+      })),
+    });
+  }
+
+  // ─── Utilities ────────────────────────────────────────
+
+  private sendJson(res: http.ServerResponse, status: number, data: any): void {
+    res.writeHead(status);
+    res.end(JSON.stringify(data, null, 2));
+  }
+
+  private readBody(req: http.IncomingMessage): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk) => chunks.push(chunk));
+      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+      req.on('error', reject);
+    });
+  }
+}
