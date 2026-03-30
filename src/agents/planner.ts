@@ -12,6 +12,7 @@ import { BaseAgent } from '../core/base-agent.js';
 import type { LLMClient } from '../core/llm.js';
 import type { Message, AgentContext, Task } from '../core/protocol.js';
 import { createMessage, createTask } from '../core/protocol.js';
+import { PLANNER_PROMPT } from '../core/prompts.js';
 
 export class Planner extends BaseAgent {
   constructor(llm: LLMClient) {
@@ -19,24 +20,7 @@ export class Planner extends BaseAgent {
   }
 
   getSystemPrompt(): string {
-    return `你是决策核心。根据需求拆分执行步骤。
-
-输出格式（严格遵守）：
-→ executor: [具体指令，包含所有关键细节]
-
-规则：
-1. 代码实现类任务（一个函数/类/模块）= 1步
-2. 最多3步，不超过
-3. 每步指令必须自包含（执行器看不到其他步骤的结果）
-4. 不输出解释、分析、理由
-5. 可用目标: scout(查信息), executor(执行)
-
-示例：
-用户: "设计用户系统API"
-→ executor: 设计用户服务REST API，包含注册(POST /register)、登录(POST /login)、获取信息(GET /user/:id)接口，使用JWT认证
-
-完成: ✅ 完成
-需要信息: ❓ [问题]`;
+    return PLANNER_PROMPT[this.locale];
   }
 
   /**
@@ -86,9 +70,11 @@ export class Planner extends BaseAgent {
     userRequest: string,
     gatheredInfo: string
   ): Promise<{ plan: string; instructions: PlannerInstruction[] }> {
+    const { PIPELINE_STRINGS } = await import('../core/prompts.js');
+    const s = PIPELINE_STRINGS[this.locale];
     const prompt = gatheredInfo
-      ? `用户需求: ${userRequest}\n\n已收集信息:\n${gatheredInfo}`
-      : `用户需求: ${userRequest}`;
+      ? s.planPrompt(userRequest, gatheredInfo)
+      : s.planPrompt(userRequest, '');
 
     const { content } = await this.llm.chat(
       this.getSystemPrompt(),

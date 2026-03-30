@@ -11,7 +11,7 @@
 export type InfoLevel = 'high' | 'low';
 
 /** Agent types in the NTK system */
-export type AgentType = 'planner' | 'scout' | 'summarizer' | 'executor' | 'verifier';
+export type AgentType = 'planner' | 'scout' | 'summarizer' | 'executor' | 'verifier' | 'classifier';
 
 /** Map each agent to its information level */
 export const AGENT_INFO_LEVEL: Record<AgentType, InfoLevel> = {
@@ -20,6 +20,7 @@ export const AGENT_INFO_LEVEL: Record<AgentType, InfoLevel> = {
   summarizer: 'low',
   executor: 'low',
   verifier: 'low',
+  classifier: 'low',
 };
 
 // ─── Messages ──────────────────────────────────────────

@@ -15,6 +15,7 @@
 
 import { BaseAgent } from '../core/base-agent.js';
 import type { LLMClient } from '../core/llm.js';
+import { SCOUT_PROMPT } from '../core/prompts.js';
 
 export class Scout extends BaseAgent {
   constructor(llm: LLMClient) {
@@ -22,7 +23,6 @@ export class Scout extends BaseAgent {
   }
 
   getSystemPrompt(): string {
-    return `信息侦察。输出≤30字。格式: "关键词: 值"
-不确定的标注[?]。不给背景。`;
+    return SCOUT_PROMPT[this.locale];
   }
 }

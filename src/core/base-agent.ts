@@ -11,12 +11,14 @@
 import type { Agent, AgentContext, AgentType, InfoLevel, Message, Phase } from './protocol.js';
 import { createMessage, AGENT_INFO_LEVEL } from './protocol.js';
 import type { LLMClient } from './llm.js';
+import type { Locale } from './prompts.js';
 
 export abstract class BaseAgent implements Agent {
   type: AgentType;
   infoLevel: InfoLevel;
   protected llm: LLMClient;
   protected currentPhase: Phase = 'gather';
+  protected locale: Locale = 'zh';
   /** Optional per-agent token budget override */
   tokenBudget?: number;
 
@@ -28,6 +30,10 @@ export abstract class BaseAgent implements Agent {
 
   setPhase(phase: Phase): void {
     this.currentPhase = phase;
+  }
+
+  setLocale(locale: Locale): void {
+    this.locale = locale;
   }
 
   abstract getSystemPrompt(): string;

@@ -34,6 +34,8 @@ export interface Endpoint {
 /** Global endpoint state — shared across all LLMClient instances */
 let activeEndpointIndex = 0;
 let registeredEndpoints: Endpoint[] = [];
+/** Track which endpoints passed probe for each model — prevents failover to incompatible endpoints */
+const modelEndpointMap = new Map<string, Set<number>>();
 
 export class LLMClient {
   private model: string;
@@ -92,7 +94,7 @@ export class LLMClient {
           body: JSON.stringify({
             model,
             messages: [{ role: 'user', content: 'hi' }],
-            max_tokens: 5,
+            max_tokens: 1,
           }),
           signal: controller.signal,
         });
@@ -124,6 +126,9 @@ export class LLMClient {
 
     if (working.length > 0) {
       activeEndpointIndex = working[0].resultIdx;
+      // Record which endpoints support this model
+      const supportedSet = new Set(working.map(w => w.resultIdx));
+      modelEndpointMap.set(model, supportedSet);
       return registeredEndpoints[activeEndpointIndex].name;
     }
     return null;
@@ -197,7 +202,7 @@ export class LLMClient {
     };
     const body = JSON.stringify(payload);
 
-    // Try current active endpoint first, then failover to others
+    // Snapshot endpoint order at call start to avoid race conditions during parallel execution
     const endpointsToTry = this.getEndpointOrder();
 
     for (const epIndex of endpointsToTry) {
@@ -205,11 +210,6 @@ export class LLMClient {
       const result = await this.tryEndpoint(ep, body);
 
       if (result.success) {
-        // If we failed over to a different endpoint, update the active one
-        if (epIndex !== activeEndpointIndex) {
-          console.log(`[LLM] Switched to ${ep.name}`);
-          activeEndpointIndex = epIndex;
-        }
         return result.data!;
       }
 
@@ -229,6 +229,9 @@ export class LLMClient {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 60000);
+
         const response = await fetch(url, {
           method: 'POST',
           headers: {
@@ -236,7 +239,10 @@ export class LLMClient {
             'Authorization': `Bearer ${ep.apiKey}`,
           },
           body,
+          signal: controller.signal,
         });
+
+        clearTimeout(timer);
 
         // Retry on transient errors (within this endpoint)
         if ([429, 502, 503, 504].includes(response.status) && attempt < maxRetries) {
@@ -273,12 +279,22 @@ export class LLMClient {
     return { success: false, error: 'Max retries exceeded' };
   }
 
-  /** Get endpoint indices in order: active first, then others */
+  /** Get endpoint indices in order: active first, then others (filtered by model compatibility) */
   private getEndpointOrder(): number[] {
-    const order = [activeEndpointIndex];
-    for (let i = 0; i < registeredEndpoints.length; i++) {
-      if (i !== activeEndpointIndex) order.push(i);
+    const compatible = modelEndpointMap.get(this.model);
+    const order: number[] = [];
+
+    // Only use activeEndpointIndex first if it's compatible with this model
+    if (!compatible || compatible.has(activeEndpointIndex)) {
+      order.push(activeEndpointIndex);
     }
+
+    for (let i = 0; i < registeredEndpoints.length; i++) {
+      if (i === activeEndpointIndex) continue; // Already handled above
+      if (compatible && !compatible.has(i)) continue;
+      order.push(i);
+    }
+
     return order;
   }
 }

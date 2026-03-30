@@ -11,6 +11,7 @@
 
 import { BaseAgent } from '../core/base-agent.js';
 import type { LLMClient } from '../core/llm.js';
+import { VERIFIER_PROMPT } from '../core/prompts.js';
 
 export class Verifier extends BaseAgent {
   constructor(llm: LLMClient) {
@@ -18,15 +19,6 @@ export class Verifier extends BaseAgent {
   }
 
   getSystemPrompt(): string {
-    return `验证器。检查执行结果是否正确完整。
-
-检查项：
-1. 代码：语法正确？逻辑完整？边界处理？
-2. 分析：要点覆盖？有无明显遗漏？
-3. [截断]标记不算失败，只验证已有内容
-
-输出格式（严格遵守）：
-通过 → ✅ 通过
-失败 → ❌ [具体问题，一句话，告诉执行器哪里要改]`;
+    return VERIFIER_PROMPT[this.locale];
   }
 }

@@ -8,27 +8,21 @@
 
 import type { LLMClient } from './llm.js';
 import type { AgentType, Phase } from './protocol.js';
+import { COMPRESSION_PROMPTS, detectLocale, type Locale } from './prompts.js';
 
 /** Compression level determines how aggressively we compress */
 export type CompressionLevel = 'minimal' | 'standard' | 'aggressive';
 
-const COMPRESSION_PROMPTS: Record<CompressionLevel, string> = {
-  minimal: `压缩以下信息。保留所有关键细节，去掉修饰语。用最少的字表达。`,
-
-  standard: `输入→结构化摘要。格式：
-[核心]一句话描述
-[数据]key=value，逗号分隔
-[规则]编号列表，每条≤8字
-[流程]用→连接`,
-
-  aggressive: `用一句话总结以下信息的核心结论。只要结果，不要过程。`,
-};
-
 export class Compressor {
   private llm: LLMClient;
+  private locale: Locale = 'zh';
 
   constructor(llm: LLMClient) {
     this.llm = llm;
+  }
+
+  setLocale(locale: Locale): void {
+    this.locale = locale;
   }
 
   /**
@@ -55,7 +49,7 @@ export class Compressor {
     }
 
     const { content, usage } = await this.llm.chat(
-      COMPRESSION_PROMPTS[level],
+      COMPRESSION_PROMPTS[level][this.locale],
       text,
       agent,
       phase

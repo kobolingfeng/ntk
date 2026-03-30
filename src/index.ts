@@ -39,3 +39,6 @@ export type {
   TokenReport,
 } from './core/protocol.js';
 export { createMessage, createTask, AGENT_INFO_LEVEL } from './core/protocol.js';
+
+export { detectLocale } from './core/prompts.js';
+export type { Locale } from './core/prompts.js';

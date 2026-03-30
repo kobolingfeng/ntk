@@ -662,6 +662,15 @@ async function main(): Promise<void> {
   console.log(chalk.cyan.bold('\n  🔒 NTK — NeedToKnow Agent Framework'));
   console.log(chalk.dim('     "Know less. Do more."\n'));
 
+  // Early validation for 'run' command — avoid wasting time probing if no task
+  if (command === 'run') {
+    const task = args.slice(1).filter((a) => !a.startsWith('--')).join(' ');
+    if (!task) {
+      console.log(chalk.yellow('  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout]'));
+      return;
+    }
+  }
+
   // Load and probe endpoints
   loadEndpoints();
   const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
@@ -676,19 +685,33 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // If using different models, verify compressor model too
+  if (compressorModel !== plannerModel) {
+    console.log(chalk.dim(`  Verifying compressor model (${compressorModel})...`));
+    const compressorWorking = await LLMClient.probeEndpoints(compressorModel);
+    if (!compressorWorking) {
+      console.log(chalk.yellow(`  ⚠️  Compressor model probe failed, falling back to planner endpoint`));
+    }
+  }
+
   console.log(chalk.green(`  Using: ${working}\n`));
   const config = loadConfig();
 
   switch (command) {
     case 'run': {
-      const task = args.slice(1).filter((a) => !a.startsWith('--')).join(' ');
+      const fdIdx = args.indexOf('--force-depth');
+      const forceDepth = fdIdx >= 0 ? args[fdIdx + 1] : undefined;
+      const skipScout = args.includes('--skip-scout');
+      // Exclude --flag values from task string
+      const skipIndices = new Set<number>();
+      if (fdIdx >= 0) { skipIndices.add(fdIdx); skipIndices.add(fdIdx + 1); }
+      const ssIdx = args.indexOf('--skip-scout');
+      if (ssIdx >= 0) skipIndices.add(ssIdx);
+      const task = args.slice(1).filter((a, i) => !a.startsWith('--') && !skipIndices.has(i + 1)).join(' ');
       if (!task) {
         console.log(chalk.yellow('  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout]'));
         return;
       }
-      const fdIdx = args.indexOf('--force-depth');
-      const forceDepth = fdIdx >= 0 ? args[fdIdx + 1] : undefined;
-      const skipScout = args.includes('--skip-scout');
       await cmdRun(task, config, { forceDepth, skipScout: skipScout || undefined });
       break;
     }

@@ -85,7 +85,12 @@ server.tool(
   async ({ task, forceDepth, skipScout }) => {
     loadEndpoints();
     const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
+    const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
     await LLMClient.probeEndpoints(plannerModel);
+    // Probe compressor model separately if different (executor/verifier use cheap model)
+    if (compressorModel !== plannerModel) {
+      await LLMClient.probeEndpoints(compressorModel);
+    }
     const config = loadConfig();
 
     const pipeline = new Pipeline(config, () => {}, {
