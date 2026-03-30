@@ -10,7 +10,7 @@
 *我们问了一个不同的问题：如果让AI看更少呢？*
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-ESM-blue)]()
-[![License](https://img.shields.io/badge/License-MIT-green)]()
+[![License](https://img.shields.io/badge/License-AGPL--3.0-red)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-purple)]()
 [![LINUX DO](https://img.shields.io/badge/LINUX%20DO-社区-orange)](https://linux.do)
 
@@ -373,25 +373,7 @@ npx tsx src/cli.ts optimize   # 6配置优化矩阵
 
 感谢 [LINUX DO](https://linux.do) 社区提供的支持。
 
-## 赞助
-
-如果 NTK 对你有帮助，欢迎支持一下：
-
-<div align="center">
-<table>
-<tr>
-<td align="center"><b>微信赞赏</b></td>
-<td align="center"><b>链动小铺</b></td>
-<td align="center"><b>PayPal</b></td>
-</tr>
-<tr>
-<td align="center"><img src="assets/wechat-sponsor.png" width="200" /></td>
-<td align="center"><img src="assets/ldxp-sponsor.png" width="200" /></td>
-<td align="center"><a href="https://paypal.me/koboling">paypal.me/koboling</a></td>
-</tr>
-</table>
-</div>
 
 ## License
 
-MIT
+[AGPL-3.0](LICENSE) — 你可以自由使用、修改和分发，但任何修改版本或基于本项目的网络服务都必须以相同协议开源。

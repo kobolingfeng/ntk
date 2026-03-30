@@ -10,7 +10,7 @@
 *we asked a different question: what if we give AI less?*
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-ESM-blue)]()
-[![License](https://img.shields.io/badge/License-MIT-green)]()
+[![License](https://img.shields.io/badge/License-AGPL--3.0-red)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-purple)]()
 [![LINUX DO](https://img.shields.io/badge/LINUX%20DO-Community-orange)](https://linux.do)
 
@@ -373,25 +373,7 @@ See [SKILL.md](SKILL.md) for detailed skill documentation.
 
 Thanks to the [LINUX DO](https://linux.do) community for their support.
 
-## Sponsors
-
-If NTK helps you, consider supporting the project:
-
-<div align="center">
-<table>
-<tr>
-<td align="center"><b>WeChat</b></td>
-<td align="center"><b>LDXP Store</b></td>
-<td align="center"><b>PayPal</b></td>
-</tr>
-<tr>
-<td align="center"><img src="assets/wechat-sponsor.png" width="200" /></td>
-<td align="center"><img src="assets/ldxp-sponsor.png" width="200" /></td>
-<td align="center"><a href="https://paypal.me/koboling">paypal.me/koboling</a></td>
-</tr>
-</table>
-</div>
 
 ## License
 
-MIT
+[AGPL-3.0](LICENSE) — Free to use, modify, and distribute, but any modified version or network service based on this project must be open-sourced under the same license.
