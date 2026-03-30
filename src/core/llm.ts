@@ -230,7 +230,7 @@ export class LLMClient {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 60000);
+        const timer = setTimeout(() => controller.abort(), 120000);
 
         const response = await fetch(url, {
           method: 'POST',

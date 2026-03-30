@@ -76,16 +76,16 @@ export abstract class BaseAgent implements Agent {
         .slice(-5) // Only last 5 messages max — keep context short
         .map((m) => `[${m.from}]: ${m.payload}`)
         .join('\n');
-      parts.push(`背景:\n${contextLines}`);
+      parts.push(`${this.locale === 'zh' ? '背景' : 'Context'}:\n${contextLines}`);
     }
 
     // Add local scratchpad if in a local loop
     if (context.localScratchpad) {
-      parts.push(`局部状态: ${context.localScratchpad}`);
+      parts.push(`${this.locale === 'zh' ? '局部状态' : 'Local state'}: ${context.localScratchpad}`);
     }
 
     // Add the actual instruction
-    parts.push(`指令: ${message.action}`);
+    parts.push(`${this.locale === 'zh' ? '指令' : 'Instruction'}: ${message.action}`);
     if (message.payload) {
       parts.push(message.payload);
     }

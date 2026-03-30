@@ -191,6 +191,8 @@ export const PIPELINE_STRINGS = {
       `用户原始需求: ${req}\n\n执行摘要:\n${summary}\n\n验证结果: ${verify}\n\n用中文给用户写一份简洁的完成报告。不要废话。`,
     reportSystem: '你是报告者。用最少的话总结任务完成情况。格式清晰，重点突出。',
     truncated: '...[截断,内容完整但超长]',
+    taskLabel: '任务',
+    fixSupplement: '修复补充',
   },
   en: {
     quickCheck: 'quick check',
@@ -213,5 +215,7 @@ export const PIPELINE_STRINGS = {
       `Original user request: ${req}\n\nExecution summary:\n${summary}\n\nVerification result: ${verify}\n\nWrite a concise completion report. No filler.`,
     reportSystem: 'You are a reporter. Summarize task completion in minimal words. Clear format, highlight key points.',
     truncated: '...[truncated, content complete but too long]',
+    taskLabel: 'Task',
+    fixSupplement: 'Fix supplement',
   },
 };

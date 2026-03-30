@@ -123,7 +123,14 @@ export class NTKServer {
     }
 
     const body = await this.readBody(req);
-    const { task, debug } = JSON.parse(body);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      this.sendJson(res, 400, { error: 'Invalid JSON in request body' });
+      return;
+    }
+    const { task, debug } = parsed;
 
     if (!task) {
       this.sendJson(res, 400, { error: 'Missing "task" field in request body' });
@@ -165,7 +172,14 @@ export class NTKServer {
     }
 
     const body = await this.readBody(req);
-    const { task, debug } = JSON.parse(body);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      this.sendJson(res, 400, { error: 'Invalid JSON in request body' });
+      return;
+    }
+    const { task, debug } = parsed;
 
     if (!task) {
       this.sendJson(res, 400, { error: 'Missing "task" field in request body' });
@@ -217,7 +231,14 @@ export class NTKServer {
     }
 
     const body = await this.readBody(req);
-    const { text, level } = JSON.parse(body);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      this.sendJson(res, 400, { error: 'Invalid JSON in request body' });
+      return;
+    }
+    const { text, level } = parsed;
 
     if (!text) {
       this.sendJson(res, 400, { error: 'Missing "text" field' });
@@ -278,10 +299,19 @@ export class NTKServer {
     res.end(JSON.stringify(data, null, 2));
   }
 
-  private readBody(req: http.IncomingMessage): Promise<string> {
+  private readBody(req: http.IncomingMessage, maxBytes: number = 1_048_576): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
-      req.on('data', (chunk) => chunks.push(chunk));
+      let size = 0;
+      req.on('data', (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > maxBytes) {
+          req.destroy();
+          reject(new Error('Request body too large'));
+          return;
+        }
+        chunks.push(chunk);
+      });
       req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
       req.on('error', reject);
     });

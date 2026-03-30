@@ -106,6 +106,18 @@ export class Pipeline {
   async run(userRequest: string): Promise<PipelineResult> {
     this.state.userRequest = userRequest;
 
+    // Early return for empty / whitespace-only input
+    if (!userRequest.trim()) {
+      return {
+        success: false,
+        report: 'No task provided.',
+        tokenReport: this.generateTokenReport(),
+        routerStats: this.router.getStats(),
+        blockedMessages: [],
+        depth: 'direct',
+      };
+    }
+
     // Detect language from user input and propagate to all agents
     this.locale = detectLocale(userRequest);
     const agents = [this.planner, this.scout, this.summarizer, this.executor, this.verifier];
@@ -150,7 +162,7 @@ export class Pipeline {
     const codeUnitPattern = /^(写|实现|编写|创建|用\w+写|帮我写|请写).{0,30}(函数|function|算法|方法|脚本|工具|类|class)/;
     const simplePattern = /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为))/;
     const directPattern = /^(写一个|实现一个|用\w+实现|生成|输出|列出|什么是|如何|怎么)/;
-    const directPatternEn = /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate)\b/i;
+    const directPatternEn = /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define)\b/i;
     if (codeUnitPattern.test(userRequest) || simplePattern.test(userRequest) || directPattern.test(userRequest) || directPatternEn.test(userRequest)) {
       return 'direct';
     }
@@ -493,7 +505,7 @@ export class Pipeline {
             truncated = truncated.slice(0, cutPoint > MAX_OUTPUT_CHARS * 0.5 ? cutPoint : MAX_OUTPUT_CHARS)
               + '\n' + this.strings.truncated;
           }
-          return `[任务: ${r.instruction}]\n${truncated}`;
+          return `[${this.strings.taskLabel}: ${r.instruction}]\n${truncated}`;
         })
         .join('\n---\n');
 
@@ -536,7 +548,7 @@ export class Pipeline {
           // Append fix to last result (not replace all results)
           const lastResult = results[results.length - 1];
           if (lastResult) {
-            lastResult.output += '\n\n--- 修复补充 ---\n' + fixResponse.payload;
+            lastResult.output += `\n\n--- ${this.strings.fixSupplement} ---\n` + fixResponse.payload;
             lastResult.success = true;
           }
         }
@@ -545,7 +557,9 @@ export class Pipeline {
       retries++;
     }
 
-    const plannerReport = allPassed ? '✅ 全部通过' : `❌ 验证未通过: ${lastVerification.slice(0, 100)}`;
+    const plannerReport = allPassed
+      ? (this.locale === 'zh' ? '✅ 全部通过' : '✅ All passed')
+      : (this.locale === 'zh' ? `❌ 验证未通过: ${lastVerification.slice(0, 100)}` : `❌ Verification failed: ${lastVerification.slice(0, 100)}`);
     const reportMsg = createMessage('verifier', 'planner', 'verify-result', plannerReport);
     this.router.route(reportMsg, 'verify');
 
@@ -663,12 +677,23 @@ export class Pipeline {
       report.byPhase[u.phase].output += u.outputTokens;
     }
 
-    // Estimate: traditional multi-agent typically uses 3-5x more tokens
-    // due to full context sharing and verbose agent communication
+    // Estimate savings based on actual depth and agent usage.
+    // Direct uses minimal overhead; full pipeline saves more vs a single strong-model call.
     const totalUsed = report.totalInput + report.totalOutput;
-    const estimatedTraditional = totalUsed * 4; // Conservative 4x multiplier
+    const strongTokens = (report.byAgent.planner?.input ?? 0) + (report.byAgent.planner?.output ?? 0);
+    const cheapTokens = totalUsed - strongTokens;
+    // Traditional approach: send the full task to a strong model directly.
+    // Assume strong model would use ~totalOutput tokens of output but with full-context input.
+    const estimatedTraditionalOutput = report.totalOutput;
+    const estimatedTraditionalInput = report.totalInput * 1.5; // no routing = redundant context
+    const estimatedTraditional = estimatedTraditionalInput + estimatedTraditionalOutput;
+    // Cost-weighted savings: cheap tokens cost ~10x less than strong tokens
+    const ntkWeightedCost = strongTokens + cheapTokens * 0.1;
+    const traditionalWeightedCost = estimatedTraditional; // all strong model tokens
     report.estimatedSavingsVsTraditional =
-      ((estimatedTraditional - totalUsed) / estimatedTraditional) * 100;
+      traditionalWeightedCost > 0
+        ? Math.max(0, Math.min(100, ((traditionalWeightedCost - ntkWeightedCost) / traditionalWeightedCost) * 100))
+        : 0;
 
     return report;
   }
