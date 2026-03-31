@@ -48,7 +48,7 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
     /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为)|分析以下|以下是)/;
   const directPattern = /^(写一个|实现一个|用\w+实现|生成|输出|列出|什么是|如何|怎么|用.{0,10}写)/;
   const directPatternEn =
-    /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define|analyze|summarize)\b/i;
+    /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define|analyze|summarize|design|build|add|compare|set up|configure)\b/i;
 
   // Tasks with embedded data (log/code/test output) — direct regardless of length
   const embeddedDataPattern =
@@ -63,7 +63,7 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
     directPattern.test(userRequest) ||
     directPatternEn.test(userRequest)
   ) {
-    if (userRequest.length > 150) {
+    if (userRequest.length > 200) {
       return null;
     }
     return 'direct';

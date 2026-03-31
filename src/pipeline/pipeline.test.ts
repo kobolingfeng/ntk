@@ -244,18 +244,18 @@ describe('classifyDepth fast path', () => {
       expect(classifyDepthFastPath(input)).toBeNull();
     });
 
-    it('pattern match but >150 chars → null (needs LLM)', () => {
-      const longInput = `write ${'a'.repeat(150)}`;
+    it('pattern match but >200 chars → null (needs LLM)', () => {
+      const longInput = `write ${'a'.repeat(200)}`;
       expect(classifyDepthFastPath(longInput)).toBeNull();
     });
 
-    it('pattern match at exactly 150 chars → direct', () => {
-      const input = `write ${'a'.repeat(144)}`; // 6 + 144 = 150
+    it('pattern match at exactly 200 chars → direct', () => {
+      const input = `write ${'a'.repeat(194)}`; // 6 + 194 = 200
       expect(classifyDepthFastPath(input)).toBe('direct');
     });
 
-    it('pattern match at 151 chars → null', () => {
-      const input = `write ${'a'.repeat(145)}`; // 6 + 145 = 151
+    it('pattern match at 201 chars → null', () => {
+      const input = `write ${'a'.repeat(195)}`; // 6 + 195 = 201
       expect(classifyDepthFastPath(input)).toBeNull();
     });
 
@@ -266,9 +266,14 @@ describe('classifyDepth fast path', () => {
   });
 
   describe('non-matching inputs', () => {
-    it('long complex description → null', () => {
+    it('long complex description matching pattern ≤200 chars → direct', () => {
       const input =
         'Design a complete microservices architecture with event sourcing, CQRS, and saga pattern for an e-commerce platform';
+      expect(classifyDepthFastPath(input)).toBe('direct');
+    });
+
+    it('very long complex description >200 chars → null', () => {
+      const input = `Design ${'a'.repeat(200)} with multiple requirements`;
       expect(classifyDepthFastPath(input)).toBeNull();
     });
   });
