@@ -75,15 +75,18 @@ export class Pipeline {
     return PIPELINE_STRINGS[this.locale];
   }
 
+  private speculative: boolean;
+
   constructor(
     config: NTKConfig,
     onEvent?: (event: PipelineEvent) => void,
-    options?: { forceDepth?: PipelineDepth; skipScout?: boolean },
+    options?: { forceDepth?: PipelineDepth; skipScout?: boolean; speculative?: boolean },
   ) {
     this.config = config;
     this.onEvent = onEvent;
     this.forceDepth = options?.forceDepth;
     this.skipScout = options?.skipScout ?? false;
+    this.speculative = options?.speculative ?? true;
 
     // Create LLM clients — planner gets the strong model
     this.plannerLLM = new LLMClient(config.planner);
@@ -215,7 +218,7 @@ export class Pipeline {
             break;
           }
         }
-      } else {
+      } else if (this.speculative) {
         // Speculative execution: run classifier + direct in parallel
         const classifierPromise = classifyDepth(cleanRequest, this.compressorLLM, this.locale);
         const speculativePromise = runDirect(
@@ -236,7 +239,25 @@ export class Pipeline {
           result = await speculativePromise;
           this.emit({ type: 'complete', phase: 'report', detail: 'Done (direct/speculative)' });
         } else {
-          // Speculative result not used — discard it (tokens already spent)
+          result = await this.runNonDirectDepth(depth, cleanRequest);
+        }
+      } else {
+        // Sequential: classify first, then execute
+        const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
+        this.emit({ type: 'start', phase: 'gather', detail: `[${depth}] ${cleanRequest}` });
+
+        if (depth === 'direct') {
+          this.setPhase('execute');
+          result = await runDirect(
+            cleanRequest,
+            this.executor,
+            this.locale,
+            () => this.getTokenReport(),
+            () => this.router.getStats(),
+            (e) => this.emit(e),
+            this.compressorLLM,
+          );
+        } else {
           result = await this.runNonDirectDepth(depth, cleanRequest);
         }
       }
