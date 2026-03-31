@@ -11,52 +11,52 @@ import type { Router, RouterStats } from '../core/router.js';
 import { emptyOutputMessage } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
 
-export async function runStandard(
-  userRequest: string,
-  executor: Executor,
-  scout: Scout,
-  router: Router,
-  skipScout: boolean,
-  strings: (typeof PIPELINE_STRINGS)['zh'],
-  locale: Locale,
-  getTokenReport: () => TokenReport,
-  getRouterStats: () => RouterStats,
-  emit: (event: PipelineEvent) => void,
-): Promise<PipelineResult> {
-  // Gather with Scout
+export interface StandardDepthContext {
+  userRequest: string;
+  executor: Executor;
+  scout: Scout;
+  router: Router;
+  skipScout: boolean;
+  strings: (typeof PIPELINE_STRINGS)['zh'];
+  locale: Locale;
+  getTokenReport: () => TokenReport;
+  getRouterStats: () => RouterStats;
+  emit: (event: PipelineEvent) => void;
+}
+
+export async function runStandard(ctx: StandardDepthContext): Promise<PipelineResult> {
   let scoutContext = '';
 
-  if (!skipScout) {
-    emit({ type: 'phase', phase: 'gather', detail: 'Scouting...' });
+  if (!ctx.skipScout) {
+    ctx.emit({ type: 'phase', phase: 'gather', detail: 'Scouting...' });
 
-    const scoutMsg = createMessage('planner', 'scout', `${strings.research}: ${userRequest}`, '');
+    const scoutMsg = createMessage('planner', 'scout', `${ctx.strings.research}: ${ctx.userRequest}`, '');
     const scoutCtx: AgentContext = { visibleMessages: [] };
-    const scoutResponse = await scout.process(scoutMsg, scoutCtx);
+    const scoutResponse = await ctx.scout.process(scoutMsg, scoutCtx);
 
-    emit({ type: 'message', phase: 'gather', detail: `scout: ${scoutResponse.payload.slice(0, 80)}` });
-    scoutContext = `${strings.researchResult}: ${scoutResponse.payload}`;
+    ctx.emit({ type: 'message', phase: 'gather', detail: `scout: ${scoutResponse.payload.slice(0, 80)}` });
+    scoutContext = `${ctx.strings.researchResult}: ${scoutResponse.payload}`;
   }
 
-  // Execute with Scout results as context
-  emit({
+  ctx.emit({
     type: 'phase',
     phase: 'execute',
-    detail: skipScout ? 'Executing (no scout)...' : 'Executing with research context...',
+    detail: ctx.skipScout ? 'Executing (no scout)...' : 'Executing with research context...',
   });
 
-  const execMsg = createMessage('planner', 'executor', userRequest, scoutContext);
+  const execMsg = createMessage('planner', 'executor', ctx.userRequest, scoutContext);
   const execCtx: AgentContext = { visibleMessages: [] };
-  const execResponse = await executor.process(execMsg, execCtx);
+  const execResponse = await ctx.executor.process(execMsg, execCtx);
 
-  const report = execResponse.payload.trim() || emptyOutputMessage(locale);
-  emit({ type: 'complete', phase: 'report', detail: 'Done (standard)' });
+  const report = execResponse.payload.trim() || emptyOutputMessage(ctx.locale);
+  ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (standard)' });
 
   return {
     success: !!execResponse.payload.trim(),
     report,
-    tokenReport: getTokenReport(),
-    routerStats: getRouterStats(),
-    blockedMessages: router.getBlockedLog(),
+    tokenReport: ctx.getTokenReport(),
+    routerStats: ctx.getRouterStats(),
+    blockedMessages: ctx.router.getBlockedLog(),
     depth: 'standard',
   };
 }

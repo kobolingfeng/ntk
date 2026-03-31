@@ -19,6 +19,7 @@ import { Summarizer } from '../agents/summarizer.js';
 import { Verifier } from '../agents/verifier.js';
 import { ResponseCache } from '../core/cache.js';
 import { Compressor } from '../core/compressor.js';
+import { predictDepth, recordDepth } from '../core/depth-predictor.js';
 import { LLMClient } from '../core/llm.js';
 import { preFilter } from '../core/pre-filter.js';
 import { detectLocale, type Locale, PIPELINE_STRINGS } from '../core/prompts.js';
@@ -219,28 +220,53 @@ export class Pipeline {
           }
         }
       } else if (this.speculative) {
-        // Speculative execution: run classifier + direct in parallel
+        // Smart speculative execution: use history to predict depth
+        const prediction = predictDepth(cleanRequest);
+        const speculateDepth = prediction && prediction.confidence > 0.7 ? prediction.depth : 'direct';
+
         const classifierPromise = classifyDepth(cleanRequest, this.compressorLLM, this.locale);
-        const speculativePromise = runDirect(
-          cleanRequest,
-          this.executor,
-          this.locale,
-          () => this.getTokenReport(),
-          () => this.router.getStats(),
-          () => {},
-          this.compressorLLM,
-        );
+
+        let speculativePromise: Promise<PipelineResult> | null = null;
+        if (speculateDepth === 'direct') {
+          speculativePromise = runDirect(
+            cleanRequest,
+            this.executor,
+            this.locale,
+            () => this.getTokenReport(),
+            () => this.router.getStats(),
+            () => {},
+            this.compressorLLM,
+          );
+        }
 
         const depth = await classifierPromise;
-        this.emit({ type: 'start', phase: 'gather', detail: `[${depth}/speculative] ${cleanRequest}` });
+        const predictionInfo = prediction ? ` pred=${speculateDepth}@${(prediction.confidence * 100).toFixed(0)}%` : '';
+        this.emit({
+          type: 'start',
+          phase: 'gather',
+          detail: `[${depth}/speculative${predictionInfo}] ${cleanRequest}`,
+        });
 
-        if (depth === 'direct') {
+        if (depth === speculateDepth && speculativePromise) {
           this.setPhase('execute');
           result = await speculativePromise;
-          this.emit({ type: 'complete', phase: 'report', detail: 'Done (direct/speculative)' });
+          this.emit({ type: 'complete', phase: 'report', detail: `Done (${depth}/speculative-hit)` });
+        } else if (depth === 'direct') {
+          this.setPhase('execute');
+          result = await runDirect(
+            cleanRequest,
+            this.executor,
+            this.locale,
+            () => this.getTokenReport(),
+            () => this.router.getStats(),
+            (e) => this.emit(e),
+            this.compressorLLM,
+          );
         } else {
           result = await this.runNonDirectDepth(depth, cleanRequest);
         }
+
+        recordDepth(cleanRequest, depth);
       } else {
         // Sequential: classify first, then execute
         const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
@@ -290,31 +316,31 @@ export class Pipeline {
     switch (depth) {
       case 'light':
         this.setPhase('execute');
-        return await runLight(
-          cleanRequest,
-          this.executor,
-          this.verifier,
-          this.router,
-          this.strings,
-          this.locale,
-          () => this.getTokenReport(),
-          () => this.router.getStats(),
-          (e) => this.emit(e),
-        );
+        return await runLight({
+          userRequest: cleanRequest,
+          executor: this.executor,
+          verifier: this.verifier,
+          router: this.router,
+          strings: this.strings,
+          locale: this.locale,
+          getTokenReport: () => this.getTokenReport(),
+          getRouterStats: () => this.router.getStats(),
+          emit: (e) => this.emit(e),
+        });
       case 'standard':
         this.setPhase('gather');
-        return await runStandard(
-          cleanRequest,
-          this.executor,
-          this.scout,
-          this.router,
-          this.skipScout,
-          this.strings,
-          this.locale,
-          () => this.getTokenReport(),
-          () => this.router.getStats(),
-          (e) => this.emit(e),
-        );
+        return await runStandard({
+          userRequest: cleanRequest,
+          executor: this.executor,
+          scout: this.scout,
+          router: this.router,
+          skipScout: this.skipScout,
+          strings: this.strings,
+          locale: this.locale,
+          getTokenReport: () => this.getTokenReport(),
+          getRouterStats: () => this.router.getStats(),
+          emit: (e) => this.emit(e),
+        });
       case 'full':
         return await runFull({
           config: this.config,
