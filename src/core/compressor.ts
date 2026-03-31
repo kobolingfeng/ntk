@@ -103,6 +103,7 @@ export class Compressor {
     const pfResult = preFilter(text);
     const preFiltered = pfResult.filtered;
     this.preFilterStats.push(pfResult);
+    if (this.preFilterStats.length > 100) this.preFilterStats.shift();
 
     // If already short enough after pre-filter, don't waste an API call
     if (preFiltered.length < 200 && level !== 'aggressive') {

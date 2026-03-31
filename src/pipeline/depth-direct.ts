@@ -42,8 +42,8 @@ export async function runDirect(
     report = content.trim() || emptyOutputMessage(locale);
   } else {
     const { createMessage } = await import('../core/protocol.js');
-    const msg = createMessage('planner', 'executor', userRequest, '');
-    const context = { visibleMessages: [] };
+    const msg = createMessage('planner', 'executor', effectiveRequest, '');
+    const context = { visibleMessages: [] as never[] };
     const response = await executor.process(msg, context);
     report = response.payload.trim() || emptyOutputMessage(locale);
   }

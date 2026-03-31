@@ -154,21 +154,23 @@ function deduplicateLines(text: string): { result: string; name: string } {
   if (lines.length < 4) return { result: text, name: 'dedup-lines' };
 
   const output: string[] = [];
-  let prevLine = '';
+  let prevNormalized = '';
+  let prevRawLine = '';
   let repeatCount = 0;
 
   for (const line of lines) {
     const normalized = normalizeForDedup(line);
-    if (normalized === prevLine && normalized.length > 0) {
+    if (normalized === prevNormalized && normalized.length > 0) {
       repeatCount++;
     } else {
       if (repeatCount >= 2) {
         output.push(`  ... (×${repeatCount + 1})`);
       } else if (repeatCount === 1) {
-        output.push(prevLine);
+        output.push(prevRawLine);
       }
       output.push(line);
-      prevLine = normalized;
+      prevNormalized = normalized;
+      prevRawLine = line;
       repeatCount = 0;
     }
   }
@@ -176,7 +178,7 @@ function deduplicateLines(text: string): { result: string; name: string } {
   if (repeatCount >= 2) {
     output.push(`  ... (×${repeatCount + 1})`);
   } else if (repeatCount === 1) {
-    output.push(prevLine);
+    output.push(prevRawLine);
   }
 
   return { result: output.join('\n'), name: 'dedup-lines' };

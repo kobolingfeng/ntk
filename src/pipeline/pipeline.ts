@@ -249,7 +249,19 @@ export class Pipeline {
 
         if (depth === speculateDepth && speculativePromise) {
           this.setPhase('execute');
-          result = await speculativePromise;
+          try {
+            result = await speculativePromise;
+          } catch {
+            result = await runDirect(
+              cleanRequest,
+              this.executor,
+              this.locale,
+              () => this.getTokenReport(),
+              () => this.router.getStats(),
+              (e) => this.emit(e),
+              this.compressorLLM,
+            );
+          }
           this.emit({ type: 'complete', phase: 'report', detail: `Done (${depth}/speculative-hit)` });
         } else if (depth === 'direct') {
           this.setPhase('execute');

@@ -23,6 +23,7 @@ export class ResponseCache {
   private ttlMs: number;
   private hits = 0;
   private misses = 0;
+  private tokensSavedByHits = 0;
 
   constructor(maxEntries = DEFAULT_MAX_ENTRIES, ttlMs = DEFAULT_TTL_MS) {
     this.maxEntries = maxEntries;
@@ -50,6 +51,7 @@ export class ResponseCache {
     }
 
     this.hits++;
+    this.tokensSavedByHits += entry.tokensSaved;
     return entry;
   }
 
@@ -75,10 +77,7 @@ export class ResponseCache {
       hits: this.hits,
       misses: this.misses,
       hitRate: this.hits + this.misses > 0 ? this.hits / (this.hits + this.misses) : 0,
-      totalTokensSaved: Array.from(this.cache.values()).reduce(
-        (sum, e) => sum + e.tokensSaved * (this.hits > 0 ? 1 : 0),
-        0,
-      ),
+      totalTokensSaved: this.tokensSavedByHits,
     };
   }
 
