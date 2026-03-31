@@ -100,4 +100,49 @@ describe('DiffContext', () => {
     expect(result).toBeDefined();
     expect(result!.length).toBeLessThan(300);
   });
+
+  it('39-char question is always follow-up (below threshold)', () => {
+    const dc = new DiffContext();
+    dc.addTurn('Previous question', 'Previous answer', 'direct', 50);
+
+    const shortQ = 'a'.repeat(39);
+    expect(dc.buildAugmentedQuery(shortQ)).toBeDefined();
+  });
+
+  it('40-char question without follow-up pattern returns undefined', () => {
+    const dc = new DiffContext();
+    dc.addTurn('Previous question', 'Previous answer', 'direct', 50);
+
+    const longQ = 'x'.repeat(40);
+    expect(dc.buildAugmentedQuery(longQ)).toBeUndefined();
+  });
+
+  it('handles empty/whitespace-only response summary', () => {
+    const dc = new DiffContext();
+    dc.addTurn('Q1', '\n\n  \n', 'direct', 50);
+
+    const result = dc.buildAugmentedQuery('继续');
+    expect(result).toBeDefined();
+    expect(result).toContain('(empty)');
+  });
+
+  it('truncates long questions to 120 chars', () => {
+    const dc = new DiffContext();
+    const longQuestion = 'Q'.repeat(200);
+    dc.addTurn(longQuestion, 'answer', 'direct', 50);
+
+    const result = dc.buildAugmentedQuery('继续');
+    expect(result).toBeDefined();
+    expect(result).not.toContain('Q'.repeat(200));
+    expect(result).toContain('Q'.repeat(120));
+  });
+
+  it('single turn has zero estimated token savings', () => {
+    const dc = new DiffContext();
+    dc.addTurn('Q1', 'A1', 'direct', 100);
+
+    const stats = dc.getStats();
+    expect(stats.totalTurns).toBe(1);
+    expect(stats.estimatedTokensSaved).toBe(0);
+  });
 });
