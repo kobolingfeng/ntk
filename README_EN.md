@@ -277,10 +277,10 @@ cp .env.example .env
 API_ENDPOINT_1_KEY=sk-your-api-key
 API_ENDPOINT_1_URL=https://api.openai.com/v1
 API_ENDPOINT_1_NAME=openai
-MODEL=gpt-4o
+MODEL=gpt-5.4-mini
 ```
 
-Setting `MODEL` makes all agents use the same model.
+Setting `MODEL` makes all agents use the same model. Use `gpt-5.4-nano` for even lower costs.
 
 ### Dual-Model Strategy (Recommended)
 

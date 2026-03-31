@@ -63,8 +63,8 @@ export function buildConfig(
     throw new Error('No active endpoint available. Ensure API endpoints are configured in .env');
   }
 
-  const plannerModel = overrides?.plannerModel ?? process.env.PLANNER_MODEL ?? process.env.MODEL ?? 'gpt-4o';
-  const compressorModel = overrides?.compressorModel ?? process.env.COMPRESSOR_MODEL ?? process.env.MODEL ?? 'gpt-4o';
+  const plannerModel = overrides?.plannerModel ?? process.env.PLANNER_MODEL ?? process.env.MODEL ?? 'gpt-5.4';
+  const compressorModel = overrides?.compressorModel ?? process.env.COMPRESSOR_MODEL ?? process.env.MODEL ?? 'gpt-5.4-mini';
 
   return {
     planner: { apiKey: ep.apiKey, baseUrl: ep.baseUrl, model: plannerModel, maxTokens: 4096, temperature: 0.3 },

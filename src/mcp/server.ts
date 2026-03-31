@@ -52,8 +52,8 @@ let initialized = false;
 async function ensureInitialized(): Promise<void> {
   if (!initialized) {
     loadEndpoints();
-    const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
-    const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
+    const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-5.4';
+    const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-5.4-mini';
     await endpointManager.probeEndpoints(plannerModel);
     if (compressorModel !== plannerModel) {
       await endpointManager.probeEndpoints(compressorModel);

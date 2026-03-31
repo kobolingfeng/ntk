@@ -21,7 +21,7 @@ function setupEndpoints(): void {
 }
 
 function loadConfig(): NTKConfig {
-  const model = process.env.MODEL || 'gpt-4o';
+  const model = process.env.MODEL || 'gpt-5.4-mini';
   return buildConfig(endpointManager, { plannerModel: model, compressorModel: model });
 }
 
@@ -48,7 +48,7 @@ async function runTest(
 
 async function main() {
   setupEndpoints();
-  const model = process.env.MODEL || 'gpt-4o';
+  const model = process.env.MODEL || 'gpt-5.4-mini';
 
   console.log('Probing endpoints...');
   const working = await endpointManager.probeEndpoints(model);

@@ -260,8 +260,8 @@ async function main(): Promise<void> {
 
   // Load and probe endpoints
   loadEndpoints();
-  const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
-  const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
+  const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-5.4';
+  const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-5.4-mini';
   const fastStart = args.includes('--fast-start');
 
   console.log(chalk.dim(`  Planner model: ${plannerModel}`));
