@@ -323,7 +323,7 @@ export class NTKServer {
 
   // ─── Utilities ────────────────────────────────────────
 
-  private sendJson(res: http.ServerResponse, status: number, data: any): void {
+  private sendJson(res: http.ServerResponse, status: number, data: unknown): void {
     res.writeHead(status);
     res.end(JSON.stringify(data, null, 2));
   }

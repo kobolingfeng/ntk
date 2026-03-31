@@ -30,14 +30,23 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
   const context: AgentContext = { visibleMessages: [] };
   const response = await ctx.executor.process(msg, context);
 
-  ctx.emit({ type: 'phase', phase: 'verify', detail: 'Light verification...' });
-
-  const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, response.payload);
-  const verifyCtx: AgentContext = { visibleMessages: [] };
-  const verifyResponse = await ctx.verifier.process(verifyMsg, verifyCtx);
-
-  const passed = parseVerificationResult(verifyResponse.payload);
   let report = response.payload.trim() || emptyOutputMessage(ctx.locale);
+
+  // Skip verification for very short responses — verification cost > value
+  const skipVerify = report.length < 100;
+
+  let passed = true;
+  let verifyFeedback = '';
+  if (!skipVerify) {
+    ctx.emit({ type: 'phase', phase: 'verify', detail: 'Light verification...' });
+
+    const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, response.payload);
+    const verifyCtx: AgentContext = { visibleMessages: [] };
+    const verifyResponse = await ctx.verifier.process(verifyMsg, verifyCtx);
+
+    passed = parseVerificationResult(verifyResponse.payload);
+    verifyFeedback = verifyResponse.payload;
+  }
 
   if (!passed) {
     ctx.emit({ type: 'retry', phase: 'verify', detail: 'Light fix attempt...' });
@@ -45,7 +54,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
       'verifier',
       'executor',
       ctx.userRequest,
-      `${ctx.strings.verifyFeedback}: ${verifyResponse.payload.slice(0, 300)}`,
+      `${ctx.strings.verifyFeedback}: ${verifyFeedback.slice(0, 300)}`,
     );
     const fixCtx: AgentContext = { visibleMessages: [] };
     const fixResponse = await ctx.executor.process(fixMsg, fixCtx);
