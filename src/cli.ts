@@ -404,6 +404,65 @@ async function main(): Promise<void> {
       break;
     }
 
+    case 'batch': {
+      const batchFile = args[1];
+      if (!batchFile) {
+        console.log(chalk.yellow('  Usage: npx tsx src/cli.ts batch <tasks.txt>'));
+        console.log(chalk.dim('  File format: one task per line'));
+        break;
+      }
+      const { readFileSync } = await import('node:fs');
+      let tasks: string[];
+      try {
+        tasks = readFileSync(batchFile, 'utf-8')
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l && !l.startsWith('#'));
+      } catch (e: any) {
+        console.log(chalk.red(`  Error reading file: ${e.message}`));
+        break;
+      }
+      if (!tasks.length) {
+        console.log(chalk.yellow('  No tasks found in file'));
+        break;
+      }
+
+      console.log(chalk.cyan.bold(`\n  📦 Batch Mode — ${tasks.length} task(s)\n`));
+
+      let totalTokens = 0;
+      let totalTime = 0;
+      const results: Array<{ task: string; tokens: number; depth: string; time: number; ok: boolean }> = [];
+
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i];
+        console.log(chalk.dim(`  [${i + 1}/${tasks.length}] ${t.length > 50 ? t.slice(0, 50) + '...' : t}`));
+        const start = Date.now();
+        try {
+          const p = new Pipeline(config, () => {}, { endpointManager });
+          const r = await p.run(t);
+          const elapsed = (Date.now() - start) / 1000;
+          const tok = r.tokenReport.totalInput + r.tokenReport.totalOutput;
+          totalTokens += tok;
+          totalTime += elapsed;
+          results.push({ task: t, tokens: tok, depth: r.depth ?? 'full', time: elapsed, ok: r.success });
+          console.log(chalk.green(`    ✅ ${tok} tok, ${elapsed.toFixed(1)}s, depth=${r.depth}`));
+        } catch (e: any) {
+          const elapsed = (Date.now() - start) / 1000;
+          totalTime += elapsed;
+          results.push({ task: t, tokens: 0, depth: 'error', time: elapsed, ok: false });
+          console.log(chalk.red(`    ❌ Error: ${e.message?.slice(0, 80)}`));
+        }
+      }
+
+      console.log(chalk.cyan.bold(`\n  ═══ Batch Summary ═══`));
+      console.log(`  Tasks: ${results.length} | Passed: ${results.filter((r) => r.ok).length}`);
+      console.log(`  Total tokens: ${totalTokens}`);
+      console.log(`  Total time: ${totalTime.toFixed(1)}s`);
+      console.log(`  Avg tokens/task: ${Math.round(totalTokens / results.length)}`);
+      console.log(`  Avg time/task: ${(totalTime / results.length).toFixed(1)}s\n`);
+      break;
+    }
+
     case 'mcp': {
       const { startMcpServer } = await import('./mcp/server.js');
       await startMcpServer();
@@ -421,6 +480,7 @@ async function main(): Promise<void> {
         console.log(chalk.dim('    serve [--port N]  — Start API server'));
         console.log(chalk.dim('    mcp               — Start MCP server (stdio transport)'));
         console.log(chalk.dim('    estimate <task>   — Predict token usage (zero cost)'));
+        console.log(chalk.dim('    batch <file>      — Run multiple tasks from file'));
         console.log(chalk.dim('    gain              — Show cumulative savings statistics'));
         console.log(chalk.dim('    compare           — Three-way comparison benchmark'));
         console.log(chalk.dim('    test              — Run test suite (9 tasks)'));
