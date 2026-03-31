@@ -8,7 +8,7 @@
  * - Token usage tracking per agent/phase
  */
 
-import type { LLMConfig, TokenUsage, AgentType, Phase } from './protocol.js';
+import type { AgentType, LLMConfig, Phase, TokenUsage } from './protocol.js';
 
 interface ChatCompletionResponse {
   id: string;
@@ -98,7 +98,7 @@ export class LLMClient {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${ep.apiKey}`,
+            Authorization: `Bearer ${ep.apiKey}`,
           },
           body: JSON.stringify({
             model,
@@ -111,7 +111,7 @@ export class LLMClient {
         clearTimeout(timer);
 
         if (response.ok) {
-          const data = await response.json() as any;
+          const data = (await response.json()) as any;
           if (data.choices && data.choices.length > 0) {
             console.log(`[LLM] ✅ ${ep.name} (${ep.baseUrl}) — working`);
             return i;
@@ -130,13 +130,13 @@ export class LLMClient {
     // Pick the highest-priority (lowest index) working endpoint
     const working = results
       .map((idx, originalIdx) => ({ resultIdx: idx, priority: originalIdx }))
-      .filter(r => r.resultIdx >= 0)
+      .filter((r) => r.resultIdx >= 0)
       .sort((a, b) => a.priority - b.priority);
 
     if (working.length > 0) {
       activeEndpointIndex = working[0].resultIdx;
       // Record which endpoints support this model
-      const supportedSet = new Set(working.map(w => w.resultIdx));
+      const supportedSet = new Set(working.map((w) => w.resultIdx));
       modelEndpointMap.set(model, supportedSet);
       const name = registeredEndpoints[activeEndpointIndex].name;
       probeCache.set(model, { name, timestamp: Date.now() });
@@ -152,12 +152,15 @@ export class LLMClient {
     userMessage: string,
     agent: AgentType,
     phase: Phase,
-    maxTokensOverride?: number
+    maxTokensOverride?: number,
   ): Promise<{ content: string; usage: TokenUsage }> {
-    const response = await this.callAPI([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage },
-    ], maxTokensOverride);
+    const response = await this.callAPI(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      maxTokensOverride,
+    );
 
     const content = response.choices[0]?.message?.content ?? '';
     const usage: TokenUsage = {
@@ -176,12 +179,9 @@ export class LLMClient {
     systemPrompt: string,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     agent: AgentType,
-    phase: Phase
+    phase: Phase,
   ): Promise<{ content: string; usage: TokenUsage }> {
-    const response = await this.callAPI([
-      { role: 'system', content: systemPrompt },
-      ...messages,
-    ]);
+    const response = await this.callAPI([{ role: 'system', content: systemPrompt }, ...messages]);
 
     const content = response.choices[0]?.message?.content ?? '';
     const usage: TokenUsage = {
@@ -196,14 +196,18 @@ export class LLMClient {
     return { content, usage };
   }
 
-  getTokenLog(): TokenUsage[] { return [...this.tokenLog]; }
-  resetTokenLog(): void { this.tokenLog = []; }
+  getTokenLog(): TokenUsage[] {
+    return [...this.tokenLog];
+  }
+  resetTokenLog(): void {
+    this.tokenLog = [];
+  }
 
   // ─── Core API Call with Failover ──────────────────
 
   private async callAPI(
     messages: Array<{ role: string; content: string }>,
-    maxTokensOverride?: number
+    maxTokensOverride?: number,
   ): Promise<ChatCompletionResponse> {
     const payload = {
       model: this.model,
@@ -238,7 +242,7 @@ export class LLMClient {
 
   private async tryEndpoint(
     ep: Endpoint,
-    body: string
+    body: string,
   ): Promise<{ success: boolean; data?: ChatCompletionResponse; error?: string }> {
     const url = `${ep.baseUrl}/chat/completions`;
     const maxRetries = 2;
@@ -252,7 +256,7 @@ export class LLMClient {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${ep.apiKey}`,
+            Authorization: `Bearer ${ep.apiKey}`,
           },
           body,
           signal: controller.signal,
@@ -263,18 +267,20 @@ export class LLMClient {
         // Retry on transient errors (within this endpoint)
         if ([429, 502, 503, 504].includes(response.status) && attempt < maxRetries) {
           const delay = (attempt + 1) * 2000;
-          console.error(`[LLM] ${ep.name}: ${response.status}, retry ${attempt + 1}/${maxRetries} in ${delay / 1000}s...`);
+          console.error(
+            `[LLM] ${ep.name}: ${response.status}, retry ${attempt + 1}/${maxRetries} in ${delay / 1000}s...`,
+          );
           await new Promise((r) => setTimeout(r, delay));
           continue;
         }
 
         if (!response.ok) {
           const errorText = await response.text();
-          const truncated = errorText.length > 150 ? errorText.slice(0, 150) + '...' : errorText;
+          const truncated = errorText.length > 150 ? `${errorText.slice(0, 150)}...` : errorText;
           return { success: false, error: `HTTP ${response.status}: ${truncated}` };
         }
 
-        const data = await response.json() as ChatCompletionResponse;
+        const data = (await response.json()) as ChatCompletionResponse;
 
         if (!data.choices || data.choices.length === 0) {
           return { success: false, error: 'Empty choices in response' };

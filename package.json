@@ -8,6 +8,17 @@
   "bin": {
     "ntk": "./bin/ntk.js"
   },
+  "files": [
+    "dist/",
+    "bin/",
+    "SKILL.md",
+    "README.md",
+    "README_EN.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx src/cli.ts interactive",
     "start": "tsx src/cli.ts",
@@ -17,7 +28,11 @@
     "test:watch": "vitest",
     "test:run": "tsx src/cli.ts test",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --write src/",
+    "format": "biome format --write src/",
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "keywords": [
     "multi-agent",
@@ -37,6 +52,7 @@
     "tsx": "^4.19.3"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.10",
     "@types/node": "^22.14.0",
     "typescript": "^5.8.2",
     "vitest": "^4.1.2"

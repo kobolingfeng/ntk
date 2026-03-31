@@ -8,14 +8,7 @@
  * 3. When they need to know (priority)
  */
 
-import type {
-  Message,
-  AgentType,
-  Phase,
-  RoutingRule,
-  InfoLevel,
-  AGENT_INFO_LEVEL,
-} from './protocol.js';
+import type { AgentType, Message, Phase, RoutingRule } from './protocol.js';
 
 export class Router {
   private rules: RoutingRule[] = [];
@@ -72,8 +65,8 @@ export class Router {
           ['verifier', 'executor'],
         ],
         block: [
-          ['executor', 'planner'],  // Don't bother planner with execution details
-          ['verifier', 'planner'],  // Don't bother planner with test details
+          ['executor', 'planner'], // Don't bother planner with execution details
+          ['verifier', 'planner'], // Don't bother planner with test details
           ['executor', 'scout'],
           ['verifier', 'scout'],
         ],
@@ -85,8 +78,8 @@ export class Router {
         name: 'verify-escalate',
         phase: 'verify',
         allow: [
-          ['verifier', 'planner'],  // Only when escalating
-          ['planner', 'executor'],  // Planner can re-assign
+          ['verifier', 'planner'], // Only when escalating
+          ['planner', 'executor'], // Planner can re-assign
         ],
         block: [
           ['verifier', 'scout'],
@@ -123,15 +116,11 @@ export class Router {
    */
   canRoute(message: Message, currentPhase: Phase): RouteDecision {
     // Find applicable rules
-    const applicableRules = this.rules.filter(
-      (r) => r.phase === currentPhase || r.phase === '*'
-    );
+    const applicableRules = this.rules.filter((r) => r.phase === currentPhase || r.phase === '*');
 
     // Check blocks first (blocks take priority)
     for (const rule of applicableRules) {
-      const isBlocked = rule.block.some(
-        ([from, to]) => message.from === from && message.to === to
-      );
+      const isBlocked = rule.block.some(([from, to]) => message.from === from && message.to === to);
       if (isBlocked) {
         const decision: RouteDecision = {
           allowed: false,
@@ -145,9 +134,7 @@ export class Router {
 
     // Check allows
     for (const rule of applicableRules) {
-      const isAllowed = rule.allow.some(
-        ([from, to]) => message.from === from && message.to === to
-      );
+      const isAllowed = rule.allow.some(([from, to]) => message.from === from && message.to === to);
       if (isAllowed) {
         return {
           allowed: true,
@@ -180,9 +167,7 @@ export class Router {
    * Each agent only sees messages addressed to them.
    */
   getVisibleMessages(agent: AgentType): Message[] {
-    return this.messageLog.filter(
-      (m) => m.to === agent || m.from === agent
-    );
+    return this.messageLog.filter((m) => m.to === agent || m.from === agent);
   }
 
   /** Add a custom routing rule */

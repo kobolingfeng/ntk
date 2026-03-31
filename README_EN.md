@@ -34,7 +34,7 @@ This isn't a limitation — it's an advantage. Cognitive science tells us that *
 
 ### Core Technology
 
-- **Information Entropy Routing** — Automatically evaluates task complexity based on information entropy. High-entropy tasks go through multi-stage pipelines; low-entropy tasks get single-step execution.
+- **Adaptive Complexity Routing** — Automatically evaluates task complexity via regex fast path + lightweight LLM classifier. Complex tasks go through multi-stage pipelines; simple tasks get single-step execution.
 - **Selective Forgetting** — Agents don't pass raw context to each other. Instead, information is density-compressed and delivered on a need-to-know basis.
 - **Zero-Overhead Classification** — 63% of tasks are classified via regex fast path in microseconds, completely bypassing the LLM classifier with zero additional token cost.
 - **Progressive Pipeline Depth** — Four-level adaptive depth: direct → light → standard → full. Like TCP slow start, complexity only escalates when necessary.

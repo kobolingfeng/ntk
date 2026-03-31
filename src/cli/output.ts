@@ -38,8 +38,10 @@ export function printTokenReport(result: PipelineResult): void {
   const { tokenReport, routerStats, blockedMessages } = result;
   const total = tokenReport.totalInput + tokenReport.totalOutput;
 
-  console.log('\n' + chalk.cyan.bold('  ┌─── Token Usage Report ───────────────────────┐'));
-  console.log(chalk.white(`  │ Total: ${total} tokens (in: ${tokenReport.totalInput}, out: ${tokenReport.totalOutput})`));
+  console.log(`\n${chalk.cyan.bold('  ┌─── Token Usage Report ───────────────────────┐')}`);
+  console.log(
+    chalk.white(`  │ Total: ${total} tokens (in: ${tokenReport.totalInput}, out: ${tokenReport.totalOutput})`),
+  );
 
   if (Object.keys(tokenReport.byAgent).length > 0) {
     console.log(chalk.cyan('  │'));
@@ -62,7 +64,11 @@ export function printTokenReport(result: PipelineResult): void {
 
   console.log(chalk.cyan('  │'));
   console.log(chalk.cyan('  │ Router:'));
-  console.log(chalk.dim(`  │   Routed: ${routerStats.totalRouted} | Blocked: ${routerStats.totalBlocked} | Block rate: ${(routerStats.blockRate * 100).toFixed(1)}%`));
+  console.log(
+    chalk.dim(
+      `  │   Routed: ${routerStats.totalRouted} | Blocked: ${routerStats.totalBlocked} | Block rate: ${(routerStats.blockRate * 100).toFixed(1)}%`,
+    ),
+  );
 
   if (blockedMessages.length > 0) {
     console.log(chalk.cyan('  │'));
@@ -73,6 +79,8 @@ export function printTokenReport(result: PipelineResult): void {
   }
 
   console.log(chalk.cyan('  │'));
-  console.log(chalk.green.bold(`  │ 💰 Est. savings vs traditional: ~${tokenReport.estimatedSavingsVsTraditional.toFixed(0)}%`));
+  console.log(
+    chalk.green.bold(`  │ 💰 Est. savings vs traditional: ~${tokenReport.estimatedSavingsVsTraditional.toFixed(0)}%`),
+  );
   console.log(chalk.cyan.bold('  └────────────────────────────────────────────────┘\n'));
 }

@@ -24,12 +24,12 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import dotenv from 'dotenv';
 import { z } from 'zod';
-import { Pipeline } from '../pipeline/pipeline.js';
 import { Compressor } from '../core/compressor.js';
 import { LLMClient } from '../core/llm.js';
 import type { NTKConfig, PipelineDepth } from '../index.js';
-import dotenv from 'dotenv';
+import { Pipeline } from '../pipeline/pipeline.js';
 
 dotenv.config();
 
@@ -79,7 +79,10 @@ server.tool(
   'Run a task through NTK adaptive pipeline. Auto-routes to optimal depth (direct/light/standard/full) based on task complexity. Uses cheap model for most work, strong model only for complex planning.',
   {
     task: z.string().describe('The task to execute (e.g., "用Python写斐波那契函数", "比较React和Vue")'),
-    forceDepth: z.enum(['direct', 'light', 'standard', 'full']).optional().describe('Force a specific pipeline depth instead of auto-classification'),
+    forceDepth: z
+      .enum(['direct', 'light', 'standard', 'full'])
+      .optional()
+      .describe('Force a specific pipeline depth instead of auto-classification'),
     skipScout: z.boolean().optional().describe('Skip the scout/research phase in standard depth'),
   },
   async ({ task, forceDepth, skipScout }) => {
@@ -116,7 +119,7 @@ server.tool(
         },
       ],
     };
-  }
+  },
 );
 
 // Tool: ntk_run_fast — Direct depth, all cheap model
@@ -138,15 +141,18 @@ server.tool(
 
     const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
     return {
-      content: [{
-        type: 'text' as const,
-        text: result.report,
-      }, {
-        type: 'text' as const,
-        text: `\n---\n⚡ Fast mode | Tokens: ${totalTokens} | Success: ${result.success}`,
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: result.report,
+        },
+        {
+          type: 'text' as const,
+          text: `\n---\n⚡ Fast mode | Tokens: ${totalTokens} | Success: ${result.success}`,
+        },
+      ],
     };
-  }
+  },
 );
 
 // Tool: ntk_compress — Standalone text compression
@@ -167,15 +173,18 @@ server.tool(
     const result = await compressor.compress(text, level || 'standard', 'summarizer', 'gather');
 
     return {
-      content: [{
-        type: 'text' as const,
-        text: result.compressed,
-      }, {
-        type: 'text' as const,
-        text: `\n---\n📦 Compressed: ${result.originalLength}→${result.compressedLength} chars (${result.ratio.toFixed(1)}x)`,
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: result.compressed,
+        },
+        {
+          type: 'text' as const,
+          text: `\n---\n📦 Compressed: ${result.originalLength}→${result.compressedLength} chars (${result.ratio.toFixed(1)}x)`,
+        },
+      ],
     };
-  }
+  },
 );
 
 // ─── Start Server ─────────────────────────────────────

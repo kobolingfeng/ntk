@@ -8,14 +8,14 @@
  *   npx tsx src/cli.ts test                      — Run built-in test suite
  */
 
-import { Pipeline } from './pipeline/pipeline.js';
-import { NTKServer } from './api/server.js';
-import { LLMClient } from './core/llm.js';
-import type { NTKConfig } from './index.js';
-import { handleEvent, printTokenReport } from './cli/output.js';
+import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
-import { createInterface } from 'readline';
+import { NTKServer } from './api/server.js';
+import { handleEvent, printTokenReport } from './cli/output.js';
+import { LLMClient } from './core/llm.js';
+import type { NTKConfig } from './index.js';
+import { Pipeline } from './pipeline/pipeline.js';
 
 dotenv.config();
 
@@ -45,7 +45,7 @@ function loadEndpoints(): void {
   }
 
   LLMClient.setEndpoints(endpoints);
-  console.log(chalk.dim(`  Loaded ${endpoints.length} endpoint(s): ${endpoints.map(e => e.name).join(', ')}`));
+  console.log(chalk.dim(`  Loaded ${endpoints.length} endpoint(s): ${endpoints.map((e) => e.name).join(', ')}`));
 }
 
 function loadConfig(): NTKConfig {
@@ -61,14 +61,22 @@ function loadConfig(): NTKConfig {
     debug: process.env.DEBUG === 'true',
     parallelExecution: true,
     tokenBudget: {
-      planner: 1024, scout: 512, summarizer: 512, executor: 4096, verifier: 256,
+      planner: 1024,
+      scout: 512,
+      summarizer: 512,
+      executor: 4096,
+      verifier: 256,
     },
   };
 }
 
 // ─── Commands ─────────────────────────────────────────
 
-async function cmdRun(task: string, config: NTKConfig, opts?: { forceDepth?: string; skipScout?: boolean }): Promise<void> {
+async function cmdRun(
+  task: string,
+  config: NTKConfig,
+  opts?: { forceDepth?: string; skipScout?: boolean },
+): Promise<void> {
   console.log(chalk.blue.bold(`\n  ⚡ Running task: "${task}"\n`));
   if (opts?.forceDepth) console.log(chalk.dim(`  Force depth: ${opts.forceDepth}`));
   if (opts?.skipScout) console.log(chalk.dim(`  Skip scout: true`));
@@ -79,7 +87,7 @@ async function cmdRun(task: string, config: NTKConfig, opts?: { forceDepth?: str
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
   console.log(chalk.cyan.bold('\n  === Final Report ==='));
-  console.log('  ' + result.report.split('\n').join('\n  '));
+  console.log(`  ${result.report.split('\n').join('\n  ')}`);
   console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
 
   printTokenReport(result);
@@ -129,9 +137,16 @@ async function main(): Promise<void> {
 
   // Early validation for 'run' command
   if (command === 'run') {
-    const task = args.slice(1).filter((a) => !a.startsWith('--')).join(' ');
+    const task = args
+      .slice(1)
+      .filter((a) => !a.startsWith('--'))
+      .join(' ');
     if (!task) {
-      console.log(chalk.yellow('  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout]'));
+      console.log(
+        chalk.yellow(
+          '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout]',
+        ),
+      );
       return;
     }
   }
@@ -173,12 +188,22 @@ async function main(): Promise<void> {
       }
       const skipScout = args.includes('--skip-scout');
       const skipIndices = new Set<number>();
-      if (fdIdx >= 0) { skipIndices.add(fdIdx); skipIndices.add(fdIdx + 1); }
+      if (fdIdx >= 0) {
+        skipIndices.add(fdIdx);
+        skipIndices.add(fdIdx + 1);
+      }
       const ssIdx = args.indexOf('--skip-scout');
       if (ssIdx >= 0) skipIndices.add(ssIdx);
-      const task = args.slice(1).filter((a, i) => !a.startsWith('--') && !skipIndices.has(i + 1)).join(' ');
+      const task = args
+        .slice(1)
+        .filter((a, i) => !a.startsWith('--') && !skipIndices.has(i + 1))
+        .join(' ');
       if (!task) {
-        console.log(chalk.yellow('  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout]'));
+        console.log(
+          chalk.yellow(
+            '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout]',
+          ),
+        );
         return;
       }
       await cmdRun(task, config, { forceDepth, skipScout: skipScout || undefined });
@@ -193,31 +218,31 @@ async function main(): Promise<void> {
     case 'serve':
     case 'api': {
       const portIdx = args.indexOf('--port');
-      const port = portIdx >= 0 ? (parseInt(args[portIdx + 1]) || 3210) : 3210;
+      const port = portIdx >= 0 ? parseInt(args[portIdx + 1], 10) || 3210 : 3210;
       await cmdServe(port, config);
       break;
     }
 
     case 'test': {
-      const { cmdTest } = await import('./cli/benchmarks.js');
+      const { cmdTest } = await import('./cli/benchmarks/index.js');
       await cmdTest(config);
       break;
     }
 
     case 'baseline': {
-      const { cmdBaseline } = await import('./cli/benchmarks.js');
+      const { cmdBaseline } = await import('./cli/benchmarks/index.js');
       await cmdBaseline(config);
       break;
     }
 
     case 'ablation': {
-      const { cmdAblation } = await import('./cli/benchmarks.js');
+      const { cmdAblation } = await import('./cli/benchmarks/index.js');
       await cmdAblation(config);
       break;
     }
 
     case 'optimize': {
-      const { cmdOptimize } = await import('./cli/benchmarks.js');
+      const { cmdOptimize } = await import('./cli/benchmarks/index.js');
       await cmdOptimize(config);
       break;
     }

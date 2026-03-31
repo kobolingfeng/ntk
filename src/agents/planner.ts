@@ -10,9 +10,9 @@
 
 import { BaseAgent } from '../core/base-agent.js';
 import type { LLMClient } from '../core/llm.js';
-import type { Message, AgentContext, Task } from '../core/protocol.js';
-import { createMessage, createTask } from '../core/protocol.js';
 import { PLANNER_PROMPT } from '../core/prompts.js';
+import type { AgentContext } from '../core/protocol.js';
+import { createMessage } from '../core/protocol.js';
 
 export class Planner extends BaseAgent {
   constructor(llm: LLMClient) {
@@ -56,7 +56,6 @@ export class Planner extends BaseAgent {
       const numberedMatch = trimmed.match(/^\d+[.)、]\s*(.+)/);
       if (numberedMatch && trimmed.length > 20) {
         results.push({ target: 'executor' as const, instruction: numberedMatch[1].trim() });
-        continue;
       }
     }
 
@@ -68,20 +67,13 @@ export class Planner extends BaseAgent {
    */
   async createPlan(
     userRequest: string,
-    gatheredInfo: string
+    gatheredInfo: string,
   ): Promise<{ plan: string; instructions: PlannerInstruction[] }> {
     const { PIPELINE_STRINGS } = await import('../core/prompts.js');
     const s = PIPELINE_STRINGS[this.locale];
-    const prompt = gatheredInfo
-      ? s.planPrompt(userRequest, gatheredInfo)
-      : s.planPrompt(userRequest, '');
+    const prompt = gatheredInfo ? s.planPrompt(userRequest, gatheredInfo) : s.planPrompt(userRequest, '');
 
-    const { content } = await this.llm.chat(
-      this.getSystemPrompt(),
-      prompt,
-      'planner',
-      'plan'
-    );
+    const { content } = await this.llm.chat(this.getSystemPrompt(), prompt, 'planner', 'plan');
 
     return {
       plan: content,
@@ -94,19 +86,11 @@ export class Planner extends BaseAgent {
    */
   async decide(
     statusUpdate: string,
-    context: AgentContext
+    context: AgentContext,
   ): Promise<{ decision: string; instructions: PlannerInstruction[] }> {
-    const userPrompt = this.buildUserPrompt(
-      createMessage('verifier', 'planner', 'status', statusUpdate),
-      context
-    );
+    const userPrompt = this.buildUserPrompt(createMessage('verifier', 'planner', 'status', statusUpdate), context);
 
-    const { content } = await this.llm.chat(
-      this.getSystemPrompt(),
-      userPrompt,
-      'planner',
-      this.currentPhase
-    );
+    const { content } = await this.llm.chat(this.getSystemPrompt(), userPrompt, 'planner', this.currentPhase);
 
     return {
       decision: content,

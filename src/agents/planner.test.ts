@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { Planner } from './planner.js';
 
 // We need a mock LLMClient for the constructor
 const mockLLM = {
-  chat: async () => ({ content: '', usage: { inputTokens: 0, outputTokens: 0, agent: 'planner' as const, phase: 'gather' as const } }),
+  chat: async () => ({
+    content: '',
+    usage: { inputTokens: 0, outputTokens: 0, agent: 'planner' as const, phase: 'gather' as const },
+  }),
   getTokenLog: () => [],
   getConfig: () => ({ provider: 'openai', model: 'test', apiKey: 'test' }),
 } as any;

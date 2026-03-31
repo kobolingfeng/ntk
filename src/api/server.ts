@@ -12,11 +12,11 @@
  */
 
 import http from 'node:http';
-import { Pipeline } from '../pipeline/pipeline.js';
-import type { PipelineEvent, PipelineResult } from '../pipeline/pipeline.js';
 import { Compressor } from '../core/compressor.js';
 import { LLMClient } from '../core/llm.js';
 import type { NTKConfig } from '../core/protocol.js';
+import type { PipelineEvent, PipelineResult } from '../pipeline/pipeline.js';
+import { Pipeline } from '../pipeline/pipeline.js';
 
 export class NTKServer {
   private server: http.Server;
@@ -54,10 +54,7 @@ export class NTKServer {
     });
   }
 
-  private async handleRequest(
-    req: http.IncomingMessage,
-    res: http.ServerResponse
-  ): Promise<void> {
+  private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     // CORS headers for flexibility
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -94,7 +91,10 @@ export class NTKServer {
           this.handleHistory(res);
           break;
         default:
-          this.sendJson(res, 404, { error: 'Not found', endpoints: ['/run', '/run/stream', '/compress', '/health', '/stats', '/history'] });
+          this.sendJson(res, 404, {
+            error: 'Not found',
+            endpoints: ['/run', '/run/stream', '/compress', '/health', '/stats', '/history'],
+          });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -114,10 +114,7 @@ export class NTKServer {
     });
   }
 
-  private async handleRun(
-    req: http.IncomingMessage,
-    res: http.ServerResponse
-  ): Promise<void> {
+  private async handleRun(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (req.method !== 'POST') {
       this.sendJson(res, 405, { error: 'Method not allowed, use POST' });
       return;
@@ -168,10 +165,7 @@ export class NTKServer {
     });
   }
 
-  private async handleRunStream(
-    req: http.IncomingMessage,
-    res: http.ServerResponse
-  ): Promise<void> {
+  private async handleRunStream(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (req.method !== 'POST') {
       this.sendJson(res, 405, { error: 'Method not allowed, use POST' });
       return;
@@ -201,10 +195,10 @@ export class NTKServer {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
     });
 
-    const config = { ...this.config, debug: debug === true ? true : false };
+    const config = { ...this.config, debug: debug === true };
 
     const pipeline = new Pipeline(config, (event) => {
       if (!res.destroyed) {
@@ -221,17 +215,19 @@ export class NTKServer {
       this.addToHistory(task, result, startTime, durationMs);
 
       if (!res.destroyed) {
-        res.write(`data: ${JSON.stringify({
-          type: 'final',
-          phase: 'report',
-          detail: JSON.stringify({
-            success: result.success,
-            report: result.report,
-            tokenUsage: result.tokenReport,
-            routerStats: result.routerStats,
-            durationMs,
-          }),
-        })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({
+            type: 'final',
+            phase: 'report',
+            detail: JSON.stringify({
+              success: result.success,
+              report: result.report,
+              tokenUsage: result.tokenReport,
+              routerStats: result.routerStats,
+              durationMs,
+            }),
+          })}\n\n`,
+        );
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -243,10 +239,7 @@ export class NTKServer {
     }
   }
 
-  private async handleCompress(
-    req: http.IncomingMessage,
-    res: http.ServerResponse
-  ): Promise<void> {
+  private async handleCompress(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (req.method !== 'POST') {
       this.sendJson(res, 405, { error: 'Method not allowed, use POST' });
       return;
@@ -290,7 +283,7 @@ export class NTKServer {
     const avgDuration = this.runHistory.reduce((sum, r) => sum + r.durationMs, 0) / totalRuns;
     const totalTokens = this.runHistory.reduce(
       (sum, r) => sum + r.result.tokenReport.totalInput + r.result.tokenReport.totalOutput,
-      0
+      0,
     );
 
     this.sendJson(res, 200, {
@@ -341,7 +334,10 @@ export class NTKServer {
       let size = 0;
       let settled = false;
       const settle = (fn: typeof resolve | typeof reject, value: any) => {
-        if (!settled) { settled = true; fn(value); }
+        if (!settled) {
+          settled = true;
+          fn(value);
+        }
       };
       req.on('data', (chunk: Buffer) => {
         size += chunk.length;

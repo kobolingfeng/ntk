@@ -8,10 +8,10 @@
  * 4. Return response
  */
 
-import type { Agent, AgentContext, AgentType, InfoLevel, Message, Phase } from './protocol.js';
-import { createMessage, AGENT_INFO_LEVEL } from './protocol.js';
 import type { LLMClient } from './llm.js';
 import type { Locale } from './prompts.js';
+import type { Agent, AgentContext, AgentType, InfoLevel, Message, Phase } from './protocol.js';
+import { AGENT_INFO_LEVEL, createMessage } from './protocol.js';
 
 export abstract class BaseAgent implements Agent {
   type: AgentType;
@@ -48,7 +48,7 @@ export abstract class BaseAgent implements Agent {
       userPrompt,
       this.type,
       this.currentPhase,
-      this.tokenBudget
+      this.tokenBudget,
     );
 
     // Create response message
@@ -58,7 +58,7 @@ export abstract class BaseAgent implements Agent {
       'respond',
       content,
       message.priority,
-      message.id
+      message.id,
     );
   }
 

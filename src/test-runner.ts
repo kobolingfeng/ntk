@@ -2,12 +2,13 @@
  * Clean test runner with multi-endpoint failover.
  * Writes results to test-results.md for analysis.
  */
+
+import { writeFileSync } from 'node:fs';
 import dotenv from 'dotenv';
-import { writeFileSync } from 'fs';
-import { Pipeline } from './pipeline/pipeline.js';
 import { LLMClient } from './core/llm.js';
 import type { NTKConfig } from './core/protocol.js';
 import type { PipelineEvent, PipelineResult } from './pipeline/pipeline.js';
+import { Pipeline } from './pipeline/pipeline.js';
 
 dotenv.config();
 
@@ -47,7 +48,11 @@ function loadConfig(): NTKConfig {
   };
 }
 
-async function runTest(name: string, task: string, config: NTKConfig): Promise<{
+async function runTest(
+  name: string,
+  task: string,
+  config: NTKConfig,
+): Promise<{
   name: string;
   task: string;
   events: PipelineEvent[];
@@ -79,7 +84,9 @@ async function main() {
   const config = loadConfig();
   console.log(`Model: ${config.planner.model}`);
   console.log(`Parallel: ${config.parallelExecution}`);
-  console.log(`Token budgets: planner=${config.tokenBudget?.planner}, executor=${config.tokenBudget?.executor}, verifier=${config.tokenBudget?.verifier}\n`);
+  console.log(
+    `Token budgets: planner=${config.tokenBudget?.planner}, executor=${config.tokenBudget?.executor}, verifier=${config.tokenBudget?.verifier}\n`,
+  );
 
   const tests = [
     { name: 'Simple Code', task: '用Python写一个计算斐波那契数列第n项的函数' },
@@ -92,7 +99,9 @@ async function main() {
   allResults.push(`Model: ${config.planner.model}`);
   allResults.push(`Endpoint: ${working}`);
   allResults.push(`Parallel: ${config.parallelExecution}`);
-  allResults.push(`Token budgets: planner=${config.tokenBudget?.planner}, executor=${config.tokenBudget?.executor}, verifier=${config.tokenBudget?.verifier}`);
+  allResults.push(
+    `Token budgets: planner=${config.tokenBudget?.planner}, executor=${config.tokenBudget?.executor}, verifier=${config.tokenBudget?.verifier}`,
+  );
   allResults.push(`Time: ${new Date().toISOString()}\n`);
 
   for (const test of tests) {
@@ -133,11 +142,12 @@ async function main() {
       }
 
       const rs = result.routerStats;
-      allResults.push(`\nRouter: ${rs.totalRouted} routed, ${rs.totalBlocked} blocked (${(rs.blockRate * 100).toFixed(1)}% block rate)`);
+      allResults.push(
+        `\nRouter: ${rs.totalRouted} routed, ${rs.totalBlocked} blocked (${(rs.blockRate * 100).toFixed(1)}% block rate)`,
+      );
 
       allResults.push(`\n---`);
       console.log(`  Done: ${name} (${(durationMs / 1000).toFixed(1)}s, ${tr.totalInput + tr.totalOutput} tokens)\n`);
-
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       allResults.push(`\n## Test: ${test.name} - FAILED`);

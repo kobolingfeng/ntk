@@ -7,8 +7,8 @@
  */
 
 import type { LLMClient } from './llm.js';
+import { COMPRESSION_PROMPTS, type Locale } from './prompts.js';
 import type { AgentType, Phase } from './protocol.js';
-import { COMPRESSION_PROMPTS, detectLocale, type Locale } from './prompts.js';
 
 /** Compression level determines how aggressively we compress */
 export type CompressionLevel = 'minimal' | 'standard' | 'aggressive';
@@ -33,7 +33,7 @@ export class Compressor {
     text: string,
     level: CompressionLevel = 'standard',
     agent: AgentType = 'summarizer',
-    phase: Phase = 'gather'
+    phase: Phase = 'gather',
   ): Promise<CompressResult> {
     const originalLength = text.length;
 
@@ -48,12 +48,7 @@ export class Compressor {
       };
     }
 
-    const { content, usage } = await this.llm.chat(
-      COMPRESSION_PROMPTS[level][this.locale],
-      text,
-      agent,
-      phase
-    );
+    const { content, usage } = await this.llm.chat(COMPRESSION_PROMPTS[level][this.locale], text, agent, phase);
 
     return {
       compressed: content,
@@ -71,11 +66,9 @@ export class Compressor {
    */
   async compressAndMerge(
     items: Array<{ source: string; content: string }>,
-    phase: Phase = 'gather'
+    phase: Phase = 'gather',
   ): Promise<CompressResult> {
-    const formatted = items
-      .map((item) => `[${item.source}]: ${item.content}`)
-      .join('\n');
+    const formatted = items.map((item) => `[${item.source}]: ${item.content}`).join('\n');
 
     return this.compress(formatted, 'standard', 'summarizer', phase);
   }

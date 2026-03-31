@@ -185,8 +185,7 @@ export const PIPELINE_STRINGS = {
     userRequest: '用户需求',
     gatherPrompt: (req: string) =>
       `用户需求: ${req}\n\n你需要先了解什么信息？输出查询指令。如果不需要额外信息，输出: → executor: [直接根据需求执行]`,
-    planPrompt: (req: string, info: string) =>
-      info ? `用户需求: ${req}\n\n已收集信息:\n${info}` : `用户需求: ${req}`,
+    planPrompt: (req: string, info: string) => (info ? `用户需求: ${req}\n\n已收集信息:\n${info}` : `用户需求: ${req}`),
     reportPrompt: (req: string, summary: string, verify: string) =>
       `用户原始需求: ${req}\n\n执行摘要:\n${summary}\n\n验证结果: ${verify}\n\n用中文给用户写一份简洁的完成报告。不要废话。`,
     reportSystem: '你是报告者。用最少的话总结任务完成情况。格式清晰，重点突出。',

@@ -1,59 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { classifyDepthFastPath } from './classifier.js';
+import { parseVerificationResult } from './helpers.js';
 
 /**
- * Test the parseVerificationResult logic extracted from Pipeline.
- * Since it's a private method, we replicate the exact logic here for unit testing.
- */
-function parseVerificationResult(payload: string): boolean {
-  // Primary: emoji markers
-  const hasPass = payload.includes('✅');
-  const hasFail = payload.includes('❌');
-  if (hasPass && !hasFail) return true;
-  if (hasFail) return false;
-
-  // Fallback: keyword matching (case-insensitive)
-  const lower = payload.toLowerCase();
-  const passKeywords = ['pass', 'passed', 'all correct', 'no issues', '通过', '正确', '没有问题', '无问题'];
-  const failKeywords = ['fail', 'failed', 'error', 'incorrect', 'wrong', '失败', '错误', '不正确', '有问题'];
-
-  const hasPassKeyword = passKeywords.some(kw => lower.includes(kw));
-  // Strip negation-pass patterns before checking fail keywords
-  // to avoid substring conflicts (e.g. "没有问题" contains "有问题")
-  let lowerForFailCheck = lower;
-  const negationPassPatterns = ['没有问题', '无问题', 'no issues', 'no errors'];
-  for (const np of negationPassPatterns) {
-    lowerForFailCheck = lowerForFailCheck.replaceAll(np, '');
-  }
-  const hasFailKeyword = failKeywords.some(kw => lowerForFailCheck.includes(kw));
-
-  if (hasPassKeyword && !hasFailKeyword) return true;
-  if (hasFailKeyword) return false;
-
-  // Default: assume pass
-  return true;
-}
-
-/**
- * Test the classifyDepth regex logic (fast path only, no LLM).
- */
-function classifyDepthFastPath(userRequest: string): 'direct' | null {
-  const codeUnitPattern = /^(写|实现|编写|创建|用\w+写|帮我写|请写).{0,30}(函数|function|算法|方法|脚本|工具|类|class)/;
-  const simplePattern = /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为))/;
-  const directPattern = /^(写一个|实现一个|用\w+实现|生成|输出|列出|什么是|如何|怎么)/;
-  const directPatternEn = /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define)\b/i;
-
-  if (codeUnitPattern.test(userRequest) || simplePattern.test(userRequest) || directPattern.test(userRequest) || directPatternEn.test(userRequest)) {
-    if (userRequest.length > 100) return null; // falls through to LLM
-    return 'direct';
-  }
-
-  if (userRequest.length <= 30) return 'direct';
-
-  return null; // needs LLM classification
-}
-
-/**
- * Test the cost savings calculation from generateTokenReport.
+ * Wrapper for cost savings calculation using the real generateTokenReport function.
  */
 function calculateSavings(strongTokens: number, cheapTokens: number): number {
   const totalUsed = strongTokens + cheapTokens;
@@ -295,24 +245,25 @@ describe('classifyDepth fast path', () => {
     });
 
     it('pattern match but >100 chars → null (needs LLM)', () => {
-      const longInput = 'write ' + 'a'.repeat(100);
+      const longInput = `write ${'a'.repeat(100)}`;
       expect(classifyDepthFastPath(longInput)).toBeNull();
     });
 
     it('pattern match at exactly 100 chars → direct', () => {
-      const input = 'write ' + 'a'.repeat(94); // 6 + 94 = 100
+      const input = `write ${'a'.repeat(94)}`; // 6 + 94 = 100
       expect(classifyDepthFastPath(input)).toBe('direct');
     });
 
     it('pattern match at 101 chars → null', () => {
-      const input = 'write ' + 'a'.repeat(95); // 6 + 95 = 101
+      const input = `write ${'a'.repeat(95)}`; // 6 + 95 = 101
       expect(classifyDepthFastPath(input)).toBeNull();
     });
   });
 
   describe('non-matching inputs', () => {
     it('long complex description → null', () => {
-      const input = 'Design a complete microservices architecture with event sourcing, CQRS, and saga pattern for an e-commerce platform';
+      const input =
+        'Design a complete microservices architecture with event sourcing, CQRS, and saga pattern for an e-commerce platform';
       expect(classifyDepthFastPath(input)).toBeNull();
     });
   });

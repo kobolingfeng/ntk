@@ -55,7 +55,7 @@ export function createMessage(
   action: string,
   payload: string,
   priority: Priority = 'now',
-  replyTo?: string
+  replyTo?: string,
 ): Message {
   return {
     id: generateId(),
@@ -97,12 +97,7 @@ export interface Task {
   completedAt?: number;
 }
 
-export function createTask(
-  description: string,
-  assignee: AgentType,
-  input: string,
-  dependsOn?: string[]
-): Task {
+export function createTask(description: string, assignee: AgentType, input: string, dependsOn?: string[]): Task {
   return {
     id: generateId(),
     description,

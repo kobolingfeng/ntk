@@ -34,7 +34,7 @@
 
 ### 核心技术
 
-- **信息熵路由 (Information Entropy Routing)** — 基于任务信息熵自动评估复杂度，将高熵任务分配给多阶段管线，低熵任务一步直出。不同密度的信息走不同的处理通道。
+- **自适应复杂度路由 (Adaptive Complexity Routing)** — 通过正则快速路径 + 轻量 LLM 分类器自动评估任务复杂度，将复杂任务分配给多阶段管线，简单任务一步直出。不同复杂度的任务走不同的处理通道。
 - **选择性遗忘 (Selective Forgetting)** — Agent 间不传递原始上下文，而是经过信息密度压缩后按需投递。每个 Agent 只看到经过裁剪的最小充分信息集。
 - **零开销分级 (Zero-Overhead Classification)** — 63% 的任务通过正则快速路径在微秒级完成分级，完全绕过 LLM 分类器，实现零额外 token 消耗。
 - **渐进式管线深度 (Progressive Pipeline Depth)** — 四级深度自适应：direct → light → standard → full，像 TCP 慢启动一样，只在必要时才升级复杂度。

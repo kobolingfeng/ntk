@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Router } from './router.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { Phase } from './protocol.js';
 import { createMessage } from './protocol.js';
-import type { Phase, AgentType } from './protocol.js';
+import { Router } from './router.js';
 
 describe('Router', () => {
   let router: Router;
