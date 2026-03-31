@@ -123,10 +123,12 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
 
       if (trimmed === 'help') {
         console.log(chalk.dim('  Type a task to run it. Special commands:'));
-        console.log(chalk.dim('    exit/quit  — Exit'));
-        console.log(chalk.dim('    gain       — Show cumulative savings'));
-        console.log(chalk.dim('    clear      — Clear conversation context'));
-        console.log(chalk.dim('    help       — This help'));
+        console.log(chalk.dim('    exit/quit    — Exit'));
+        console.log(chalk.dim('    gain         — Show cumulative savings'));
+        console.log(chalk.dim('    clear        — Clear conversation context'));
+        console.log(chalk.dim('    cache        — Show response cache stats'));
+        console.log(chalk.dim('    cache clear  — Clear response cache'));
+        console.log(chalk.dim('    help         — This help'));
         ask();
         return;
       }
@@ -140,6 +142,23 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
       if (trimmed === 'clear') {
         diffCtx.clear();
         console.log(chalk.dim('  Conversation context cleared.'));
+        ask();
+        return;
+      }
+
+      if (trimmed === 'cache') {
+        const stats = Pipeline.getCacheStats();
+        console.log(chalk.dim(`  📦 Cache: ${stats.size} entries, ${stats.hits} hits, ${stats.misses} misses`));
+        console.log(
+          chalk.dim(`     Hit rate: ${(stats.hitRate * 100).toFixed(1)}% | Tokens saved: ${stats.totalTokensSaved}`),
+        );
+        ask();
+        return;
+      }
+
+      if (trimmed === 'cache clear') {
+        Pipeline.clearCache();
+        console.log(chalk.dim('  📦 Cache cleared.'));
         ask();
         return;
       }

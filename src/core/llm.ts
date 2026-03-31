@@ -39,7 +39,7 @@ export interface Endpoint {
 const CJK_RANGE = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g;
 
 /** Estimate token count accounting for CJK characters (~1.5 tokens each vs ASCII ~0.25) */
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   const cjkCount = (text.match(CJK_RANGE) || []).length;
   const asciiCount = text.length - cjkCount;
   return Math.ceil(cjkCount * 1.5 + asciiCount / 4);
