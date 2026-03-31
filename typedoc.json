@@ -1,0 +1,16 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs/api",
+  "name": "NTK API Reference",
+  "readme": "README.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "navigationLinks": {
+    "GitHub": "https://github.com/kobolingfeng/ntk",
+    "npm": "https://www.npmjs.com/package/ntk"
+  },
+  "categorizeByGroup": true,
+  "sort": ["alphabetical"]
+}

@@ -10,25 +10,32 @@
  */
 
 export { Executor } from './agents/executor.js';
+export type { PlannerInstruction } from './agents/planner.js';
 export { Planner } from './agents/planner.js';
 export { Scout } from './agents/scout.js';
 export { Summarizer } from './agents/summarizer.js';
 export { Verifier } from './agents/verifier.js';
 export { NTKServer } from './api/server.js';
-export type { CompressResult } from './core/compressor.js';
+export type { CompressionLevel, CompressResult } from './core/compressor.js';
 export { Compressor } from './core/compressor.js';
+export type { Endpoint } from './core/llm.js';
 export { LLMClient } from './core/llm.js';
 export type { Locale } from './core/prompts.js';
 export { detectLocale } from './core/prompts.js';
 export type {
+  AgentContext,
   AgentType,
   InfoLevel,
   LLMConfig,
   Message,
   NTKConfig,
   Phase,
+  Priority,
+  RoutingRule,
   Task,
+  TaskStatus,
   TokenReport,
+  TokenUsage,
 } from './core/protocol.js';
 export { AGENT_INFO_LEVEL, createMessage, createTask } from './core/protocol.js';
 export type { RouteDecision, RouterStats } from './core/router.js';
