@@ -22,10 +22,12 @@ export async function runDirect(
 ): Promise<PipelineResult> {
   emit({ type: 'phase', phase: 'execute', detail: 'Direct execution...' });
 
+  const adaptiveMaxTokens = userRequest.length < 50 ? 512 : userRequest.length < 200 ? 1024 : undefined;
+
   let report: string;
   if (llm) {
     const bandPrompt = getBandPrompt(userRequest, locale);
-    const { content } = await llm.chat(bandPrompt, userRequest, 'executor', 'execute');
+    const { content } = await llm.chat(bandPrompt, userRequest, 'executor', 'execute', adaptiveMaxTokens);
     report = content.trim() || emptyOutputMessage(locale);
   } else {
     const { createMessage } = await import('../core/protocol.js');

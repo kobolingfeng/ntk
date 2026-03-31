@@ -38,7 +38,7 @@ let registeredEndpoints: Endpoint[] = [];
 const modelEndpointMap = new Map<string, Set<number>>();
 /** Probe result cache: avoids redundant probing in interactive/server mode */
 const probeCache = new Map<string, { name: string; timestamp: number }>();
-const PROBE_CACHE_TTL = 60_000; // 60 seconds
+const PROBE_CACHE_TTL = 300_000; // 5 minutes (increased from 60s)
 
 export class LLMClient {
   private model: string;
