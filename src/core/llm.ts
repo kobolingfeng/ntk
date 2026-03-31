@@ -329,9 +329,43 @@ export class LLMClient {
     maxTokensOverride?: number,
     temperatureOverride?: number,
   ): Promise<{ content: string; usage: TokenUsage }> {
-    const ep = this.endpointManager.getActiveEndpoint();
-    if (!ep) throw new AllEndpointsFailedError(0);
+    const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
+    const allEndpoints = this.endpointManager.getEndpoints();
 
+    if (endpointsToTry.length === 0) throw new AllEndpointsFailedError(0);
+
+    const payload = JSON.stringify({
+      model: this.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: maxTokensOverride ?? this.maxTokens,
+      temperature: temperatureOverride ?? this.temperature,
+      stream: true,
+      stream_options: { include_usage: true },
+    });
+
+    for (const epIndex of endpointsToTry) {
+      const ep = allEndpoints[epIndex];
+      const result = await this.tryStreamEndpoint(ep, payload, onToken);
+      if (result) {
+        const usage: TokenUsage = { agent, ...result, timestamp: Date.now(), phase };
+        this.tokenLog.push(usage);
+        return { content: result.content, usage };
+      }
+      this.endpointManager.invalidateProbeCacheFor(ep.name);
+    }
+
+    // All stream attempts failed — fall back to non-streaming
+    return this.chat(systemPrompt, userMessage, agent, phase, maxTokensOverride, temperatureOverride);
+  }
+
+  private async tryStreamEndpoint(
+    ep: Endpoint,
+    body: string,
+    onToken: (token: string) => void,
+  ): Promise<{ content: string; inputTokens: number; outputTokens: number } | null> {
     const url = `${ep.baseUrl}/chat/completions`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 120000);
@@ -344,28 +378,16 @@ export class LLMClient {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${ep.apiKey}`,
         },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage },
-          ],
-          max_tokens: maxTokensOverride ?? this.maxTokens,
-          temperature: temperatureOverride ?? this.temperature,
-          stream: true,
-          stream_options: { include_usage: true },
-        }),
+        body,
         signal: controller.signal,
       });
     } catch {
       clearTimeout(timer);
-      return this.chat(systemPrompt, userMessage, agent, phase, maxTokensOverride, temperatureOverride);
+      return null;
     }
 
     clearTimeout(timer);
-    if (!response.ok || !response.body) {
-      return this.chat(systemPrompt, userMessage, agent, phase, maxTokensOverride, temperatureOverride);
-    }
+    if (!response.ok || !response.body) return null;
 
     let fullContent = '';
     let inputTokens = 0;
@@ -403,21 +425,13 @@ export class LLMClient {
     }
 
     if (inputTokens === 0) {
-      inputTokens = estimateTokens(systemPrompt + userMessage);
+      inputTokens = estimateTokens(body);
     }
     if (outputTokens === 0) {
       outputTokens = estimateTokens(fullContent);
     }
 
-    const usage: TokenUsage = {
-      agent,
-      inputTokens,
-      outputTokens,
-      timestamp: Date.now(),
-      phase,
-    };
-    this.tokenLog.push(usage);
-    return { content: fullContent, usage };
+    return { content: fullContent, inputTokens, outputTokens };
   }
 
   // ─── Core API Call with Failover ──────────────────
