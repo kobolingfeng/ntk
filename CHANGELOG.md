@@ -21,9 +21,12 @@
 - 智能输入截断（超长输入保留首尾）
 - `ntk gain` 累计统计命令
 - `ntk compare` 三方对比基准测试（11 个用例）
+- CLI 流式输出（direct + standard 深度实时逐 token 显示）
 - 自定义错误类型系统（NTKError 层级）
 - API server 限流（每 IP 每分钟 30 请求）
 - 持久化 probe 缓存（~/.ntk/）
+- exports map（子路径导出）
+- CI badge + Node.js 24 支持
 
 ### 性能
 - 自适应 max_tokens（短任务限 512，中等 1024）
