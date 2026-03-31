@@ -5,9 +5,8 @@
 
 import type { Executor } from '../agents/executor.js';
 import type { LLMClient } from '../core/llm.js';
-import { EXECUTOR_LITE_PROMPT, type Locale } from '../core/prompts.js';
-import type { AgentContext, TokenReport } from '../core/protocol.js';
-import { createMessage } from '../core/protocol.js';
+import { getBandPrompt, type Locale } from '../core/prompts.js';
+import type { TokenReport } from '../core/protocol.js';
 import type { RouterStats } from '../core/router.js';
 import { emptyOutputMessage } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
@@ -23,18 +22,15 @@ export async function runDirect(
 ): Promise<PipelineResult> {
   emit({ type: 'phase', phase: 'execute', detail: 'Direct execution...' });
 
-  const isAnalysis =
-    /review|分析|检查|诊断|比较|对比|解释|总结|评估|审查|compare|explain|summarize|evaluate|diagnose/i.test(
-      userRequest,
-    );
-
   let report: string;
-  if (llm && !isAnalysis) {
-    const { content } = await llm.chat(EXECUTOR_LITE_PROMPT[locale], userRequest, 'executor', 'execute');
+  if (llm) {
+    const bandPrompt = getBandPrompt(userRequest, locale);
+    const { content } = await llm.chat(bandPrompt, userRequest, 'executor', 'execute');
     report = content.trim() || emptyOutputMessage(locale);
   } else {
+    const { createMessage } = await import('../core/protocol.js');
     const msg = createMessage('planner', 'executor', userRequest, '');
-    const context: AgentContext = { visibleMessages: [] };
+    const context = { visibleMessages: [] };
     const response = await executor.process(msg, context);
     report = response.payload.trim() || emptyOutputMessage(locale);
   }

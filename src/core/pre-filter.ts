@@ -24,7 +24,7 @@ export interface PreFilterStrategyReport {
 
 type FilterStrategy = (text: string) => { result: string; name: string };
 
-const universalStrategies: FilterStrategy[] = [stripAnsiCodes, collapseBlankLines, trimTrailingWhitespace];
+const universalStrategies: FilterStrategy[] = [stripAnsiCodes, collapseBlankLines, trimTrailingWhitespace, shortenUrls];
 
 const typeSpecificStrategies: Record<OutputType, FilterStrategy[]> = {
   test: [stripProgressBars, deduplicateLines, stripPassedTests],
@@ -291,6 +291,19 @@ function stripPassedTests(text: string): { result: string; name: string } {
   }
 
   return { result: filtered.join('\n'), name: 'test-pass-strip' };
+}
+
+function shortenUrls(text: string): { result: string; name: string } {
+  const result = text.replace(/https?:\/\/[^\s)>\]"']{80,}/g, (url) => {
+    try {
+      const u = new URL(url);
+      const path = u.pathname.length > 30 ? `${u.pathname.slice(0, 30)}...` : u.pathname;
+      return `${u.origin}${path}`;
+    } catch {
+      return `${url.slice(0, 60)}...`;
+    }
+  });
+  return { result, name: 'url-shorten' };
 }
 
 function stripBoilerplateNotices(text: string): { result: string; name: string } {

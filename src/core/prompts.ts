@@ -86,6 +86,38 @@ export const EXECUTOR_LITE_PROMPT: Record<Locale, string> = {
   en: 'Complete output. Wrap code in ```. No explanations. [done]',
 };
 
+/** Band-based prompts — select only relevant rules per task type */
+export type TaskBand = 'code' | 'analysis' | 'general';
+
+export function detectTaskBand(task: string): TaskBand {
+  const codePat =
+    /写|实现|编写|创建|code|write|implement|create|function|class|模块|module|重构|refactor|生成|generate/i;
+  const analysisPat = /分析|检查|review|compare|对比|比较|解释|explain|评估|evaluate|诊断|debug|总结|summarize/i;
+  if (codePat.test(task)) return 'code';
+  if (analysisPat.test(task)) return 'analysis';
+  return 'general';
+}
+
+const BAND_PROMPTS: Record<TaskBand, Record<Locale, string>> = {
+  code: {
+    zh: '输出完整代码+必要注释。代码用```包裹标注语言。不省略import/类型/错误处理。不解释。[完成]',
+    en: 'Complete code with comments. Wrap in ``` with lang tag. No omitting imports/types. No explanations. [done]',
+  },
+  analysis: {
+    zh: '用编号列表分析，每条≤2句。不写段落式长文。不重复需求描述。[完成]',
+    en: 'Numbered list, ≤2 sentences each. No prose. No restating requirements. [done]',
+  },
+  general: {
+    zh: '完整输出。代码用```包裹。不解释、不引导。[完成]',
+    en: 'Complete output. Wrap code in ```. No explanations. [done]',
+  },
+};
+
+export function getBandPrompt(task: string, locale: Locale): string {
+  const band = detectTaskBand(task);
+  return BAND_PROMPTS[band][locale];
+}
+
 export const VERIFIER_PROMPT: Record<Locale, string> = {
   zh: `验证器。检查执行结果是否正确完整。
 
