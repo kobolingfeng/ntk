@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { detectLocale, detectTaskBand, getBandPrompt } from '../core/prompts.js';
 import { classifyDepthFastPath } from './classifier.js';
-import { parseVerificationResult } from './helpers.js';
+import { assembleReport, emptyOutputMessage, generateTokenReport, parseVerificationResult } from './helpers.js';
+import type { ExecutionResult } from './types.js';
 
 /**
  * Wrapper for cost savings calculation using the real generateTokenReport function.
@@ -322,5 +324,121 @@ describe('cost savings calculation', () => {
   it('realistic ratio: 10% strong, 90% cheap → 81% savings', () => {
     // strong=100, cheap=900 → ntk=100+90=190, trad=1000 → savings=81%
     expect(calculateSavings(100, 900)).toBe(81);
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+
+describe('assembleReport', () => {
+  it('returns single result output directly', () => {
+    const results: ExecutionResult[] = [{ instruction: 'do something', output: 'result', success: true }];
+    expect(assembleReport(results)).toBe('result');
+  });
+
+  it('formats multiple results with headers', () => {
+    const results: ExecutionResult[] = [
+      { instruction: 'task 1', output: 'output 1', success: true },
+      { instruction: 'task 2', output: 'output 2', success: true },
+    ];
+    const report = assembleReport(results);
+    expect(report).toContain('### 1. task 1');
+    expect(report).toContain('### 2. task 2');
+    expect(report).toContain('output 1');
+    expect(report).toContain('output 2');
+  });
+
+  it('truncates long instructions in multi-result headers', () => {
+    const longInst = 'a'.repeat(100);
+    const results: ExecutionResult[] = [
+      { instruction: longInst, output: 'output 1', success: true },
+      { instruction: 'short', output: 'output 2', success: true },
+    ];
+    const report = assembleReport(results);
+    expect(report).toContain('...');
+  });
+});
+
+describe('emptyOutputMessage', () => {
+  it('returns Chinese message for zh locale', () => {
+    const msg = emptyOutputMessage('zh');
+    expect(msg).toContain('重试');
+  });
+
+  it('returns English message for en locale', () => {
+    const msg = emptyOutputMessage('en');
+    expect(msg).toContain('retry');
+  });
+});
+
+describe('generateTokenReport', () => {
+  it('aggregates tokens by agent and phase', () => {
+    const report = generateTokenReport([
+      { agent: 'executor', inputTokens: 100, outputTokens: 50, timestamp: 0, phase: 'execute' },
+      { agent: 'planner', inputTokens: 200, outputTokens: 100, timestamp: 0, phase: 'plan' },
+    ]);
+    expect(report.totalInput).toBe(300);
+    expect(report.totalOutput).toBe(150);
+    expect(report.byAgent.executor?.input).toBe(100);
+    expect(report.byAgent.planner?.output).toBe(100);
+    expect(report.byPhase.execute?.input).toBe(100);
+    expect(report.byPhase.plan?.input).toBe(200);
+  });
+
+  it('returns empty report for no usage', () => {
+    const report = generateTokenReport([]);
+    expect(report.totalInput).toBe(0);
+    expect(report.totalOutput).toBe(0);
+    expect(report.estimatedSavingsVsTraditional).toBe(0);
+  });
+
+  it('calculates higher savings when mostly cheap tokens', () => {
+    const report = generateTokenReport([
+      { agent: 'executor', inputTokens: 900, outputTokens: 100, timestamp: 0, phase: 'execute' },
+    ]);
+    expect(report.estimatedSavingsVsTraditional).toBeGreaterThan(80);
+  });
+});
+
+describe('detectLocale', () => {
+  it('returns zh for Chinese text', () => {
+    expect(detectLocale('你好世界')).toBe('zh');
+  });
+
+  it('returns en for English text', () => {
+    expect(detectLocale('hello world')).toBe('en');
+  });
+
+  it('returns zh for mixed text with CJK', () => {
+    expect(detectLocale('hello 你好')).toBe('zh');
+  });
+});
+
+describe('detectTaskBand', () => {
+  it('detects code tasks', () => {
+    expect(detectTaskBand('写一个排序函数')).toBe('code');
+    expect(detectTaskBand('implement a class')).toBe('code');
+  });
+
+  it('detects analysis tasks', () => {
+    expect(detectTaskBand('分析这段代码')).toBe('analysis');
+    expect(detectTaskBand('compare React and Vue')).toBe('analysis');
+  });
+
+  it('defaults to general for other tasks', () => {
+    expect(detectTaskBand('hello')).toBe('general');
+  });
+});
+
+describe('getBandPrompt', () => {
+  it('returns different prompts for different bands', () => {
+    const codePrompt = getBandPrompt('写一个函数', 'zh');
+    const analysisPrompt = getBandPrompt('分析代码', 'zh');
+    expect(codePrompt).not.toBe(analysisPrompt);
+  });
+
+  it('returns locale-specific prompts', () => {
+    const zh = getBandPrompt('write code', 'zh');
+    const en = getBandPrompt('write code', 'en');
+    expect(zh).not.toBe(en);
   });
 });
