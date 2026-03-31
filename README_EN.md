@@ -255,14 +255,20 @@ ntk_compress({ text: "Long text...", level: "aggressive" })
 
 NTK is a token-saver for OpenClaw users. After MCP integration, your daily task token consumption drops 30-50%:
 
-| Scenario | Without NTK | With NTK | Savings |
-|----------|------------|----------|---------|
-| "Write a sort function" | 273 tok | **139 tok** | **49%** |
-| "Compare React vs Vue" | 798 tok | **734 tok** | **8%** |
-| "Design TODO REST API" | 1575 tok | **1519 tok** | **4%** |
-| "Analyze server log errors" | 1482 tok | **632 tok** | **57%** |
+| Scenario | Direct LLM | **NTK** | Savings | Depth |
+|----------|-----------|---------|---------|-------|
+| Write debounce function | ~200 tok | **96 tok** | **52%** | direct |
+| Translate tech docs | ~150 tok | **92 tok** | **39%** | direct |
+| CSV to JSON | ~200 tok | **153 tok** | **24%** | direct |
+| Fix async bug | ~350 tok | **287 tok** | **18%** | direct |
+| Explain regex | ~400 tok | **427 tok** | -7% | direct |
+| Refactor to functional | ~250 tok | **179 tok** | **28%** | direct |
+| Compare React vs Vue | 798 tok | **734 tok** | **8%** | direct |
+| Debug code analysis | 390 tok | **386 tok** | **1%** | direct |
+| REST API design | 1575 tok | **1519 tok** | **4%** | light |
 
-> Data from actual benchmarks (gpt-5.4-mini). NTK uses 100% cheap model, weighted cost savings 90%+.
+> Data from actual benchmarks (gpt-5.4-mini, 2026.3.31). NTK uses 100% cheap model, weighted cost savings 90%+.
+> 9/9 tasks routed to direct/light depth — no strong model needed.
 
 **One-line setup:**
 ```json
