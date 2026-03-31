@@ -432,6 +432,19 @@ describe('detectTaskBand', () => {
     expect(detectTaskBand('compare React and Vue')).toBe('analysis');
   });
 
+  it('detects passthrough tasks (translation/conversion)', () => {
+    expect(detectTaskBand('翻译成英文：Hello')).toBe('passthrough');
+    expect(detectTaskBand('translate this to Chinese')).toBe('passthrough');
+    expect(detectTaskBand('转换为JSON格式')).toBe('passthrough');
+    expect(detectTaskBand('convert to YAML')).toBe('passthrough');
+    expect(detectTaskBand('改为TypeScript')).toBe('passthrough');
+  });
+
+  it('passthrough takes priority over code/analysis', () => {
+    expect(detectTaskBand('翻译这段代码为Python')).toBe('passthrough');
+    expect(detectTaskBand('translate and analyze')).toBe('passthrough');
+  });
+
   it('defaults to general for other tasks', () => {
     expect(detectTaskBand('hello')).toBe('general');
   });
