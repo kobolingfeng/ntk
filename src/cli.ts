@@ -141,7 +141,16 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
       }
 
       if (trimmed === 'help') {
-        console.log(chalk.dim('  Type a task to run, or "exit" to quit.'));
+        console.log(chalk.dim('  Type a task to run it. Special commands:'));
+        console.log(chalk.dim('    exit/quit  — Exit'));
+        console.log(chalk.dim('    gain       — Show cumulative savings'));
+        console.log(chalk.dim('    help       — This help'));
+        ask();
+        return;
+      }
+
+      if (trimmed === 'gain') {
+        cmdGain();
         ask();
         return;
       }
@@ -320,12 +329,17 @@ async function main(): Promise<void> {
         console.log(chalk.dim('    interactive       — Interactive REPL'));
         console.log(chalk.dim('    serve [--port N]  — Start API server'));
         console.log(chalk.dim('    mcp               — Start MCP server (stdio transport)'));
+        console.log(chalk.dim('    gain              — Show cumulative savings statistics'));
+        console.log(chalk.dim('    compare           — Three-way comparison benchmark'));
         console.log(chalk.dim('    test              — Run test suite (9 tasks)'));
         console.log(chalk.dim('    baseline          — Baseline comparison (NTK vs direct LLM)'));
-        console.log(chalk.dim('    compare           — RTK vs Traditional vs NTK comparison'));
-        console.log(chalk.dim('    gain              — Show cumulative savings statistics'));
         console.log(chalk.dim('    ablation          — Ablation study (component contribution)'));
-        console.log(chalk.dim('    optimize          — Optimization matrix (speed/cost/token/quality)'));
+        console.log(chalk.dim('    optimize          — Optimization matrix'));
+        console.log(chalk.dim(''));
+        console.log(chalk.dim('  Flags:'));
+        console.log(chalk.dim('    --force-depth <d> — Force depth (direct|light|standard|full)'));
+        console.log(chalk.dim('    --skip-scout      — Skip scout in standard depth'));
+        console.log(chalk.dim('    --fast-start      — Skip compressor model probe'));
       }
     }
   }
