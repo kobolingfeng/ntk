@@ -104,6 +104,14 @@ describe('parseVerificationResult', () => {
     it('pass keyword without fail → true', () => {
       expect(parseVerificationResult('Everything looks pass')).toBe(true);
     });
+
+    it('"no errors" → true (negation strips error keyword)', () => {
+      expect(parseVerificationResult('Checked: no errors found')).toBe(true);
+    });
+
+    it('"0 errors" → true', () => {
+      expect(parseVerificationResult('Test complete: 0 errors, 5 passed')).toBe(true);
+    });
   });
 
   describe('default behavior', () => {

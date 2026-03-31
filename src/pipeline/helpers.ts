@@ -26,7 +26,11 @@ export function parseVerificationResult(payload: string): boolean {
 
   // Strip negation-pass patterns before checking fail keywords
   let lowerForFailCheck = lower;
-  const negationPassPatterns = ['没有问题', '无问题', 'no issues', 'no errors'];
+  const negationPassPatterns = [
+    '没有问题', '无问题', '没有错误', '无错误',
+    'no issues', 'no errors', 'no error', '0 errors', '0 error',
+    'without error', 'error-free', 'error free',
+  ];
   for (const np of negationPassPatterns) {
     lowerForFailCheck = lowerForFailCheck.replaceAll(np, '');
   }

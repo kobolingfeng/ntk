@@ -336,10 +336,18 @@ export class NTKServer {
     const entry = this.rateLimiter.get(ip);
     if (!entry || now > entry.resetAt) {
       this.rateLimiter.set(ip, { count: 1, resetAt: now + this.rateLimit.windowMs });
+      this.pruneRateLimiter(now);
       return true;
     }
     entry.count++;
     return entry.count <= this.rateLimit.maxRequests;
+  }
+
+  private pruneRateLimiter(now: number): void {
+    if (this.rateLimiter.size <= 100) return;
+    for (const [ip, entry] of this.rateLimiter) {
+      if (now > entry.resetAt) this.rateLimiter.delete(ip);
+    }
   }
 
   /** Cap history to prevent unbounded memory growth */
