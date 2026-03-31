@@ -4,7 +4,8 @@
 
 import type { Executor } from '../agents/executor.js';
 import type { Verifier } from '../agents/verifier.js';
-import type { Locale, PIPELINE_STRINGS } from '../core/prompts.js';
+import type { LLMClient } from '../core/llm.js';
+import { getBandPrompt, type Locale, type PIPELINE_STRINGS } from '../core/prompts.js';
 import type { AgentContext, TokenReport } from '../core/protocol.js';
 import { createMessage } from '../core/protocol.js';
 import type { Router, RouterStats } from '../core/router.js';
@@ -21,6 +22,8 @@ export interface LightDepthContext {
   getTokenReport: () => TokenReport;
   getRouterStats: () => RouterStats;
   emit: (event: PipelineEvent) => void;
+  llm?: LLMClient;
+  onToken?: (token: string) => void;
 }
 
 export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> {
@@ -28,14 +31,23 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
 
   const msg = createMessage('planner', 'executor', ctx.userRequest, '');
   ctx.router.route(msg, 'execute');
-  const context: AgentContext = { visibleMessages: [] };
-  const response = await ctx.executor.process(msg, context);
-  ctx.router.route(response, 'execute');
 
-  const rawContent = response.payload.trim();
+  let rawContent = '';
+  if (ctx.llm && ctx.onToken) {
+    const bandPrompt = getBandPrompt(ctx.userRequest, ctx.locale);
+    const { content } = await ctx.llm.chatStream(bandPrompt, ctx.userRequest, 'executor', 'execute', ctx.onToken);
+    rawContent = content.trim();
+    const streamedResponse = createMessage('executor', 'planner', ctx.userRequest, rawContent);
+    ctx.router.route(streamedResponse, 'execute');
+  } else {
+    const context: AgentContext = { visibleMessages: [] };
+    const response = await ctx.executor.process(msg, context);
+    ctx.router.route(response, 'execute');
+    rawContent = response.payload.trim();
+  }
+
   let report = rawContent || emptyOutputMessage(ctx.locale);
 
-  // Skip verification for very short responses — verification cost > value
   const skipVerify = report.length < 100;
 
   let passed = true;
@@ -43,7 +55,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
   if (!skipVerify) {
     ctx.emit({ type: 'phase', phase: 'verify', detail: 'Light verification...' });
 
-    const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, response.payload);
+    const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, rawContent);
     const verifyCtx: AgentContext = { visibleMessages: [] };
     const verifyResponse = await ctx.verifier.process(verifyMsg, verifyCtx);
 

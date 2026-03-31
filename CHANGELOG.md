@@ -30,10 +30,14 @@
 - API server rate limiter 内存无限增长
 
 ### 测试
-- 225 个测试（+33），14 个测试文件
-- 新增 DiffContext 测试（10 个）
+- 275 个测试（+83），16 个测试文件
+- 新增 DiffContext 测试（15 个）
+- 新增 EndpointManager/estimateTokens 测试（12 个）
+- 新增 config.ts 测试（15 个）
+- 新增 helpers/prompts 覆盖率测试（16 个）
 - 新增 ResponseCache LRU/clear 测试（2 个）
 - 新增 parseVerificationResult 否定模式测试（2 个）
+- 新增 compressor tee eviction/locale 测试（2 个）
 
 ### 架构
 - TokenReport.byAgent/byPhase 改为 Partial<Record>，消除 as any

@@ -119,7 +119,7 @@ export class EndpointManager {
         });
 
         if (response.ok) {
-          const data = (await response.json()) as any;
+          const data = (await response.json()) as { choices?: unknown[] };
           if (data.choices && data.choices.length > 0) {
             console.log(`[LLM] ✅ ${ep.name} (${ep.baseUrl}) — working`);
             return i;

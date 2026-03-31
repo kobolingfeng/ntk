@@ -323,6 +323,8 @@ export class Pipeline {
           getTokenReport: () => this.getTokenReport(),
           getRouterStats: () => this.router.getStats(),
           emit: (e) => this.emit(e),
+          llm: this.compressorLLM,
+          onToken: this.onToken,
         });
       case 'standard':
         this.setPhase('gather');
