@@ -131,6 +131,35 @@ describe('preFilter', () => {
     });
   });
 
+  describe('edge cases', () => {
+    it('does not false-positive on prose with "passed" word', () => {
+      const input = 'The time has passed and the project failed to launch';
+      const result = preFilter(input);
+      expect(result.filtered).toContain('passed');
+      expect(result.filtered).toContain('failed');
+    });
+
+    it('preserves legitimate lines with brackets and percentage', () => {
+      const input = 'The [growth rate] was 50% higher than expected';
+      const result = preFilter(input);
+      expect(result.filtered).toContain('[growth rate]');
+      expect(result.filtered).toContain('50%');
+    });
+
+    it('handles mixed CJK and English text', () => {
+      const input = '这是一段mixed文本with混合content\n\x1b[32mOK\x1b[0m';
+      const result = preFilter(input);
+      expect(result.filtered).not.toContain('\x1b');
+      expect(result.filtered).toContain('mixed');
+    });
+
+    it('handles very long single line', () => {
+      const input = 'a'.repeat(10000);
+      const result = preFilter(input);
+      expect(result.filtered).toBe(input);
+    });
+  });
+
   describe('combined strategies', () => {
     it('applies all strategies and reports stats', () => {
       const input = [

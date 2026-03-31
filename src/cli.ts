@@ -177,9 +177,16 @@ async function main(): Promise<void> {
   loadEndpoints();
   const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
   const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
+  const fastStart = args.includes('--fast-start');
+
   console.log(chalk.dim(`  Planner model: ${plannerModel}`));
   console.log(chalk.dim(`  Compressor model: ${compressorModel}`));
-  console.log(chalk.dim('  Probing endpoints...'));
+
+  if (fastStart) {
+    console.log(chalk.dim('  Fast start: skipping endpoint probe'));
+  } else {
+    console.log(chalk.dim('  Probing endpoints...'));
+  }
 
   const working = await LLMClient.probeEndpoints(plannerModel);
   if (!working) {
@@ -187,7 +194,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if (compressorModel !== plannerModel) {
+  if (compressorModel !== plannerModel && !fastStart) {
     console.log(chalk.dim(`  Verifying compressor model (${compressorModel})...`));
     const compressorWorking = await LLMClient.probeEndpoints(compressorModel);
     if (!compressorWorking) {

@@ -5,6 +5,20 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./errors": {
+      "types": "./dist/core/errors.d.ts",
+      "import": "./dist/core/errors.js"
+    },
+    "./pipeline": {
+      "types": "./dist/pipeline/pipeline.d.ts",
+      "import": "./dist/pipeline/pipeline.js"
+    }
+  },
   "bin": {
     "ntk": "./bin/ntk.js"
   },
