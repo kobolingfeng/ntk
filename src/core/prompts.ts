@@ -105,20 +105,20 @@ export function detectTaskBand(task: string): TaskBand {
 
 const BAND_PROMPTS: Record<TaskBand, Record<Locale, string>> = {
   code: {
-    zh: '输出完整代码+必要注释。代码用```包裹标注语言。不省略import/类型/错误处理。不解释。[完成]',
-    en: 'Complete code with comments. Wrap in ``` with lang tag. No omitting imports/types. No explanations. [done]',
+    zh: '输出完整代码+必要注释。代码用```包裹标注语言。不省略import/类型/错误处理。不解释。',
+    en: 'Complete code with comments. Wrap in ``` with lang tag. No omitting imports/types. No explanations.',
   },
   analysis: {
-    zh: '用编号列表分析，每条≤2句。不写段落式长文。不重复需求描述。[完成]',
-    en: 'Numbered list, ≤2 sentences each. No prose. No restating requirements. [done]',
+    zh: '用编号列表分析，每条≤2句。不写段落式长文。不重复需求描述。',
+    en: 'Numbered list, ≤2 sentences each. No prose. No restating requirements.',
   },
   passthrough: {
     zh: '',
     en: '',
   },
   general: {
-    zh: '完整输出。代码用```包裹。不解释、不引导。[完成]',
-    en: 'Complete output. Wrap code in ```. No explanations. [done]',
+    zh: '完整输出。代码用```包裹。不解释、不引导。',
+    en: 'Complete output. Wrap code in ```. No explanations.',
   },
 };
 
