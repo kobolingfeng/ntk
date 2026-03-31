@@ -419,6 +419,22 @@ describe('detectLocale', () => {
   it('returns zh for mixed text with CJK', () => {
     expect(detectLocale('hello 你好')).toBe('zh');
   });
+
+  it('returns en for empty string', () => {
+    expect(detectLocale('')).toBe('en');
+  });
+
+  it('returns en for numbers and symbols only', () => {
+    expect(detectLocale('123 + 456 = ?')).toBe('en');
+  });
+
+  it('CJK Extension B chars not detected (known limitation, extremely rare)', () => {
+    expect(detectLocale('𠀀')).toBe('en');
+  });
+
+  it('returns en for Japanese katakana (not CJK ideograph)', () => {
+    expect(detectLocale('カタカナ')).toBe('en');
+  });
 });
 
 describe('detectTaskBand', () => {
