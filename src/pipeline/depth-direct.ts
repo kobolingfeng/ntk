@@ -22,7 +22,8 @@ export async function runDirect(
 ): Promise<PipelineResult> {
   emit({ type: 'phase', phase: 'execute', detail: 'Direct execution...' });
 
-  const adaptiveMaxTokens = userRequest.length < 50 ? 512 : userRequest.length < 200 ? 1024 : undefined;
+  const adaptiveMaxTokens =
+    userRequest.length < 50 ? 512 : userRequest.length < 200 ? 1024 : userRequest.length > 2000 ? 1024 : undefined;
 
   let report: string;
   if (llm) {
