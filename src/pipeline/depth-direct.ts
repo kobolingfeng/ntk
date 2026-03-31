@@ -23,8 +23,13 @@ export async function runDirect(
 ): Promise<PipelineResult> {
   emit({ type: 'phase', phase: 'execute', detail: 'Direct execution...' });
 
+  const isAnalysis =
+    /review|分析|检查|诊断|比较|对比|解释|总结|评估|审查|compare|explain|summarize|evaluate|diagnose/i.test(
+      userRequest,
+    );
+
   let report: string;
-  if (llm) {
+  if (llm && !isAnalysis) {
     const { content } = await llm.chat(EXECUTOR_LITE_PROMPT[locale], userRequest, 'executor', 'execute');
     report = content.trim() || emptyOutputMessage(locale);
   } else {

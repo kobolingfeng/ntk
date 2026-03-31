@@ -30,8 +30,15 @@ const typeSpecificStrategies: Record<OutputType, FilterStrategy[]> = {
   test: [stripProgressBars, deduplicateLines, stripPassedTests],
   json: [deduplicateLines, compactJson],
   log: [stripProgressBars, deduplicateLines],
-  build: [stripProgressBars, deduplicateLines, compressCodeBlocks],
-  general: [stripProgressBars, deduplicateLines, stripPassedTests, compactJson, compressCodeBlocks],
+  build: [stripProgressBars, deduplicateLines, stripBoilerplateNotices, compressCodeBlocks],
+  general: [
+    stripProgressBars,
+    deduplicateLines,
+    stripPassedTests,
+    compactJson,
+    stripBoilerplateNotices,
+    compressCodeBlocks,
+  ],
 };
 
 /**
@@ -286,6 +293,20 @@ function stripPassedTests(text: string): { result: string; name: string } {
   return { result: filtered.join('\n'), name: 'test-pass-strip' };
 }
 
+function stripBoilerplateNotices(text: string): { result: string; name: string } {
+  const boilerplatePatterns = [
+    /^\d+ packages? are looking for funding$/,
+    /^\s*run `npm fund` for details$/,
+    /^\s*run `npm audit fix` to resolve$/,
+    /^\s*run `npm audit` for details$/,
+    /^\s*found \d+ vulnerabilit(y|ies)$/,
+    /^\s*npm warn deprecated/,
+  ];
+  const lines = text.split('\n');
+  const filtered = lines.filter((line) => !boilerplatePatterns.some((p) => p.test(line.trim())));
+  return { result: filtered.join('\n'), name: 'boilerplate-strip' };
+}
+
 function compressCodeBlocks(text: string): { result: string; name: string } {
   const codeBlockPattern = /```(\w*)\n([\s\S]*?)```/g;
   const result = text.replace(codeBlockPattern, (fullMatch, lang: string, code: string) => {
@@ -307,8 +328,8 @@ function compressCodeBlocks(text: string): { result: string; name: string } {
       .map((l) => l.trimEnd())
       .join('\n');
 
-    // Only apply if we saved meaningful space (>10% reduction)
-    if (compressed.length < code.length * 0.9) {
+    // Apply if we saved any meaningful space (>5% reduction)
+    if (compressed.length < code.length * 0.95) {
       return `\`\`\`${lang}\n${compressed.trim()}\n\`\`\``;
     }
     return fullMatch;
