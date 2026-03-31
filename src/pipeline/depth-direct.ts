@@ -32,10 +32,12 @@ export async function runDirect(
     effectiveRequest = `${head}\n\n[... ${userRequest.length - 2000} chars truncated ...]\n\n${tail}`;
   }
 
+  const adaptiveTemp = userRequest.length < 30 ? 0.1 : userRequest.length > 200 ? 0.4 : undefined;
+
   let report: string;
   if (llm) {
     const bandPrompt = getBandPrompt(effectiveRequest, locale);
-    const { content } = await llm.chat(bandPrompt, effectiveRequest, 'executor', 'execute', adaptiveMaxTokens);
+    const { content } = await llm.chat(bandPrompt, effectiveRequest, 'executor', 'execute', adaptiveMaxTokens, adaptiveTemp);
     report = content.trim() || emptyOutputMessage(locale);
   } else {
     const { createMessage } = await import('../core/protocol.js');

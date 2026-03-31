@@ -201,6 +201,7 @@ export class LLMClient {
     agent: AgentType,
     phase: Phase,
     maxTokensOverride?: number,
+    temperatureOverride?: number,
   ): Promise<{ content: string; usage: TokenUsage }> {
     const response = await this.callAPI(
       [
@@ -208,6 +209,7 @@ export class LLMClient {
         { role: 'user', content: userMessage },
       ],
       maxTokensOverride,
+      temperatureOverride,
     );
 
     const content = response.choices[0]?.message?.content ?? '';
@@ -256,12 +258,13 @@ export class LLMClient {
   private async callAPI(
     messages: Array<{ role: string; content: string }>,
     maxTokensOverride?: number,
+    temperatureOverride?: number,
   ): Promise<ChatCompletionResponse> {
     const payload = {
       model: this.model,
       messages,
       max_tokens: maxTokensOverride ?? this.maxTokens,
-      temperature: this.temperature,
+      temperature: temperatureOverride ?? this.temperature,
     };
     const body = JSON.stringify(payload);
 
