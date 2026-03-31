@@ -246,13 +246,13 @@ export class Pipeline {
         `${this.strings.verifyFeedback}: ${verifyResponse.payload.slice(0, 300)}`);
       const fixCtx: AgentContext = { visibleMessages: [] };
       const fixResponse = await this.executor.process(fixMsg, fixCtx);
-      report = fixResponse.payload;
+      report = fixResponse.payload.trim() || report;
     }
 
     this.emit({ type: 'complete', phase: 'report', detail: 'Done (light)' });
 
     return {
-      success: true,
+      success: !!report.trim(),
       report,
       tokenReport: this.generateTokenReport(),
       routerStats: this.router.getStats(),
@@ -287,11 +287,11 @@ export class Pipeline {
     const execCtx: AgentContext = { visibleMessages: [] };
     const execResponse = await this.executor.process(execMsg, execCtx);
 
-    const report = execResponse.payload;
+    const report = execResponse.payload.trim() || (this.locale === 'zh' ? '未生成输出，请重试或换一种方式描述任务。' : 'No output generated. Please retry or rephrase the task.');
     this.emit({ type: 'complete', phase: 'report', detail: 'Done (standard)' });
 
     return {
-      success: true,
+      success: !!execResponse.payload.trim(),
       report,
       tokenReport: this.generateTokenReport(),
       routerStats: this.router.getStats(),
@@ -320,7 +320,7 @@ export class Pipeline {
     this.emit({ type: 'complete', phase: 'report', detail: 'Done (full)' });
 
     return {
-      success: true,
+      success: verified.passed,
       report,
       tokenReport: this.generateTokenReport(),
       routerStats: this.router.getStats(),

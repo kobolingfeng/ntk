@@ -262,8 +262,14 @@ export class NTKServer {
     }
     const { text, level } = parsed;
 
-    if (!text) {
-      this.sendJson(res, 400, { error: 'Missing "text" field' });
+    if (!text || typeof text !== 'string') {
+      this.sendJson(res, 400, { error: 'Missing or invalid "text" field (must be a non-empty string)' });
+      return;
+    }
+
+    const validLevels = ['minimal', 'standard', 'aggressive'];
+    if (level && !validLevels.includes(level)) {
+      this.sendJson(res, 400, { error: `Invalid "level" value. Valid: ${validLevels.join(', ')}` });
       return;
     }
 
