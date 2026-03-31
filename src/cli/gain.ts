@@ -4,6 +4,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import chalk from 'chalk';
 
@@ -23,7 +24,7 @@ interface GainData {
   entries: GainEntry[];
 }
 
-const GAIN_DIR = join(process.cwd(), '.ntk');
+const GAIN_DIR = join(homedir(), '.ntk');
 const GAIN_FILE = join(GAIN_DIR, 'gain.json');
 
 function loadGainData(): GainData {

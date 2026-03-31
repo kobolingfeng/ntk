@@ -3,7 +3,6 @@ dist/
 docs/api/
 coverage/
 .env
-.ntk/
 *.log
 *.bak
 *.bak2
@@ -17,3 +16,5 @@ probe-result.json
 test-results.md
 src/benchmark*.ts
 src/probe.ts
+
+.cursor/

@@ -9,6 +9,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentType, LLMConfig, Phase, TokenUsage } from './protocol.js';
 
@@ -42,11 +43,14 @@ const modelEndpointMap = new Map<string, Set<number>>();
 const probeCache = new Map<string, { name: string; timestamp: number }>();
 const PROBE_CACHE_TTL = 300_000; // 5 minutes
 
-const DISK_CACHE_DIR = join(process.cwd(), '.ntk');
+const DISK_CACHE_DIR = join(homedir(), '.ntk');
 const DISK_CACHE_FILE = join(DISK_CACHE_DIR, 'probe-cache.json');
 const DISK_CACHE_TTL = 600_000; // 10 minutes
+let diskCacheLoaded = false;
 
 function loadDiskProbeCache(): void {
+  if (diskCacheLoaded) return;
+  diskCacheLoaded = true;
   try {
     if (!existsSync(DISK_CACHE_FILE)) return;
     const data = JSON.parse(readFileSync(DISK_CACHE_FILE, 'utf-8'));
@@ -80,7 +84,7 @@ function saveDiskProbeCache(model: string, name: string, endpointIndex: number):
   }
 }
 
-loadDiskProbeCache();
+// Disk cache is loaded lazily on first probe
 
 export class LLMClient {
   private model: string;
@@ -122,7 +126,8 @@ export class LLMClient {
    * Returns the name of the working endpoint or null if all fail.
    */
   static async probeEndpoints(model: string): Promise<string | null> {
-    // Return cached result if probe was done recently
+    loadDiskProbeCache();
+
     const cached = probeCache.get(model);
     if (cached && Date.now() - cached.timestamp < PROBE_CACHE_TTL) {
       return cached.name;
