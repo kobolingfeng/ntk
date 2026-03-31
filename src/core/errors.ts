@@ -12,6 +12,7 @@ export class NTKError extends Error {
     super(message);
     this.name = 'NTKError';
     this.code = code;
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
@@ -24,6 +25,7 @@ export class LLMClientError extends NTKError {
     this.name = 'LLMClientError';
     this.endpoint = endpoint;
     this.statusCode = statusCode;
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
@@ -34,6 +36,7 @@ export class AllEndpointsFailedError extends LLMClientError {
     super(`All ${endpointCount} endpoints failed`, 'ALL_ENDPOINTS_FAILED');
     this.name = 'AllEndpointsFailedError';
     this.endpointCount = endpointCount;
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
@@ -46,6 +49,7 @@ export class PipelineError extends NTKError {
     this.name = 'PipelineError';
     this.phase = phase;
     this.depth = depth;
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
@@ -53,6 +57,7 @@ export class ClassifierError extends NTKError {
   constructor(message: string) {
     super(message, 'CLASSIFIER_ERROR');
     this.name = 'ClassifierError';
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
@@ -63,5 +68,6 @@ export class CompressionError extends NTKError {
     super(message, 'COMPRESSION_ERROR');
     this.name = 'CompressionError';
     this.originalLength = originalLength;
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }

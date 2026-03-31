@@ -11,6 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { AllEndpointsFailedError } from './errors.js';
 import type { AgentType, LLMConfig, Phase, TokenUsage } from './protocol.js';
 
 interface ChatCompletionResponse {
@@ -288,7 +289,6 @@ export class LLMClient {
       }
     }
 
-    const { AllEndpointsFailedError } = await import('./errors.js');
     throw new AllEndpointsFailedError(registeredEndpoints.length);
   }
 
