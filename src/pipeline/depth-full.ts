@@ -184,6 +184,9 @@ async function executeSerial(ctx: FullDepthContext, instructions: PlannerInstruc
       const fullInput = `${ctx.strings.originalRequest}: ${ctx.userRequest}\n\n${inst.instruction}`;
       const { content } = await ctx.compressorLLM.chatStream(prompt, fullInput, 'executor', 'execute', ctx.onToken);
       output = content;
+      // Route the streamed response through the router for consistency with non-streaming path
+      const streamedResponse = createMessage('executor', 'planner', inst.instruction, output);
+      ctx.router.route(streamedResponse, 'execute');
     } else {
       const context: AgentContext = { visibleMessages: [] };
       const response = await ctx.executor.process(msg, context);
