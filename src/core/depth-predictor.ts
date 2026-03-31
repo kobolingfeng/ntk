@@ -5,7 +5,7 @@
  * depth for new tasks. Like CPU branch prediction tables.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { PipelineDepth } from '../pipeline/types.js';
@@ -23,6 +23,7 @@ interface PredictorData {
 
 const PREDICTOR_DIR = join(homedir(), '.ntk');
 const PREDICTOR_FILE = join(PREDICTOR_DIR, 'depth-predictor.json');
+const VALID_DEPTHS = new Set(['direct', 'light', 'standard', 'full']);
 
 function extractPattern(task: string): string {
   const first50 = task.slice(0, 50).toLowerCase();
@@ -34,13 +35,28 @@ function extractPattern(task: string): string {
   return words.join(' ');
 }
 
+function isValidData(data: unknown): data is PredictorData {
+  if (!data || typeof data !== 'object') return false;
+  const d = data as Record<string, unknown>;
+  if (d.version !== 1 || !Array.isArray(d.records)) return false;
+  return d.records.every(
+    (r: unknown) =>
+      r &&
+      typeof r === 'object' &&
+      typeof (r as Record<string, unknown>).pattern === 'string' &&
+      VALID_DEPTHS.has((r as Record<string, unknown>).depth as string) &&
+      typeof (r as Record<string, unknown>).count === 'number',
+  );
+}
+
 function loadData(): PredictorData {
   try {
     if (existsSync(PREDICTOR_FILE)) {
-      return JSON.parse(readFileSync(PREDICTOR_FILE, 'utf-8'));
+      const raw = JSON.parse(readFileSync(PREDICTOR_FILE, 'utf-8'));
+      if (isValidData(raw)) return raw;
     }
   } catch {
-    // Start fresh
+    // Corrupted or invalid — start fresh
   }
   return { version: 1, records: [] };
 }
@@ -48,7 +64,9 @@ function loadData(): PredictorData {
 function saveData(data: PredictorData): void {
   try {
     if (!existsSync(PREDICTOR_DIR)) mkdirSync(PREDICTOR_DIR, { recursive: true });
-    writeFileSync(PREDICTOR_FILE, JSON.stringify(data));
+    const tmpFile = `${PREDICTOR_FILE}.tmp`;
+    writeFileSync(tmpFile, JSON.stringify(data));
+    renameSync(tmpFile, PREDICTOR_FILE);
   } catch {
     // Non-critical
   }

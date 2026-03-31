@@ -20,6 +20,7 @@ import { Verifier } from '../agents/verifier.js';
 import { ResponseCache } from '../core/cache.js';
 import { Compressor } from '../core/compressor.js';
 import { predictDepth, recordDepth } from '../core/depth-predictor.js';
+import type { EndpointManager } from '../core/llm.js';
 import { LLMClient } from '../core/llm.js';
 import { preFilter } from '../core/pre-filter.js';
 import { detectLocale, type Locale, PIPELINE_STRINGS } from '../core/prompts.js';
@@ -82,7 +83,7 @@ export class Pipeline {
   constructor(
     config: NTKConfig,
     onEvent?: (event: PipelineEvent) => void,
-    options?: { forceDepth?: PipelineDepth; skipScout?: boolean; speculative?: boolean; onToken?: (token: string) => void },
+    options?: { forceDepth?: PipelineDepth; skipScout?: boolean; speculative?: boolean; onToken?: (token: string) => void; endpointManager?: EndpointManager },
   ) {
     this.config = config;
     this.onEvent = onEvent;
@@ -91,9 +92,11 @@ export class Pipeline {
     this.speculative = options?.speculative ?? true;
     this.onToken = options?.onToken;
 
+    const em = options?.endpointManager;
+
     // Create LLM clients — planner gets the strong model
-    this.plannerLLM = new LLMClient(config.planner);
-    this.compressorLLM = new LLMClient(config.compressor);
+    this.plannerLLM = new LLMClient(config.planner, em);
+    this.compressorLLM = new LLMClient(config.compressor, em);
 
     // Create agents
     this.planner = new Planner(this.plannerLLM);
@@ -144,8 +147,23 @@ export class Pipeline {
       };
     }
 
-    // Cache hit — return immediately with zero token cost
-    const cached = sharedCache.get(userRequest);
+    // Detect language from user input and propagate to all agents
+    this.locale = detectLocale(userRequest);
+    const agents = [this.planner, this.scout, this.summarizer, this.executor, this.verifier];
+    for (const agent of agents) {
+      agent.setLocale(this.locale);
+    }
+    this.compressor.setLocale(this.locale);
+
+    // Step 0a: Pipeline-level pre-filter (zero token cost, before cache to normalize keys)
+    const pfResult = preFilter(userRequest);
+    const cleanRequest = pfResult.filtered;
+    if (pfResult.charsRemoved > 0) {
+      this.pipelinePreFilterCharsRemoved = pfResult.charsRemoved;
+    }
+
+    // Cache hit — use cleanRequest as key for noise-invariant matching
+    const cached = sharedCache.get(cleanRequest);
     if (cached) {
       this.emit({ type: 'message', phase: 'gather', detail: `Cache hit (saved ${cached.tokensSaved} tokens)` });
       return {
@@ -159,20 +177,8 @@ export class Pipeline {
       };
     }
 
-    // Detect language from user input and propagate to all agents
-    this.locale = detectLocale(userRequest);
-    const agents = [this.planner, this.scout, this.summarizer, this.executor, this.verifier];
-    for (const agent of agents) {
-      agent.setLocale(this.locale);
-    }
-    this.compressor.setLocale(this.locale);
-
     try {
-      // Step 0a: Pipeline-level pre-filter (RTK-compatible, zero token cost)
-      const pfResult = preFilter(userRequest);
-      const cleanRequest = pfResult.filtered;
       if (pfResult.charsRemoved > 0) {
-        this.pipelinePreFilterCharsRemoved = pfResult.charsRemoved;
         this.emit({
           type: 'message',
           phase: 'gather',
@@ -227,8 +233,8 @@ export class Pipeline {
         const prediction = predictDepth(cleanRequest);
         const speculateDepth = prediction && prediction.confidence > 0.7 ? prediction.depth : 'direct';
 
-        const classifierPromise = classifyDepth(cleanRequest, this.compressorLLM, this.locale);
-
+        // Only speculate if high confidence — launch classifier + direct execution in parallel
+        // When speculation misses, the direct result is awaited and discarded to avoid leaked promises
         let speculativePromise: Promise<PipelineResult> | null = null;
         if (speculateDepth === 'direct') {
           speculativePromise = runDirect(
@@ -242,7 +248,7 @@ export class Pipeline {
           );
         }
 
-        const depth = await classifierPromise;
+        const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
         const predictionInfo = prediction ? ` pred=${speculateDepth}@${(prediction.confidence * 100).toFixed(0)}%` : '';
         this.emit({
           type: 'start',
@@ -266,19 +272,26 @@ export class Pipeline {
             );
           }
           this.emit({ type: 'complete', phase: 'report', detail: `Done (${depth}/speculative-hit)` });
-        } else if (depth === 'direct') {
-          this.setPhase('execute');
-          result = await runDirect(
-            cleanRequest,
-            this.executor,
-            this.locale,
-            () => this.getTokenReport(),
-            () => this.router.getStats(),
-            (e) => this.emit(e),
-            this.compressorLLM,
-          );
         } else {
-          result = await this.runNonDirectDepth(depth, cleanRequest);
+          // Speculation missed — await and discard the speculative result to prevent leaked promises
+          if (speculativePromise) {
+            speculativePromise.catch(() => {});
+          }
+
+          if (depth === 'direct') {
+            this.setPhase('execute');
+            result = await runDirect(
+              cleanRequest,
+              this.executor,
+              this.locale,
+              () => this.getTokenReport(),
+              () => this.router.getStats(),
+              (e) => this.emit(e),
+              this.compressorLLM,
+            );
+          } else {
+            result = await this.runNonDirectDepth(depth, cleanRequest);
+          }
         }
 
         recordDepth(cleanRequest, depth);
@@ -301,14 +314,16 @@ export class Pipeline {
         } else {
           result = await this.runNonDirectDepth(depth, cleanRequest);
         }
+
+        recordDepth(cleanRequest, depth);
       }
 
       result.preFilterSavings = this.getPreFilterSavings();
 
-      // Cache successful results
+      // Cache successful results (keyed by cleanRequest for noise-invariant matching)
       if (result.success) {
         const totalTok = result.tokenReport.totalInput + result.tokenReport.totalOutput;
-        sharedCache.set(userRequest, result.report, result.depth ?? 'direct', totalTok);
+        sharedCache.set(cleanRequest, result.report, result.depth ?? 'direct', totalTok);
       }
 
       return result;

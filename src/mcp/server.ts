@@ -27,13 +27,15 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import dotenv from 'dotenv';
 import { z } from 'zod';
 import { Compressor } from '../core/compressor.js';
-import { LLMClient } from '../core/llm.js';
+import { EndpointManager, LLMClient } from '../core/llm.js';
 import type { NTKConfig, PipelineDepth } from '../index.js';
 import { Pipeline } from '../pipeline/pipeline.js';
 
 dotenv.config();
 
 // ─── Configuration ────────────────────────────────────
+
+const endpointManager = new EndpointManager();
 
 function loadEndpoints(): void {
   const endpoints = [];
@@ -48,11 +50,14 @@ function loadEndpoints(): void {
     const url = process.env.UNIFIED_BASE_URL || 'https://api.openai.com/v1';
     if (key) endpoints.push({ name: 'default', apiKey: key, baseUrl: url });
   }
-  LLMClient.setEndpoints(endpoints);
+  endpointManager.setEndpoints(endpoints);
 }
 
 function loadConfig(): NTKConfig {
-  const ep = LLMClient.getActiveEndpoint()!;
+  const ep = endpointManager.getActiveEndpoint();
+  if (!ep) {
+    throw new Error('No active endpoint available. Ensure API_ENDPOINT_*_KEY and API_ENDPOINT_*_URL are set in .env');
+  }
   const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
   const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
 
@@ -73,9 +78,9 @@ async function ensureInitialized(): Promise<void> {
     loadEndpoints();
     const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
     const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
-    await LLMClient.probeEndpoints(plannerModel);
+    await endpointManager.probeEndpoints(plannerModel);
     if (compressorModel !== plannerModel) {
-      await LLMClient.probeEndpoints(compressorModel);
+      await endpointManager.probeEndpoints(compressorModel);
     }
     initialized = true;
   }
@@ -107,6 +112,7 @@ server.tool(
     const pipeline = new Pipeline(config, () => {}, {
       forceDepth: forceDepth as PipelineDepth | undefined,
       skipScout,
+      endpointManager,
     });
     const result = await pipeline.run(task);
 
@@ -141,7 +147,7 @@ server.tool(
     await ensureInitialized();
     const config = loadConfig();
     const fastConfig = { ...config, planner: { ...config.compressor } };
-    const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth });
+    const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth, endpointManager });
     const result = await pipeline.run(task);
 
     const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
@@ -172,7 +178,7 @@ server.tool(
     await ensureInitialized();
     const config = loadConfig();
 
-    const compressor = new Compressor(new LLMClient(config.compressor));
+    const compressor = new Compressor(new LLMClient(config.compressor, endpointManager));
     const result = await compressor.compress(text, level || 'standard', 'summarizer', 'gather');
 
     return {

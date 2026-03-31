@@ -13,6 +13,7 @@
 
 import http from 'node:http';
 import { Compressor } from '../core/compressor.js';
+import type { EndpointManager } from '../core/llm.js';
 import { LLMClient } from '../core/llm.js';
 import type { NTKConfig } from '../core/protocol.js';
 import type { PipelineEvent, PipelineResult } from '../pipeline/pipeline.js';
@@ -21,6 +22,7 @@ import { Pipeline } from '../pipeline/pipeline.js';
 export class NTKServer {
   private server: http.Server;
   private config: NTKConfig;
+  private endpointManager?: EndpointManager;
   private lastResult: PipelineResult | null = null;
   private runHistory: Array<{
     request: string;
@@ -31,8 +33,9 @@ export class NTKServer {
   private rateLimiter = new Map<string, { count: number; resetAt: number }>();
   private readonly rateLimit = { windowMs: 60_000, maxRequests: 30 };
 
-  constructor(config: NTKConfig) {
+  constructor(config: NTKConfig, endpointManager?: EndpointManager) {
     this.config = config;
+    this.endpointManager = endpointManager;
     this.server = http.createServer(this.handleRequest.bind(this));
   }
 
@@ -153,7 +156,7 @@ export class NTKServer {
 
     const pipeline = new Pipeline(config, (event) => {
       events.push(event);
-    });
+    }, { endpointManager: this.endpointManager });
 
     const startTime = Date.now();
     const result = await pipeline.run(task);
@@ -212,7 +215,7 @@ export class NTKServer {
       if (!res.destroyed) {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
-    });
+    }, { endpointManager: this.endpointManager });
 
     const startTime = Date.now();
     try {
@@ -274,7 +277,7 @@ export class NTKServer {
       return;
     }
 
-    const llm = new LLMClient(this.config.compressor);
+    const llm = new LLMClient(this.config.compressor, this.endpointManager);
     const compressor = new Compressor(llm);
     const result = await compressor.compress(text, level || 'standard');
 
@@ -369,6 +372,7 @@ export class NTKServer {
       });
       req.on('end', () => settle(resolve, Buffer.concat(chunks).toString('utf-8')));
       req.on('error', (err) => settle(reject, err));
+      req.on('close', () => settle(reject, new Error('Connection closed before request completed')));
     });
   }
 }

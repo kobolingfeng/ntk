@@ -86,4 +86,33 @@ describe('ResponseCache', () => {
     expect(cache.get('task', 'direct')!.result).toBe('direct-result');
     expect(cache.get('task', 'full')!.result).toBe('full-result');
   });
+
+  it('clear resets tokensSavedByHits', () => {
+    const cache = new ResponseCache();
+    cache.set('task', 'result', 'direct', 200);
+    cache.get('task');
+    expect(cache.getStats().totalTokensSaved).toBe(200);
+
+    cache.clear();
+    const stats = cache.getStats();
+    expect(stats.totalTokensSaved).toBe(0);
+    expect(stats.hits).toBe(0);
+    expect(stats.misses).toBe(0);
+  });
+
+  it('evicts LRU entry (not FIFO) when full', () => {
+    const cache = new ResponseCache(2);
+    cache.set('task1', 'r1', 'direct', 10);
+    cache.set('task2', 'r2', 'direct', 20);
+
+    // Access task1, making task2 the least recently used
+    cache.get('task1');
+
+    // Insert task3 — should evict task2 (LRU), not task1
+    cache.set('task3', 'r3', 'direct', 30);
+
+    expect(cache.get('task1')).not.toBeNull();
+    expect(cache.get('task2')).toBeNull();
+    expect(cache.get('task3')).not.toBeNull();
+  });
 });

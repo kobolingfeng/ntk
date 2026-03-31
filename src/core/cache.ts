@@ -3,6 +3,7 @@
  *
  * When the same task is submitted again, return cached result
  * with zero token cost. Uses content hash for matching.
+ * LRU eviction: accessed entries are bumped to most-recent position.
  */
 
 import { createHash } from 'node:crypto';
@@ -50,6 +51,10 @@ export class ResponseCache {
       return null;
     }
 
+    // LRU: bump to most-recent position by reinserting
+    this.cache.delete(key);
+    this.cache.set(key, entry);
+
     this.hits++;
     this.tokensSavedByHits += entry.tokensSaved;
     return entry;
@@ -58,9 +63,13 @@ export class ResponseCache {
   set(task: string, result: string, depth: string, totalTokens: number, forceDepth?: string): void {
     const key = this.hash(task, forceDepth);
 
-    if (this.cache.size >= this.maxEntries) {
-      const oldest = this.cache.keys().next().value;
-      if (oldest) this.cache.delete(oldest);
+    // If key exists, delete first to update position
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxEntries) {
+      // Evict least recently used (first entry in Map insertion order)
+      const lru = this.cache.keys().next().value;
+      if (lru) this.cache.delete(lru);
     }
 
     this.cache.set(key, {
@@ -85,6 +94,7 @@ export class ResponseCache {
     this.cache.clear();
     this.hits = 0;
     this.misses = 0;
+    this.tokensSavedByHits = 0;
   }
 }
 

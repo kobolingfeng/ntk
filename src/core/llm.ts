@@ -6,9 +6,10 @@
  * - Pre-flight connectivity check
  * - Retry with exponential backoff on transient errors
  * - Token usage tracking per agent/phase
+ * - EndpointManager encapsulation (no global mutable state)
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { AllEndpointsFailedError } from './errors.js';
@@ -35,112 +36,64 @@ export interface Endpoint {
   baseUrl: string;
 }
 
-/** Global endpoint state — shared across all LLMClient instances */
-let activeEndpointIndex = 0;
-let registeredEndpoints: Endpoint[] = [];
-/** Track which endpoints passed probe for each model — prevents failover to incompatible endpoints */
-const modelEndpointMap = new Map<string, Set<number>>();
-/** Probe result cache: avoids redundant probing in interactive/server mode */
-const probeCache = new Map<string, { name: string; timestamp: number }>();
-const PROBE_CACHE_TTL = 300_000; // 5 minutes
+/**
+ * Manages API endpoint registration, probing, failover ordering, and probe caching.
+ * Encapsulates all mutable endpoint state that was previously module-global.
+ */
+export class EndpointManager {
+  private activeEndpointIndex = 0;
+  private endpoints: Endpoint[] = [];
+  private modelEndpointMap = new Map<string, Set<number>>();
+  private probeCache = new Map<string, { name: string; timestamp: number }>();
+  private diskCacheLoaded = false;
 
-const DISK_CACHE_DIR = join(homedir(), '.ntk');
-const DISK_CACHE_FILE = join(DISK_CACHE_DIR, 'probe-cache.json');
-const DISK_CACHE_TTL = 600_000; // 10 minutes
-let diskCacheLoaded = false;
+  private readonly probeCacheTTL = 300_000; // 5 minutes
+  private readonly diskCacheDir = join(homedir(), '.ntk');
+  private readonly diskCacheFile: string;
+  private readonly diskCacheTTL = 600_000; // 10 minutes
 
-function loadDiskProbeCache(): void {
-  if (diskCacheLoaded) return;
-  diskCacheLoaded = true;
-  try {
-    if (!existsSync(DISK_CACHE_FILE)) return;
-    const data = JSON.parse(readFileSync(DISK_CACHE_FILE, 'utf-8'));
-    const now = Date.now();
-    for (const [model, entry] of Object.entries(data)) {
-      const e = entry as { name: string; timestamp: number; endpointIndex: number };
-      if (now - e.timestamp < DISK_CACHE_TTL) {
-        probeCache.set(model, { name: e.name, timestamp: e.timestamp });
-      }
-    }
-  } catch {
-    // Corrupted cache, ignore
-  }
-}
-
-function saveDiskProbeCache(model: string, name: string, endpointIndex: number): void {
-  try {
-    if (!existsSync(DISK_CACHE_DIR)) mkdirSync(DISK_CACHE_DIR, { recursive: true });
-    let data: Record<string, unknown> = {};
-    try {
-      if (existsSync(DISK_CACHE_FILE)) {
-        data = JSON.parse(readFileSync(DISK_CACHE_FILE, 'utf-8'));
-      }
-    } catch {
-      // Start fresh
-    }
-    data[model] = { name, timestamp: Date.now(), endpointIndex };
-    writeFileSync(DISK_CACHE_FILE, JSON.stringify(data));
-  } catch {
-    // Non-critical, ignore
-  }
-}
-
-// Disk cache is loaded lazily on first probe
-
-export class LLMClient {
-  private model: string;
-  private maxTokens: number;
-  private temperature: number;
-  private tokenLog: TokenUsage[] = [];
-
-  constructor(config: LLMConfig) {
-    this.model = config.model;
-    this.maxTokens = config.maxTokens ?? 2048;
-    this.temperature = config.temperature ?? 0.3;
-
-    // Register endpoints from config if not already done
-    if (registeredEndpoints.length === 0) {
-      registeredEndpoints.push({
-        name: 'primary',
-        apiKey: config.apiKey,
-        baseUrl: config.baseUrl.replace(/\/+$/, ''),
-      });
-    }
+  constructor() {
+    this.diskCacheFile = join(this.diskCacheDir, 'probe-cache.json');
   }
 
   /** Register multiple endpoints for failover */
-  static setEndpoints(endpoints: Endpoint[]): void {
-    registeredEndpoints = endpoints.map((e) => ({
+  setEndpoints(endpoints: Endpoint[]): void {
+    this.endpoints = endpoints.map((e) => ({
       ...e,
       baseUrl: e.baseUrl.replace(/\/+$/, ''),
     }));
-    activeEndpointIndex = 0;
+    this.activeEndpointIndex = 0;
   }
 
   /** Get the currently active endpoint */
-  static getActiveEndpoint(): Endpoint | undefined {
-    return registeredEndpoints[activeEndpointIndex];
+  getActiveEndpoint(): Endpoint | undefined {
+    return this.endpoints[this.activeEndpointIndex];
+  }
+
+  /** Get all registered endpoints */
+  getEndpoints(): Endpoint[] {
+    return this.endpoints;
   }
 
   /**
    * Pre-flight check: probe all endpoints in parallel, pick highest-priority working one.
    * Returns the name of the working endpoint or null if all fail.
    */
-  static async probeEndpoints(model: string): Promise<string | null> {
-    loadDiskProbeCache();
+  async probeEndpoints(model: string): Promise<string | null> {
+    this.loadDiskProbeCache();
 
-    const cached = probeCache.get(model);
-    if (cached && Date.now() - cached.timestamp < PROBE_CACHE_TTL) {
+    const cached = this.probeCache.get(model);
+    if (cached && Date.now() - cached.timestamp < this.probeCacheTTL) {
       return cached.name;
     }
 
     const TIMEOUT = 8000;
 
-    const probes = registeredEndpoints.map(async (ep, i) => {
+    const probes = this.endpoints.map(async (ep, i) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT);
       try {
         const url = `${ep.baseUrl}/chat/completions`;
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), TIMEOUT);
 
         const response = await fetch(url, {
           method: 'POST',
@@ -156,8 +109,6 @@ export class LLMClient {
           signal: controller.signal,
         });
 
-        clearTimeout(timer);
-
         if (response.ok) {
           const data = (await response.json()) as any;
           if (data.choices && data.choices.length > 0) {
@@ -169,29 +120,135 @@ export class LLMClient {
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — ${msg.slice(0, 80)}`);
+      } finally {
+        clearTimeout(timer);
       }
       return -1;
     });
 
     const results = await Promise.all(probes);
 
-    // Pick the highest-priority (lowest index) working endpoint
     const working = results
       .map((idx, originalIdx) => ({ resultIdx: idx, priority: originalIdx }))
       .filter((r) => r.resultIdx >= 0)
       .sort((a, b) => a.priority - b.priority);
 
     if (working.length > 0) {
-      activeEndpointIndex = working[0].resultIdx;
-      // Record which endpoints support this model
+      this.activeEndpointIndex = working[0].resultIdx;
       const supportedSet = new Set(working.map((w) => w.resultIdx));
-      modelEndpointMap.set(model, supportedSet);
-      const name = registeredEndpoints[activeEndpointIndex].name;
-      probeCache.set(model, { name, timestamp: Date.now() });
-      saveDiskProbeCache(model, name, activeEndpointIndex);
+      this.modelEndpointMap.set(model, supportedSet);
+      const name = this.endpoints[this.activeEndpointIndex].name;
+      this.probeCache.set(model, { name, timestamp: Date.now() });
+      this.saveDiskProbeCache(model, name, this.activeEndpointIndex);
       return name;
     }
     return null;
+  }
+
+  /** Get endpoint indices ordered by priority for a given model */
+  getEndpointOrder(model: string): number[] {
+    const compatible = this.modelEndpointMap.get(model);
+    const order: number[] = [];
+
+    if (!compatible || compatible.has(this.activeEndpointIndex)) {
+      order.push(this.activeEndpointIndex);
+    }
+
+    for (let i = 0; i < this.endpoints.length; i++) {
+      if (i === this.activeEndpointIndex) continue;
+      if (compatible && !compatible.has(i)) continue;
+      order.push(i);
+    }
+
+    return order;
+  }
+
+  /** Remove probe cache entries matching a given endpoint name */
+  invalidateProbeCacheFor(endpointName: string): void {
+    for (const [model, cached] of this.probeCache.entries()) {
+      if (cached.name === endpointName) this.probeCache.delete(model);
+    }
+  }
+
+  private loadDiskProbeCache(): void {
+    if (this.diskCacheLoaded) return;
+    this.diskCacheLoaded = true;
+    try {
+      if (!existsSync(this.diskCacheFile)) return;
+      const data = JSON.parse(readFileSync(this.diskCacheFile, 'utf-8'));
+      const now = Date.now();
+      for (const [model, entry] of Object.entries(data)) {
+        const e = entry as { name: string; timestamp: number; endpointIndex: number };
+        if (now - e.timestamp < this.diskCacheTTL) {
+          this.probeCache.set(model, { name: e.name, timestamp: e.timestamp });
+        }
+      }
+    } catch {
+      // Corrupted cache, ignore
+    }
+  }
+
+  private saveDiskProbeCache(model: string, name: string, endpointIndex: number): void {
+    try {
+      if (!existsSync(this.diskCacheDir)) mkdirSync(this.diskCacheDir, { recursive: true });
+      let data: Record<string, unknown> = {};
+      try {
+        if (existsSync(this.diskCacheFile)) {
+          data = JSON.parse(readFileSync(this.diskCacheFile, 'utf-8'));
+        }
+      } catch {
+        // Start fresh
+      }
+      data[model] = { name, timestamp: Date.now(), endpointIndex };
+      const tmpFile = `${this.diskCacheFile}.tmp`;
+      writeFileSync(tmpFile, JSON.stringify(data));
+      renameSync(tmpFile, this.diskCacheFile);
+    } catch {
+      // Non-critical, ignore
+    }
+  }
+}
+
+/** Default singleton for backward compatibility */
+export const defaultEndpointManager = new EndpointManager();
+
+export class LLMClient {
+  private model: string;
+  private maxTokens: number;
+  private temperature: number;
+  private tokenLog: TokenUsage[] = [];
+  private endpointManager: EndpointManager;
+
+  constructor(config: LLMConfig, endpointManager?: EndpointManager) {
+    this.model = config.model;
+    this.maxTokens = config.maxTokens ?? 2048;
+    this.temperature = config.temperature ?? 0.3;
+    this.endpointManager = endpointManager ?? defaultEndpointManager;
+
+    if (this.endpointManager.getEndpoints().length === 0) {
+      this.endpointManager.setEndpoints([
+        {
+          name: 'primary',
+          apiKey: config.apiKey,
+          baseUrl: config.baseUrl.replace(/\/+$/, ''),
+        },
+      ]);
+    }
+  }
+
+  /** @deprecated Use EndpointManager.setEndpoints() directly */
+  static setEndpoints(endpoints: Endpoint[]): void {
+    defaultEndpointManager.setEndpoints(endpoints);
+  }
+
+  /** @deprecated Use EndpointManager.getActiveEndpoint() directly */
+  static getActiveEndpoint(): Endpoint | undefined {
+    return defaultEndpointManager.getActiveEndpoint();
+  }
+
+  /** @deprecated Use EndpointManager.probeEndpoints() directly */
+  static async probeEndpoints(model: string): Promise<string | null> {
+    return defaultEndpointManager.probeEndpoints(model);
   }
 
   // ─── Chat Methods ──────────────────────────────────
@@ -263,32 +320,38 @@ export class LLMClient {
     maxTokensOverride?: number,
     temperatureOverride?: number,
   ): Promise<{ content: string; usage: TokenUsage }> {
-    const ep = registeredEndpoints[activeEndpointIndex];
+    const ep = this.endpointManager.getActiveEndpoint();
     if (!ep) throw new AllEndpointsFailedError(0);
 
     const url = `${ep.baseUrl}/chat/completions`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 120000);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${ep.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
-        ],
-        max_tokens: maxTokensOverride ?? this.maxTokens,
-        temperature: temperatureOverride ?? this.temperature,
-        stream: true,
-        stream_options: { include_usage: true },
-      }),
-      signal: controller.signal,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${ep.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage },
+          ],
+          max_tokens: maxTokensOverride ?? this.maxTokens,
+          temperature: temperatureOverride ?? this.temperature,
+          stream: true,
+          stream_options: { include_usage: true },
+        }),
+        signal: controller.signal,
+      });
+    } catch {
+      clearTimeout(timer);
+      return this.chat(systemPrompt, userMessage, agent, phase, maxTokensOverride, temperatureOverride);
+    }
 
     clearTimeout(timer);
     if (!response.ok || !response.body) {
@@ -363,27 +426,22 @@ export class LLMClient {
     };
     const body = JSON.stringify(payload);
 
-    // Snapshot endpoint order at call start to avoid race conditions during parallel execution
-    const endpointsToTry = this.getEndpointOrder();
+    const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
+    const allEndpoints = this.endpointManager.getEndpoints();
 
     for (const epIndex of endpointsToTry) {
-      const ep = registeredEndpoints[epIndex];
+      const ep = allEndpoints[epIndex];
       const result = await this.tryEndpoint(ep, body);
 
       if (result.success) {
         return result.data!;
       }
 
-      // Log failure and try next
       console.error(`[LLM] ${ep.name} failed: ${result.error}`);
-
-      // Invalidate probe cache if a previously-working endpoint fails
-      for (const [model, cached] of probeCache.entries()) {
-        if (cached.name === ep.name) probeCache.delete(model);
-      }
+      this.endpointManager.invalidateProbeCacheFor(ep.name);
     }
 
-    throw new AllEndpointsFailedError(registeredEndpoints.length);
+    throw new AllEndpointsFailedError(allEndpoints.length);
   }
 
   private async tryEndpoint(
@@ -394,10 +452,9 @@ export class LLMClient {
     const maxRetries = 2;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 120000);
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 120000);
-
         const response = await fetch(url, {
           method: 'POST',
           headers: {
@@ -408,9 +465,6 @@ export class LLMClient {
           signal: controller.signal,
         });
 
-        clearTimeout(timer);
-
-        // Retry on transient errors (within this endpoint)
         if ([429, 502, 503, 504].includes(response.status) && attempt < maxRetries) {
           const delay = (attempt + 1) * 2000;
           console.error(
@@ -441,28 +495,11 @@ export class LLMClient {
         }
         const msg = error instanceof Error ? error.message : String(error);
         return { success: false, error: msg.slice(0, 150) };
+      } finally {
+        clearTimeout(timer);
       }
     }
 
     return { success: false, error: 'Max retries exceeded' };
-  }
-
-  /** Get endpoint indices in order: active first, then others (filtered by model compatibility) */
-  private getEndpointOrder(): number[] {
-    const compatible = modelEndpointMap.get(this.model);
-    const order: number[] = [];
-
-    // Only use activeEndpointIndex first if it's compatible with this model
-    if (!compatible || compatible.has(activeEndpointIndex)) {
-      order.push(activeEndpointIndex);
-    }
-
-    for (let i = 0; i < registeredEndpoints.length; i++) {
-      if (i === activeEndpointIndex) continue; // Already handled above
-      if (compatible && !compatible.has(i)) continue;
-      order.push(i);
-    }
-
-    return order;
   }
 }

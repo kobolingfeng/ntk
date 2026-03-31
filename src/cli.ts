@@ -12,11 +12,14 @@ import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
 import { NTKServer } from './api/server.js';
+import { DiffContext } from './cli/diff-context.js';
 import { cmdGain, recordGain } from './cli/gain.js';
 import { handleEvent, printTokenReport } from './cli/output.js';
-import { LLMClient } from './core/llm.js';
+import { EndpointManager } from './core/llm.js';
 import type { NTKConfig } from './index.js';
 import { Pipeline } from './pipeline/pipeline.js';
+
+const endpointManager = new EndpointManager();
 
 dotenv.config();
 
@@ -45,12 +48,12 @@ function loadEndpoints(): void {
     process.exit(1);
   }
 
-  LLMClient.setEndpoints(endpoints);
+  endpointManager.setEndpoints(endpoints);
   console.log(chalk.dim(`  Loaded ${endpoints.length} endpoint(s): ${endpoints.map((e) => e.name).join(', ')}`));
 }
 
 function loadConfig(): NTKConfig {
-  const ep = LLMClient.getActiveEndpoint()!;
+  const ep = endpointManager.getActiveEndpoint()!;
 
   const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
   const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
@@ -88,6 +91,7 @@ async function cmdRun(
   const startTime = Date.now();
   const pipeline = new Pipeline(config, handleEvent, {
     ...(opts as any),
+    endpointManager,
     onToken: useStream
       ? (token: string) => {
           if (!streamStarted) {
@@ -130,11 +134,20 @@ async function cmdRun(
 
 async function cmdInteractive(config: NTKConfig): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const diffCtx = new DiffContext();
 
   const ask = (): void => {
     rl.question(chalk.cyan('\n  📝 Task > '), async (input) => {
       const trimmed = input.trim();
       if (!trimmed || trimmed === 'exit' || trimmed === 'quit') {
+        const stats = diffCtx.getStats();
+        if (stats.totalTurns > 1) {
+          console.log(
+            chalk.dim(
+              `  📊 Session: ${stats.totalTurns} turns, ~${stats.estimatedTokensSaved} tokens saved via diff context`,
+            ),
+          );
+        }
         console.log(chalk.dim('  Bye!\n'));
         rl.close();
         return;
@@ -144,6 +157,7 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
         console.log(chalk.dim('  Type a task to run it. Special commands:'));
         console.log(chalk.dim('    exit/quit  — Exit'));
         console.log(chalk.dim('    gain       — Show cumulative savings'));
+        console.log(chalk.dim('    clear      — Clear conversation context'));
         console.log(chalk.dim('    help       — This help'));
         ask();
         return;
@@ -155,9 +169,48 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
         return;
       }
 
-      await cmdRun(trimmed, config).catch((err) => {
+      if (trimmed === 'clear') {
+        diffCtx.clear();
+        console.log(chalk.dim('  Conversation context cleared.'));
+        ask();
+        return;
+      }
+
+      const augmented = diffCtx.buildAugmentedQuery(trimmed);
+      const taskToRun = augmented ?? trimmed;
+      if (augmented) {
+        console.log(chalk.dim(`  📎 Injecting context from ${diffCtx.turnCount} previous turn(s)`));
+      }
+
+      try {
+        const startTime = Date.now();
+        const pipeline = new Pipeline(config, handleEvent, { endpointManager });
+        const result = await pipeline.run(taskToRun);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        console.log(chalk.cyan.bold('\n  === Final Report ==='));
+        console.log(`  ${result.report.split('\n').join('\n  ')}`);
+        console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
+        printTokenReport(result);
+
+        const tr = result.tokenReport;
+        const totalTok = tr.totalInput + tr.totalOutput;
+        diffCtx.addTurn(trimmed, result.report, result.depth ?? 'full', totalTok);
+
+        const plannerTok = tr.byAgent.planner ? tr.byAgent.planner.input + tr.byAgent.planner.output : 0;
+        recordGain({
+          timestamp: Date.now(),
+          preFilterCharsRemoved: result.preFilterSavings?.totalCharsRemoved ?? 0,
+          preFilterOriginal: result.preFilterSavings?.totalOriginal ?? 0,
+          totalTokens: totalTok,
+          strongTokens: plannerTok,
+          cheapTokens: totalTok - plannerTok,
+          depth: result.depth ?? 'full',
+          detectedTypes: [],
+        });
+      } catch (err) {
         console.log(chalk.red(`  Error: ${err instanceof Error ? err.message : err}`));
-      });
+      }
       ask();
     });
   };
@@ -166,7 +219,7 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
 }
 
 async function cmdServe(port: number, config: NTKConfig): Promise<void> {
-  const server = new NTKServer(config);
+  const server = new NTKServer(config, endpointManager);
   await server.start(port);
 }
 
@@ -216,7 +269,7 @@ async function main(): Promise<void> {
     console.log(chalk.dim('  Probing endpoints...'));
   }
 
-  const working = await LLMClient.probeEndpoints(plannerModel);
+  const working = await endpointManager.probeEndpoints(plannerModel);
   if (!working) {
     console.error(chalk.red('\n  ❌ All API endpoints are down. Check .env and try again.'));
     process.exit(1);
@@ -224,7 +277,7 @@ async function main(): Promise<void> {
 
   if (compressorModel !== plannerModel && !fastStart) {
     console.log(chalk.dim(`  Verifying compressor model (${compressorModel})...`));
-    const compressorWorking = await LLMClient.probeEndpoints(compressorModel);
+    const compressorWorking = await endpointManager.probeEndpoints(compressorModel);
     if (!compressorWorking) {
       console.log(chalk.yellow(`  ⚠️  Compressor model probe failed, falling back to planner endpoint`));
     }

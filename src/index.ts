@@ -29,7 +29,7 @@ export {
 export type { CompressionLevel, CompressResult } from './core/compressor.js';
 export { Compressor } from './core/compressor.js';
 export type { Endpoint } from './core/llm.js';
-export { LLMClient } from './core/llm.js';
+export { defaultEndpointManager, EndpointManager, LLMClient } from './core/llm.js';
 export type { PreFilterResult, PreFilterStrategyReport } from './core/pre-filter.js';
 export { preFilter } from './core/pre-filter.js';
 export type { Locale } from './core/prompts.js';
