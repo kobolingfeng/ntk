@@ -25,17 +25,6 @@ export interface DirectDepthContext {
 export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult> {
   ctx.emit({ type: 'phase', phase: 'execute', detail: 'Direct execution...' });
 
-  const isMicroTask = ctx.userRequest.length < 30;
-  const adaptiveMaxTokens = isMicroTask
-    ? 256
-    : ctx.userRequest.length < 50
-      ? 512
-      : ctx.userRequest.length < 200
-        ? 1024
-        : ctx.userRequest.length > 2000
-          ? 1024
-          : undefined;
-
   let effectiveRequest = ctx.userRequest;
   if (ctx.userRequest.length > 3000) {
     const head = ctx.userRequest.slice(0, 1500);
@@ -48,7 +37,17 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
     });
   }
 
-  const adaptiveTemp = ctx.userRequest.length < 30 ? 0.1 : ctx.userRequest.length > 200 ? 0.4 : undefined;
+  const isMicroTask = effectiveRequest.length < 30;
+  const adaptiveMaxTokens = isMicroTask
+    ? 256
+    : effectiveRequest.length < 50
+      ? 512
+      : effectiveRequest.length < 200
+        ? 1024
+        : effectiveRequest.length > 2000
+          ? 1024
+          : undefined;
+  const adaptiveTemp = isMicroTask ? 0.1 : effectiveRequest.length > 200 ? 0.4 : undefined;
 
   const bandPrompt = getBandPrompt(effectiveRequest, ctx.locale, isMicroTask);
 
