@@ -18,6 +18,14 @@ export { Verifier } from './agents/verifier.js';
 export { NTKServer } from './api/server.js';
 export type { CacheStats } from './core/cache.js';
 export { ResponseCache } from './core/cache.js';
+export {
+  AllEndpointsFailedError,
+  ClassifierError,
+  CompressionError,
+  LLMClientError,
+  NTKError,
+  PipelineError,
+} from './core/errors.js';
 export type { CompressionLevel, CompressResult } from './core/compressor.js';
 export { Compressor } from './core/compressor.js';
 export type { Endpoint } from './core/llm.js';

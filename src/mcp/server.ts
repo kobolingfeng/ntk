@@ -102,6 +102,7 @@ server.tool(
   },
   async ({ task, forceDepth, skipScout }) => {
     await ensureInitialized();
+    const config = loadConfig();
 
     const pipeline = new Pipeline(config, () => {}, {
       forceDepth: forceDepth as PipelineDepth | undefined,
@@ -169,6 +170,7 @@ server.tool(
   },
   async ({ text, level }) => {
     await ensureInitialized();
+    const config = loadConfig();
 
     const compressor = new Compressor(new LLMClient(config.compressor));
     const result = await compressor.compress(text, level || 'standard', 'summarizer', 'gather');

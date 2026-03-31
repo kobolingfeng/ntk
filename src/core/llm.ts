@@ -288,7 +288,8 @@ export class LLMClient {
       }
     }
 
-    throw new Error(`All ${registeredEndpoints.length} endpoints failed`);
+    const { AllEndpointsFailedError } = await import('./errors.js');
+    throw new AllEndpointsFailedError(registeredEndpoints.length);
   }
 
   private async tryEndpoint(

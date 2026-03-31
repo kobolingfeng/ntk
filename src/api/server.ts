@@ -28,6 +28,8 @@ export class NTKServer {
     timestamp: number;
     durationMs: number;
   }> = [];
+  private rateLimiter = new Map<string, { count: number; resetAt: number }>();
+  private readonly rateLimit = { windowMs: 60_000, maxRequests: 30 };
 
   constructor(config: NTKConfig) {
     this.config = config;
@@ -64,6 +66,12 @@ export class NTKServer {
     if (req.method === 'OPTIONS') {
       res.writeHead(200);
       res.end();
+      return;
+    }
+
+    const clientIp = req.socket.remoteAddress || 'unknown';
+    if (!this.checkRateLimit(clientIp)) {
+      this.sendJson(res, 429, { error: 'Too many requests. Try again later.' });
       return;
     }
 
@@ -318,6 +326,17 @@ export class NTKServer {
   private sendJson(res: http.ServerResponse, status: number, data: any): void {
     res.writeHead(status);
     res.end(JSON.stringify(data, null, 2));
+  }
+
+  private checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const entry = this.rateLimiter.get(ip);
+    if (!entry || now > entry.resetAt) {
+      this.rateLimiter.set(ip, { count: 1, resetAt: now + this.rateLimit.windowMs });
+      return true;
+    }
+    entry.count++;
+    return entry.count <= this.rateLimit.maxRequests;
   }
 
   /** Cap history to prevent unbounded memory growth */
