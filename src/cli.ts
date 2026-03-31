@@ -76,19 +76,38 @@ function loadConfig(): NTKConfig {
 async function cmdRun(
   task: string,
   config: NTKConfig,
-  opts?: { forceDepth?: string; skipScout?: boolean },
+  opts?: { forceDepth?: string; skipScout?: boolean; stream?: boolean },
 ): Promise<void> {
   console.log(chalk.blue.bold(`\n  ⚡ Running task: "${task}"\n`));
   if (opts?.forceDepth) console.log(chalk.dim(`  Force depth: ${opts.forceDepth}`));
   if (opts?.skipScout) console.log(chalk.dim(`  Skip scout: true`));
 
+  const useStream = opts?.stream !== false;
+  let streamStarted = false;
+
   const startTime = Date.now();
-  const pipeline = new Pipeline(config, handleEvent, opts as any);
+  const pipeline = new Pipeline(config, handleEvent, {
+    ...(opts as any),
+    onToken: useStream
+      ? (token: string) => {
+          if (!streamStarted) {
+            console.log(chalk.cyan.bold('\n  === Final Report ==='));
+            process.stdout.write('  ');
+            streamStarted = true;
+          }
+          process.stdout.write(token);
+        }
+      : undefined,
+  });
   const result = await pipeline.run(task);
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-  console.log(chalk.cyan.bold('\n  === Final Report ==='));
-  console.log(`  ${result.report.split('\n').join('\n  ')}`);
+  if (streamStarted) {
+    console.log('');
+  } else {
+    console.log(chalk.cyan.bold('\n  === Final Report ==='));
+    console.log(`  ${result.report.split('\n').join('\n  ')}`);
+  }
   console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
 
   printTokenReport(result);

@@ -254,6 +254,100 @@ export class LLMClient {
     this.tokenLog = [];
   }
 
+  async chatStream(
+    systemPrompt: string,
+    userMessage: string,
+    agent: AgentType,
+    phase: Phase,
+    onToken: (token: string) => void,
+    maxTokensOverride?: number,
+    temperatureOverride?: number,
+  ): Promise<{ content: string; usage: TokenUsage }> {
+    const ep = registeredEndpoints[activeEndpointIndex];
+    if (!ep) throw new AllEndpointsFailedError(0);
+
+    const url = `${ep.baseUrl}/chat/completions`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ep.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+        max_tokens: maxTokensOverride ?? this.maxTokens,
+        temperature: temperatureOverride ?? this.temperature,
+        stream: true,
+        stream_options: { include_usage: true },
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+    if (!response.ok || !response.body) {
+      return this.chat(systemPrompt, userMessage, agent, phase, maxTokensOverride, temperatureOverride);
+    }
+
+    let fullContent = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+        try {
+          const json = JSON.parse(line.slice(6));
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullContent += delta;
+            onToken(delta);
+          }
+          if (json.usage) {
+            inputTokens = json.usage.prompt_tokens || 0;
+            outputTokens = json.usage.completion_tokens || 0;
+          }
+        } catch {
+          // Skip malformed SSE lines
+        }
+      }
+    }
+
+    if (inputTokens === 0) {
+      inputTokens = Math.ceil((systemPrompt.length + userMessage.length) / 4);
+    }
+    if (outputTokens === 0) {
+      outputTokens = Math.ceil(fullContent.length / 4);
+    }
+
+    const usage: TokenUsage = {
+      agent,
+      inputTokens,
+      outputTokens,
+      timestamp: Date.now(),
+      phase,
+    };
+    this.tokenLog.push(usage);
+    return { content: fullContent, usage };
+  }
+
   // ─── Core API Call with Failover ──────────────────
 
   private async callAPI(

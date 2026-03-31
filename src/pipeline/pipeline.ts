@@ -77,17 +77,19 @@ export class Pipeline {
   }
 
   private speculative: boolean;
+  private onToken?: (token: string) => void;
 
   constructor(
     config: NTKConfig,
     onEvent?: (event: PipelineEvent) => void,
-    options?: { forceDepth?: PipelineDepth; skipScout?: boolean; speculative?: boolean },
+    options?: { forceDepth?: PipelineDepth; skipScout?: boolean; speculative?: boolean; onToken?: (token: string) => void },
   ) {
     this.config = config;
     this.onEvent = onEvent;
     this.forceDepth = options?.forceDepth;
     this.skipScout = options?.skipScout ?? false;
     this.speculative = options?.speculative ?? true;
+    this.onToken = options?.onToken;
 
     // Create LLM clients — planner gets the strong model
     this.plannerLLM = new LLMClient(config.planner);
@@ -195,6 +197,7 @@ export class Pipeline {
           () => this.router.getStats(),
           (e) => this.emit(e),
           this.compressorLLM,
+          this.onToken,
         );
       } else if (this.forceDepth) {
         // Forced depth — no speculation needed

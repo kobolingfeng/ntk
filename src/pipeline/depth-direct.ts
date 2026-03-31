@@ -19,6 +19,7 @@ export async function runDirect(
   getRouterStats: () => RouterStats,
   emit: (event: PipelineEvent) => void,
   llm?: LLMClient,
+  onToken?: (token: string) => void,
 ): Promise<PipelineResult> {
   emit({ type: 'phase', phase: 'execute', detail: 'Direct execution...' });
 
@@ -36,7 +37,11 @@ export async function runDirect(
   const adaptiveTemp = userRequest.length < 30 ? 0.1 : userRequest.length > 200 ? 0.4 : undefined;
 
   let report: string;
-  if (llm) {
+  if (llm && onToken) {
+    const bandPrompt = getBandPrompt(effectiveRequest, locale);
+    const { content } = await llm.chatStream(bandPrompt, effectiveRequest, 'executor', 'execute', onToken, adaptiveMaxTokens, adaptiveTemp);
+    report = content.trim() || emptyOutputMessage(locale);
+  } else if (llm) {
     const bandPrompt = getBandPrompt(effectiveRequest, locale);
     const { content } = await llm.chat(bandPrompt, effectiveRequest, 'executor', 'execute', adaptiveMaxTokens, adaptiveTemp);
     report = content.trim() || emptyOutputMessage(locale);
