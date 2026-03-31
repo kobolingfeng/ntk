@@ -19,8 +19,11 @@ export async function classifyDepth(
   const fastResult = classifyDepthFastPath(userRequest);
   if (fastResult) return fastResult;
 
-  // Short requests (≤30 chars) are almost always direct
-  if (userRequest.length <= 30) {
+  // Short requests are almost always direct
+  // Chinese characters carry ~2.5x more info per char than ASCII
+  const hasCJK = /[\u4e00-\u9fff]/.test(userRequest);
+  const shortThreshold = hasCJK ? 12 : 30;
+  if (userRequest.length <= shortThreshold) {
     return 'direct';
   }
 
@@ -69,7 +72,9 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
     return 'direct';
   }
 
-  if (userRequest.length <= 30) {
+  const hasCJK = /[\u4e00-\u9fff]/.test(userRequest);
+  const threshold = hasCJK ? 12 : 30;
+  if (userRequest.length <= threshold) {
     return 'direct';
   }
 
