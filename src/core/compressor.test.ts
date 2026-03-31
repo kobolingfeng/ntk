@@ -217,5 +217,41 @@ describe('Compressor', () => {
       compressor.teeClear();
       expect(compressor.teeSize).toBe(0);
     });
+
+    it('evicts oldest entry when exceeding MAX_TEE_ENTRIES (20)', async () => {
+      const llm = createMockLLM('compressed');
+      const compressor = new Compressor(llm);
+
+      const teeIds: string[] = [];
+      for (let i = 0; i < 21; i++) {
+        const result = await compressor.compress(`${'x'.repeat(300)}_${i}`, 'standard', 'summarizer', 'gather', {
+          tee: true,
+        });
+        teeIds.push(result.teeId!);
+      }
+
+      expect(compressor.teeSize).toBe(20);
+      expect(compressor.teeRetrieve(teeIds[0])).toBeUndefined();
+      expect(compressor.teeRetrieve(teeIds[1])).toBeDefined();
+      expect(compressor.teeRetrieve(teeIds[20])).toBeDefined();
+    });
+  });
+
+  describe('locale affects prompts', () => {
+    it('sends different system prompts for zh vs en', async () => {
+      const llm = createMockLLM('result');
+      const compressor = new Compressor(llm);
+
+      compressor.setLocale('zh');
+      await compressor.compress('a'.repeat(300), 'standard');
+      const zhPrompt = llm.chat.mock.calls[0][0] as string;
+
+      llm.chat.mockClear();
+      compressor.setLocale('en');
+      await compressor.compress('b'.repeat(300), 'standard');
+      const enPrompt = llm.chat.mock.calls[0][0] as string;
+
+      expect(zhPrompt).not.toBe(enPrompt);
+    });
   });
 });
