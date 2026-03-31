@@ -9,6 +9,7 @@
 *当所有多Agent框架都在让AI看更多信息时，*
 *我们问了一个不同的问题：如果让AI看更少呢？*
 
+[![CI](https://github.com/kobolingfeng/ntk/actions/workflows/ci.yml/badge.svg)](https://github.com/kobolingfeng/ntk/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-ESM-blue)]()
 [![License](https://img.shields.io/badge/License-AGPL--3.0-red)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-purple)]()
