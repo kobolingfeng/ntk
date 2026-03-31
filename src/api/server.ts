@@ -133,12 +133,17 @@ export class NTKServer {
     }
     const { task, debug } = parsed;
 
-    if (!task) {
-      this.sendJson(res, 400, { error: 'Missing "task" field in request body' });
+    if (!task || typeof task !== 'string') {
+      this.sendJson(res, 400, { error: 'Missing or invalid "task" field in request body (must be a string)' });
       return;
     }
 
-    const config = { ...this.config, debug: debug ?? this.config.debug };
+    if (task.length > 10000) {
+      this.sendJson(res, 400, { error: 'Task too long (max 10000 characters)' });
+      return;
+    }
+
+    const config = { ...this.config, debug: debug === true ? true : this.config.debug };
     const events: PipelineEvent[] = [];
 
     const pipeline = new Pipeline(config, (event) => {
@@ -182,8 +187,13 @@ export class NTKServer {
     }
     const { task, debug } = parsed;
 
-    if (!task) {
-      this.sendJson(res, 400, { error: 'Missing "task" field in request body' });
+    if (!task || typeof task !== 'string') {
+      this.sendJson(res, 400, { error: 'Missing or invalid "task" field (must be a string)' });
+      return;
+    }
+
+    if (task.length > 10000) {
+      this.sendJson(res, 400, { error: 'Task too long (max 10000 characters)' });
       return;
     }
 
@@ -194,32 +204,43 @@ export class NTKServer {
       'Connection': 'keep-alive',
     });
 
-    const config = { ...this.config, debug: debug ?? false };
+    const config = { ...this.config, debug: debug === true ? true : false };
 
     const pipeline = new Pipeline(config, (event) => {
-      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      if (!res.destroyed) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      }
     });
 
     const startTime = Date.now();
-    const result = await pipeline.run(task);
-    const durationMs = Date.now() - startTime;
+    try {
+      const result = await pipeline.run(task);
+      const durationMs = Date.now() - startTime;
 
-    this.lastResult = result;
-    this.addToHistory(task, result, startTime, durationMs);
+      this.lastResult = result;
+      this.addToHistory(task, result, startTime, durationMs);
 
-    res.write(`data: ${JSON.stringify({
-      type: 'final',
-      phase: 'report',
-      detail: JSON.stringify({
-        success: result.success,
-        report: result.report,
-        tokenUsage: result.tokenReport,
-        routerStats: result.routerStats,
-        durationMs,
-      }),
-    })}\n\n`);
-
-    res.end();
+      if (!res.destroyed) {
+        res.write(`data: ${JSON.stringify({
+          type: 'final',
+          phase: 'report',
+          detail: JSON.stringify({
+            success: result.success,
+            report: result.report,
+            tokenUsage: result.tokenReport,
+            routerStats: result.routerStats,
+            durationMs,
+          }),
+        })}\n\n`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!res.destroyed) {
+        res.write(`data: ${JSON.stringify({ type: 'error', phase: 'report', detail: message })}\n\n`);
+      }
+    } finally {
+      res.end();
+    }
   }
 
   private async handleCompress(
@@ -312,17 +333,21 @@ export class NTKServer {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       let size = 0;
+      let settled = false;
+      const settle = (fn: typeof resolve | typeof reject, value: any) => {
+        if (!settled) { settled = true; fn(value); }
+      };
       req.on('data', (chunk: Buffer) => {
         size += chunk.length;
         if (size > maxBytes) {
           req.destroy();
-          reject(new Error('Request body too large'));
+          settle(reject, new Error('Request body too large'));
           return;
         }
         chunks.push(chunk);
       });
-      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-      req.on('error', reject);
+      req.on('end', () => settle(resolve, Buffer.concat(chunks).toString('utf-8')));
+      req.on('error', (err) => settle(reject, err));
     });
   }
 }

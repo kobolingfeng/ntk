@@ -226,6 +226,11 @@ export class LLMClient {
 
       // Log failure and try next
       console.error(`[LLM] ${ep.name} failed: ${result.error}`);
+
+      // Invalidate probe cache if a previously-working endpoint fails
+      for (const [model, cached] of probeCache.entries()) {
+        if (cached.name === ep.name) probeCache.delete(model);
+      }
     }
 
     throw new Error(`All ${registeredEndpoints.length} endpoints failed`);

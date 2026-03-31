@@ -201,7 +201,9 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
         return;
       }
 
-      await cmdRun(trimmed, config);
+      await cmdRun(trimmed, config).catch((err) => {
+        console.log(chalk.red(`  Error: ${err instanceof Error ? err.message : err}`));
+      });
       ask();
     });
   };
@@ -700,7 +702,13 @@ async function main(): Promise<void> {
   switch (command) {
     case 'run': {
       const fdIdx = args.indexOf('--force-depth');
-      const forceDepth = fdIdx >= 0 ? args[fdIdx + 1] : undefined;
+      const validDepths = ['direct', 'light', 'standard', 'full'];
+      const rawDepth = fdIdx >= 0 ? args[fdIdx + 1] : undefined;
+      const forceDepth = rawDepth && validDepths.includes(rawDepth) ? rawDepth : undefined;
+      if (fdIdx >= 0 && !forceDepth) {
+        console.log(chalk.yellow(`  ⚠️ Invalid --force-depth value "${rawDepth}". Valid: ${validDepths.join(', ')}`));
+        return;
+      }
       const skipScout = args.includes('--skip-scout');
       // Exclude --flag values from task string
       const skipIndices = new Set<number>();
@@ -724,7 +732,7 @@ async function main(): Promise<void> {
     case 'serve':
     case 'api': {
       const portIdx = args.indexOf('--port');
-      const port = portIdx >= 0 ? parseInt(args[portIdx + 1]) : 3210;
+      const port = portIdx >= 0 ? (parseInt(args[portIdx + 1]) || 3210) : 3210;
       await cmdServe(port, config);
       break;
     }

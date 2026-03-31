@@ -205,11 +205,11 @@ export class Pipeline {
     const context: AgentContext = { visibleMessages: [] };
     const response = await this.executor.process(msg, context);
 
-    const report = response.payload;
+    const report = response.payload.trim() || (this.locale === 'zh' ? '未生成输出，请重试或换一种方式描述任务。' : 'No output generated. Please retry or rephrase the task.');
     this.emit({ type: 'complete', phase: 'report', detail: 'Done (direct)' });
 
     return {
-      success: true,
+      success: !!response.payload.trim(),
       report,
       tokenReport: this.generateTokenReport(),
       routerStats: this.router.getStats(),
@@ -237,7 +237,7 @@ export class Pipeline {
     const verifyResponse = await this.verifier.process(verifyMsg, verifyCtx);
 
     const passed = verifyResponse.payload.includes('✅');
-    let report = response.payload;
+    let report = response.payload.trim() || (this.locale === 'zh' ? '未生成输出，请重试或换一种方式描述任务。' : 'No output generated. Please retry or rephrase the task.');
 
     // If verification failed, do one retry with original context
     if (!passed) {
@@ -364,24 +364,32 @@ export class Pipeline {
 
     const instructions = this.planner.parseInstructions(content);
 
-    // Execute gather instructions (only scout/summarizer)
-    for (const inst of instructions) {
-      if (inst.target !== 'scout' && inst.target !== 'summarizer') continue;
+    // Execute gather instructions (only scout/summarizer) — run in parallel
+    const gatherTasks = instructions
+      .filter(inst => inst.target === 'scout' || inst.target === 'summarizer')
+      .map(async (inst) => {
+        const agent = inst.target === 'scout' ? this.scout : this.summarizer;
+        const msg = createMessage('planner', inst.target, inst.instruction, '');
 
-      const agent = inst.target === 'scout' ? this.scout : this.summarizer;
-      const msg = createMessage('planner', inst.target, inst.instruction, '');
+        // Route check
+        const decision = this.router.route(msg, 'gather');
+        if (!decision.allowed) {
+          this.emit({ type: 'blocked', phase: 'gather', detail: decision.reason });
+          return null;
+        }
 
-      // Route check
-      const decision = this.router.route(msg, 'gather');
-      if (!decision.allowed) {
-        this.emit({ type: 'blocked', phase: 'gather', detail: decision.reason });
-        continue;
-      }
+        const context: AgentContext = {
+          visibleMessages: this.router.getVisibleMessages(inst.target),
+        };
+        const response = await agent.process(msg, context);
+        return { inst, decision, response };
+      });
 
-      const context: AgentContext = {
-        visibleMessages: this.router.getVisibleMessages(inst.target),
-      };
-      const response = await agent.process(msg, context);
+    const gatherResults = await Promise.all(gatherTasks);
+
+    for (const result of gatherResults) {
+      if (!result) continue;
+      const { inst, decision, response } = result;
 
       // Compress if needed before storing
       if (decision.needsCompression) {
@@ -610,15 +618,10 @@ export class Pipeline {
       return executorContent;
     }
 
-    // If verification failed, add a brief Planner conclusion (1 cheap call)
-    const { content } = await this.compressorLLM.chat(
-      this.strings.reportHeader,
-      `${this.strings.verifyStatus}: ${verification.plannerSummary}\n\n---\n\n${executorContent.slice(0, 3000)}`,
-      'summarizer',
-      'report'
-    );
-
-    return content;
+    // If verification failed, return raw executor content with a status header
+    // (Do NOT send through LLM — it may discard the actual content)
+    const statusLine = verification.plannerSummary;
+    return `${statusLine}\n\n---\n\n${executorContent}`;
   }
 
   // Keep old report phase for explicit full pipeline usage
