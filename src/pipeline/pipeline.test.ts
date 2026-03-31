@@ -244,19 +244,24 @@ describe('classifyDepth fast path', () => {
       expect(classifyDepthFastPath(input)).toBeNull();
     });
 
-    it('pattern match but >100 chars → null (needs LLM)', () => {
-      const longInput = `write ${'a'.repeat(100)}`;
+    it('pattern match but >150 chars → null (needs LLM)', () => {
+      const longInput = `write ${'a'.repeat(150)}`;
       expect(classifyDepthFastPath(longInput)).toBeNull();
     });
 
-    it('pattern match at exactly 100 chars → direct', () => {
-      const input = `write ${'a'.repeat(94)}`; // 6 + 94 = 100
+    it('pattern match at exactly 150 chars → direct', () => {
+      const input = `write ${'a'.repeat(144)}`; // 6 + 144 = 150
       expect(classifyDepthFastPath(input)).toBe('direct');
     });
 
-    it('pattern match at 101 chars → null', () => {
-      const input = `write ${'a'.repeat(95)}`; // 6 + 95 = 101
+    it('pattern match at 151 chars → null', () => {
+      const input = `write ${'a'.repeat(145)}`; // 6 + 145 = 151
       expect(classifyDepthFastPath(input)).toBeNull();
+    });
+
+    it('embedded data pattern → direct regardless of length', () => {
+      const longInput = `分析以下${'a'.repeat(500)}`;
+      expect(classifyDepthFastPath(longInput)).toBe('direct');
     });
   });
 

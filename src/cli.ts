@@ -12,6 +12,7 @@ import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
 import { NTKServer } from './api/server.js';
+import { cmdGain, recordGain } from './cli/gain.js';
 import { handleEvent, printTokenReport } from './cli/output.js';
 import { LLMClient } from './core/llm.js';
 import type { NTKConfig } from './index.js';
@@ -91,6 +92,21 @@ async function cmdRun(
   console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
 
   printTokenReport(result);
+
+  // Record gain stats
+  const tr = result.tokenReport;
+  const plannerTok = tr.byAgent.planner ? tr.byAgent.planner.input + tr.byAgent.planner.output : 0;
+  const totalTok = tr.totalInput + tr.totalOutput;
+  recordGain({
+    timestamp: Date.now(),
+    preFilterCharsRemoved: result.preFilterSavings?.totalCharsRemoved ?? 0,
+    preFilterOriginal: result.preFilterSavings?.totalOriginal ?? 0,
+    totalTokens: totalTok,
+    strongTokens: plannerTok,
+    cheapTokens: totalTok - plannerTok,
+    depth: result.depth ?? 'full',
+    detectedTypes: [],
+  });
 }
 
 async function cmdInteractive(config: NTKConfig): Promise<void> {
@@ -134,6 +150,12 @@ async function main(): Promise<void> {
 
   console.log(chalk.cyan.bold('\n  🔒 NTK — NeedToKnow Agent Framework'));
   console.log(chalk.dim('     "Know less. Do more."\n'));
+
+  // Commands that don't need LLM initialization
+  if (command === 'gain') {
+    cmdGain();
+    return;
+  }
 
   // Early validation for 'run' command
   if (command === 'run') {
@@ -247,6 +269,15 @@ async function main(): Promise<void> {
       break;
     }
 
+    case 'compare': {
+      const { cmdCompare } = await import('./cli/benchmarks/index.js');
+      await cmdCompare(config);
+      break;
+    }
+
+    case 'gain':
+      break;
+
     case 'mcp': {
       const { startMcpServer } = await import('./mcp/server.js');
       await startMcpServer();
@@ -265,6 +296,8 @@ async function main(): Promise<void> {
         console.log(chalk.dim('    mcp               — Start MCP server (stdio transport)'));
         console.log(chalk.dim('    test              — Run test suite (9 tasks)'));
         console.log(chalk.dim('    baseline          — Baseline comparison (NTK vs direct LLM)'));
+        console.log(chalk.dim('    compare           — RTK vs Traditional vs NTK comparison'));
+        console.log(chalk.dim('    gain              — Show cumulative savings statistics'));
         console.log(chalk.dim('    ablation          — Ablation study (component contribution)'));
         console.log(chalk.dim('    optimize          — Optimization matrix (speed/cost/token/quality)'));
       }

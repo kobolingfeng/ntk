@@ -102,12 +102,19 @@ async function gatherPhase(ctx: FullDepthContext): Promise<void> {
     const { inst, decision, response } = result;
 
     if (decision.needsCompression) {
-      const compressed = await ctx.compressor.compress(response.payload, 'standard', inst.target, 'gather');
+      const compressed = await ctx.compressor.compress(response.payload, 'standard', inst.target, 'gather', {
+        tee: true,
+      });
       response.payload = compressed.compressed;
+
+      const pfInfo =
+        compressed.preFilterResult && compressed.preFilterResult.charsRemoved > 0
+          ? ` (pre-filter: -${compressed.preFilterResult.charsRemoved} chars)`
+          : '';
       ctx.emit({
         type: 'compressed',
         phase: 'gather',
-        detail: `Compressed ${compressed.originalLength}→${compressed.compressedLength} chars (${compressed.ratio.toFixed(1)}x)`,
+        detail: `Compressed ${compressed.originalLength}→${compressed.compressedLength} chars (${compressed.ratio.toFixed(1)}x)${pfInfo}`,
       });
     }
 
@@ -292,6 +299,20 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
     }
 
     retries++;
+  }
+
+  // On failure, check if tee has original data that might help diagnosis
+  if (!allPassed && ctx.compressor.teeSize > 0) {
+    ctx.emit({
+      type: 'message',
+      phase: 'verify',
+      detail: `Tee store has ${ctx.compressor.teeSize} original(s) available for recovery`,
+    });
+  }
+
+  // Clean up tee store on success — no longer needed
+  if (allPassed) {
+    ctx.compressor.teeClear();
   }
 
   const plannerReport = allPassed

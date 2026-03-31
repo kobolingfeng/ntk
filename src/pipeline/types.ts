@@ -13,6 +13,13 @@ export interface PipelineEvent {
   detail: string;
 }
 
+export interface PreFilterSavings {
+  totalCharsRemoved: number;
+  totalOriginal: number;
+  callCount: number;
+  reductionPercent: number;
+}
+
 export interface PipelineResult {
   success: boolean;
   report: string;
@@ -20,6 +27,8 @@ export interface PipelineResult {
   routerStats: RouterStats;
   blockedMessages: Array<{ message: Message; reason: string }>;
   depth?: PipelineDepth;
+  preFilterSavings?: PreFilterSavings;
+  cached?: boolean;
 }
 
 export interface ExecutionResult {

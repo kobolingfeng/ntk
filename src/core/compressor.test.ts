@@ -141,4 +141,81 @@ describe('Compressor', () => {
       expect(() => compressor.setLocale('zh')).not.toThrow();
     });
   });
+
+  describe('pre-filter integration', () => {
+    it('strips ANSI codes before LLM compression', async () => {
+      const llm = createMockLLM('clean output');
+      const compressor = new Compressor(llm);
+      const input = `\x1b[31m${'a'.repeat(300)}\x1b[0m`;
+
+      const result = await compressor.compress(input);
+      expect(result.wasCompressed).toBe(true);
+      expect(result.preFilterResult).toBeDefined();
+      expect(result.preFilterResult!.charsRemoved).toBeGreaterThan(0);
+
+      const chatInput = llm.chat.mock.calls[0][1] as string;
+      expect(chatInput).not.toContain('\x1b');
+    });
+
+    it('tracks pre-filter stats across calls', async () => {
+      const llm = createMockLLM('short');
+      const compressor = new Compressor(llm);
+
+      await compressor.compress(`\x1b[32m${'a'.repeat(250)}\x1b[0m`);
+      await compressor.compress(`\x1b[31m${'b'.repeat(250)}\x1b[0m`);
+
+      const savings = compressor.getTotalPreFilterSavings();
+      expect(savings.callCount).toBe(2);
+      expect(savings.totalCharsRemoved).toBeGreaterThan(0);
+    });
+  });
+
+  describe('tee mechanism', () => {
+    it('stores original text when tee is enabled', async () => {
+      const llm = createMockLLM('compressed');
+      const compressor = new Compressor(llm);
+      const original = 'a'.repeat(300);
+
+      const result = await compressor.compress(original, 'standard', 'summarizer', 'gather', { tee: true });
+      expect(result.teeId).toBeDefined();
+
+      const retrieved = compressor.teeRetrieve(result.teeId!);
+      expect(retrieved).toBe(original);
+    });
+
+    it('does not store when tee is not enabled', async () => {
+      const llm = createMockLLM('compressed');
+      const compressor = new Compressor(llm);
+
+      const result = await compressor.compress('a'.repeat(300));
+      expect(result.teeId).toBeUndefined();
+      expect(compressor.teeSize).toBe(0);
+    });
+
+    it('can discard specific tee entries', async () => {
+      const llm = createMockLLM('compressed');
+      const compressor = new Compressor(llm);
+
+      const r1 = await compressor.compress('a'.repeat(300), 'standard', 'summarizer', 'gather', { tee: true });
+      const r2 = await compressor.compress('b'.repeat(300), 'standard', 'summarizer', 'gather', { tee: true });
+
+      expect(compressor.teeSize).toBe(2);
+      compressor.teeDiscard(r1.teeId!);
+      expect(compressor.teeSize).toBe(1);
+      expect(compressor.teeRetrieve(r1.teeId!)).toBeUndefined();
+      expect(compressor.teeRetrieve(r2.teeId!)).toBe('b'.repeat(300));
+    });
+
+    it('teeClear removes all entries', async () => {
+      const llm = createMockLLM('compressed');
+      const compressor = new Compressor(llm);
+
+      await compressor.compress('a'.repeat(300), 'standard', 'summarizer', 'gather', { tee: true });
+      await compressor.compress('b'.repeat(300), 'standard', 'summarizer', 'gather', { tee: true });
+
+      expect(compressor.teeSize).toBe(2);
+      compressor.teeClear();
+      expect(compressor.teeSize).toBe(0);
+    });
+  });
 });

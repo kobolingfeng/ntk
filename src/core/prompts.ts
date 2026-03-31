@@ -80,6 +80,12 @@ Rules:
 Completion: [done] or [partial: needs more space]`,
 };
 
+/** Lightweight prompt for direct depth — minimal overhead */
+export const EXECUTOR_LITE_PROMPT: Record<Locale, string> = {
+  zh: '完整输出。代码用```包裹。不解释、不引导。[完成]',
+  en: 'Complete output. Wrap code in ```. No explanations. [done]',
+};
+
 export const VERIFIER_PROMPT: Record<Locale, string> = {
   zh: `验证器。检查执行结果是否正确完整。
 

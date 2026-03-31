@@ -44,10 +44,18 @@ export async function classifyDepth(
  */
 export function classifyDepthFastPath(userRequest: string): PipelineDepth | null {
   const codeUnitPattern = /^(写|实现|编写|创建|用\w+写|帮我写|请写).{0,30}(函数|function|算法|方法|脚本|工具|类|class)/;
-  const simplePattern = /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为))/;
-  const directPattern = /^(写一个|实现一个|用\w+实现|生成|输出|列出|什么是|如何|怎么)/;
+  const simplePattern =
+    /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为)|分析以下|以下是)/;
+  const directPattern = /^(写一个|实现一个|用\w+实现|生成|输出|列出|什么是|如何|怎么|用.{0,10}写)/;
   const directPatternEn =
-    /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define)\b/i;
+    /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define|analyze|summarize)\b/i;
+
+  // Tasks with embedded data (log/code/test output) — direct regardless of length
+  const embeddedDataPattern =
+    /^(分析以下|以下是|分析这|分析下面|请分析|帮我分析|看看以下|检查以下|review the|analyze the|check the|look at|debug this|fix this)/;
+  if (embeddedDataPattern.test(userRequest)) {
+    return 'direct';
+  }
 
   if (
     codeUnitPattern.test(userRequest) ||
@@ -55,9 +63,8 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
     directPattern.test(userRequest) ||
     directPatternEn.test(userRequest)
   ) {
-    // Long inputs that happen to start with a fast-path keyword may still be complex
-    if (userRequest.length > 100) {
-      return null; // Fall through to classifier
+    if (userRequest.length > 150) {
+      return null;
     }
     return 'direct';
   }
@@ -66,5 +73,5 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
     return 'direct';
   }
 
-  return null; // needs LLM classification
+  return null;
 }

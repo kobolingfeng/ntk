@@ -3,6 +3,7 @@ dist/
 docs/api/
 coverage/
 .env
+.ntk/
 *.log
 *.bak
 *.bak2

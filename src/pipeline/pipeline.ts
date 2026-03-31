@@ -17,8 +17,10 @@ import { Planner } from '../agents/planner.js';
 import { Scout } from '../agents/scout.js';
 import { Summarizer } from '../agents/summarizer.js';
 import { Verifier } from '../agents/verifier.js';
+import { ResponseCache } from '../core/cache.js';
 import { Compressor } from '../core/compressor.js';
 import { LLMClient } from '../core/llm.js';
+import { preFilter } from '../core/pre-filter.js';
 import { detectLocale, type Locale, PIPELINE_STRINGS } from '../core/prompts.js';
 import type { NTKConfig, Phase, PipelineState } from '../core/protocol.js';
 import { Router } from '../core/router.js';
@@ -32,9 +34,19 @@ import { runStandard } from './depth-standard.js';
 import { generateTokenReport } from './helpers.js';
 
 // Re-export types from types.ts
-export type { ExecutionResult, PipelineDepth, PipelineEvent, PipelineResult, VerificationResult } from './types.js';
+export type {
+  ExecutionResult,
+  PipelineDepth,
+  PipelineEvent,
+  PipelineResult,
+  PreFilterSavings,
+  VerificationResult,
+} from './types.js';
 
-import type { PipelineDepth, PipelineEvent, PipelineResult } from './types.js';
+import type { PipelineDepth, PipelineEvent, PipelineResult, PreFilterSavings } from './types.js';
+
+/** Shared cache across Pipeline instances within the same process */
+const sharedCache = new ResponseCache();
 
 export class Pipeline {
   private config: NTKConfig;
@@ -58,6 +70,7 @@ export class Pipeline {
   private forceDepth?: PipelineDepth;
   private skipScout: boolean = false;
   private locale: Locale = 'zh';
+  private pipelinePreFilterCharsRemoved = 0;
   private get strings() {
     return PIPELINE_STRINGS[this.locale];
   }
@@ -125,6 +138,21 @@ export class Pipeline {
       };
     }
 
+    // Cache hit — return immediately with zero token cost
+    const cached = sharedCache.get(userRequest);
+    if (cached) {
+      this.emit({ type: 'message', phase: 'gather', detail: `Cache hit (saved ${cached.tokensSaved} tokens)` });
+      return {
+        success: true,
+        report: cached.result,
+        tokenReport: this.getTokenReport(),
+        routerStats: this.router.getStats(),
+        blockedMessages: [],
+        depth: cached.depth as PipelineDepth,
+        cached: true,
+      };
+    }
+
     // Detect language from user input and propagate to all agents
     this.locale = detectLocale(userRequest);
     const agents = [this.planner, this.scout, this.summarizer, this.executor, this.verifier];
@@ -134,25 +162,40 @@ export class Pipeline {
     this.compressor.setLocale(this.locale);
 
     try {
-      // Step 0: Classify task complexity (or use forced depth)
-      const depth = this.forceDepth ?? (await classifyDepth(userRequest, this.compressorLLM, this.locale));
-      this.emit({ type: 'start', phase: 'gather', detail: `[${depth}] ${userRequest}` });
+      // Step 0a: Pipeline-level pre-filter (RTK-compatible, zero token cost)
+      const pfResult = preFilter(userRequest);
+      const cleanRequest = pfResult.filtered;
+      if (pfResult.charsRemoved > 0) {
+        this.pipelinePreFilterCharsRemoved = pfResult.charsRemoved;
+        this.emit({
+          type: 'message',
+          phase: 'gather',
+          detail: `Pre-filter: removed ${pfResult.charsRemoved} noise chars (${((pfResult.charsRemoved / pfResult.originalLength) * 100).toFixed(0)}%)`,
+        });
+      }
 
+      // Step 0b: Classify task complexity (or use forced depth)
+      const depth = this.forceDepth ?? (await classifyDepth(cleanRequest, this.compressorLLM, this.locale));
+      this.emit({ type: 'start', phase: 'gather', detail: `[${depth}] ${cleanRequest}` });
+
+      let result: PipelineResult;
       switch (depth) {
         case 'direct':
           this.setPhase('execute');
-          return await runDirect(
-            userRequest,
+          result = await runDirect(
+            cleanRequest,
             this.executor,
             this.locale,
             () => this.getTokenReport(),
             () => this.router.getStats(),
             (e) => this.emit(e),
+            this.compressorLLM,
           );
+          break;
         case 'light':
           this.setPhase('execute');
-          return await runLight(
-            userRequest,
+          result = await runLight(
+            cleanRequest,
             this.executor,
             this.verifier,
             this.router,
@@ -162,10 +205,11 @@ export class Pipeline {
             () => this.router.getStats(),
             (e) => this.emit(e),
           );
+          break;
         case 'standard':
           this.setPhase('gather');
-          return await runStandard(
-            userRequest,
+          result = await runStandard(
+            cleanRequest,
             this.executor,
             this.scout,
             this.router,
@@ -176,8 +220,9 @@ export class Pipeline {
             () => this.router.getStats(),
             (e) => this.emit(e),
           );
+          break;
         case 'full':
-          return await runFull({
+          result = await runFull({
             config: this.config,
             plannerLLM: this.plannerLLM,
             compressorLLM: this.compressorLLM,
@@ -190,12 +235,23 @@ export class Pipeline {
             verifier: this.verifier,
             strings: this.strings,
             locale: this.locale,
-            userRequest,
+            userRequest: cleanRequest,
             getTokenReport: () => this.getTokenReport(),
             getRouterStats: () => this.router.getStats(),
             emit: (e) => this.emit(e),
           });
+          break;
       }
+
+      result.preFilterSavings = this.getPreFilterSavings();
+
+      // Cache successful results
+      if (result.success) {
+        const totalTok = result.tokenReport.totalInput + result.tokenReport.totalOutput;
+        sharedCache.set(userRequest, result.report, result.depth ?? 'direct', totalTok);
+      }
+
+      return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.emit({ type: 'error', phase: this.state.phase, detail: errorMessage });
@@ -206,6 +262,7 @@ export class Pipeline {
         routerStats: this.router.getStats(),
         blockedMessages: this.router.getBlockedLog(),
         depth: 'full',
+        preFilterSavings: this.getPreFilterSavings(),
       };
     }
   }
@@ -233,5 +290,18 @@ export class Pipeline {
   private getTokenReport() {
     const allUsage = [...this.plannerLLM.getTokenLog(), ...this.compressorLLM.getTokenLog()];
     return generateTokenReport(allUsage);
+  }
+
+  private getPreFilterSavings(): PreFilterSavings {
+    const stats = this.compressor.getTotalPreFilterSavings();
+    const totalRemoved = stats.totalCharsRemoved + this.pipelinePreFilterCharsRemoved;
+    const totalOrig =
+      stats.totalOriginal + (this.pipelinePreFilterCharsRemoved > 0 ? this.state.userRequest.length : 0);
+    return {
+      totalCharsRemoved: totalRemoved,
+      totalOriginal: totalOrig,
+      callCount: stats.callCount + (this.pipelinePreFilterCharsRemoved > 0 ? 1 : 0),
+      reductionPercent: totalOrig > 0 ? (totalRemoved / totalOrig) * 100 : 0,
+    };
   }
 }

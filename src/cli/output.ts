@@ -34,8 +34,15 @@ export function handleEvent(event: PipelineEvent): void {
   console.log(`  ${icon} ${styleFn(event.detail)}`);
 }
 
+function renderBar(pct: number, width: number = 20): string {
+  const clamped = Math.max(0, Math.min(100, pct));
+  const filled = Math.round((clamped / 100) * width);
+  const empty = width - filled;
+  return chalk.green('█'.repeat(filled)) + chalk.gray('░'.repeat(empty));
+}
+
 export function printTokenReport(result: PipelineResult): void {
-  const { tokenReport, routerStats, blockedMessages } = result;
+  const { tokenReport, routerStats, blockedMessages, preFilterSavings } = result;
   const total = tokenReport.totalInput + tokenReport.totalOutput;
 
   console.log(`\n${chalk.cyan.bold('  ┌─── Token Usage Report ───────────────────────┐')}`);
@@ -78,9 +85,29 @@ export function printTokenReport(result: PipelineResult): void {
     }
   }
 
+  // Pre-filter savings section
+  if (preFilterSavings && preFilterSavings.callCount > 0) {
+    console.log(chalk.cyan('  │'));
+    console.log(chalk.magenta.bold('  │ 🧹 Pre-filter (zero token cost):'));
+    console.log(
+      chalk.dim(`  │   Calls: ${preFilterSavings.callCount} | Removed: ${preFilterSavings.totalCharsRemoved} chars`),
+    );
+    if (preFilterSavings.reductionPercent > 0) {
+      const bar = renderBar(preFilterSavings.reductionPercent);
+      console.log(chalk.dim(`  │   Reduction: ${bar} ${preFilterSavings.reductionPercent.toFixed(1)}%`));
+    }
+  }
+
+  // Cache indicator
+  if (result.cached) {
+    console.log(chalk.cyan('  │'));
+    console.log(chalk.green.bold('  │ ⚡ Cache hit — zero token cost'));
+  }
+
+  // Combined savings visualization
   console.log(chalk.cyan('  │'));
-  console.log(
-    chalk.green.bold(`  │ 💰 Est. savings vs traditional: ~${tokenReport.estimatedSavingsVsTraditional.toFixed(0)}%`),
-  );
+  const savingsPct = tokenReport.estimatedSavingsVsTraditional;
+  const savingsBar = renderBar(savingsPct);
+  console.log(chalk.green.bold(`  │ 💰 Savings vs traditional: ${savingsBar} ~${savingsPct.toFixed(0)}%`));
   console.log(chalk.cyan.bold('  └────────────────────────────────────────────────┘\n'));
 }
