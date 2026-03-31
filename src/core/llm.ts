@@ -8,6 +8,8 @@
  * - Token usage tracking per agent/phase
  */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AgentType, LLMConfig, Phase, TokenUsage } from './protocol.js';
 
 interface ChatCompletionResponse {
@@ -38,7 +40,47 @@ let registeredEndpoints: Endpoint[] = [];
 const modelEndpointMap = new Map<string, Set<number>>();
 /** Probe result cache: avoids redundant probing in interactive/server mode */
 const probeCache = new Map<string, { name: string; timestamp: number }>();
-const PROBE_CACHE_TTL = 300_000; // 5 minutes (increased from 60s)
+const PROBE_CACHE_TTL = 300_000; // 5 minutes
+
+const DISK_CACHE_DIR = join(process.cwd(), '.ntk');
+const DISK_CACHE_FILE = join(DISK_CACHE_DIR, 'probe-cache.json');
+const DISK_CACHE_TTL = 600_000; // 10 minutes
+
+function loadDiskProbeCache(): void {
+  try {
+    if (!existsSync(DISK_CACHE_FILE)) return;
+    const data = JSON.parse(readFileSync(DISK_CACHE_FILE, 'utf-8'));
+    const now = Date.now();
+    for (const [model, entry] of Object.entries(data)) {
+      const e = entry as { name: string; timestamp: number; endpointIndex: number };
+      if (now - e.timestamp < DISK_CACHE_TTL) {
+        probeCache.set(model, { name: e.name, timestamp: e.timestamp });
+      }
+    }
+  } catch {
+    // Corrupted cache, ignore
+  }
+}
+
+function saveDiskProbeCache(model: string, name: string, endpointIndex: number): void {
+  try {
+    if (!existsSync(DISK_CACHE_DIR)) mkdirSync(DISK_CACHE_DIR, { recursive: true });
+    let data: Record<string, unknown> = {};
+    try {
+      if (existsSync(DISK_CACHE_FILE)) {
+        data = JSON.parse(readFileSync(DISK_CACHE_FILE, 'utf-8'));
+      }
+    } catch {
+      // Start fresh
+    }
+    data[model] = { name, timestamp: Date.now(), endpointIndex };
+    writeFileSync(DISK_CACHE_FILE, JSON.stringify(data));
+  } catch {
+    // Non-critical, ignore
+  }
+}
+
+loadDiskProbeCache();
 
 export class LLMClient {
   private model: string;
@@ -140,6 +182,7 @@ export class LLMClient {
       modelEndpointMap.set(model, supportedSet);
       const name = registeredEndpoints[activeEndpointIndex].name;
       probeCache.set(model, { name, timestamp: Date.now() });
+      saveDiskProbeCache(model, name, activeEndpointIndex);
       return name;
     }
     return null;

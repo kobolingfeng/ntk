@@ -141,6 +141,14 @@ function trimTrailingWhitespace(text: string): { result: string; name: string } 
   return { result, name: 'trailing-ws-trim' };
 }
 
+function normalizeForDedup(line: string): string {
+  return line
+    .trim()
+    .replace(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\dZ]*/g, '<TS>')
+    .replace(/\b\d{10,13}\b/g, '<EPOCH>')
+    .replace(/\b[0-9a-f]{8,}\b/gi, '<HEX>');
+}
+
 function deduplicateLines(text: string): { result: string; name: string } {
   const lines = text.split('\n');
   if (lines.length < 4) return { result: text, name: 'dedup-lines' };
@@ -150,8 +158,8 @@ function deduplicateLines(text: string): { result: string; name: string } {
   let repeatCount = 0;
 
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed === prevLine && trimmed.length > 0) {
+    const normalized = normalizeForDedup(line);
+    if (normalized === prevLine && normalized.length > 0) {
       repeatCount++;
     } else {
       if (repeatCount >= 2) {
@@ -160,7 +168,7 @@ function deduplicateLines(text: string): { result: string; name: string } {
         output.push(prevLine);
       }
       output.push(line);
-      prevLine = trimmed;
+      prevLine = normalized;
       repeatCount = 0;
     }
   }
