@@ -9,6 +9,7 @@
 *While every multi-agent framework tries to give AI more context,*
 *we asked a different question: what if we give AI less?*
 
+[![CI](https://github.com/kobolingfeng/ntk/actions/workflows/ci.yml/badge.svg)](https://github.com/kobolingfeng/ntk/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-ESM-blue)]()
 [![License](https://img.shields.io/badge/License-AGPL--3.0-red)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-purple)]()
@@ -363,6 +364,8 @@ NTK includes a complete benchmarking toolkit:
 ```bash
 npx tsx src/cli.ts test       # 9-task regression test
 npx tsx src/cli.ts baseline   # NTK vs direct LLM comparison
+npx tsx src/cli.ts compare    # Three-way comparison (11 test cases)
+npx tsx src/cli.ts gain       # Cumulative savings statistics
 npx tsx src/cli.ts ablation   # Ablation study (module contribution)
 npx tsx src/cli.ts optimize   # 6-config optimization matrix
 ```
