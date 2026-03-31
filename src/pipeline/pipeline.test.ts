@@ -137,6 +137,41 @@ describe('parseVerificationResult', () => {
       expect(parseVerificationResult('The weather is nice today')).toBe(true);
     });
   });
+
+  describe('edge cases', () => {
+    it('"error-free code" → true (negation stripping)', () => {
+      expect(parseVerificationResult('The output is error-free and complete')).toBe(true);
+    });
+
+    it('"error free implementation" → true', () => {
+      expect(parseVerificationResult('This is an error free implementation')).toBe(true);
+    });
+
+    it('"without error" → true', () => {
+      expect(parseVerificationResult('Completed without error')).toBe(true);
+    });
+
+    it('"没有错误" → true (Chinese negation)', () => {
+      expect(parseVerificationResult('代码没有错误，逻辑完整')).toBe(true);
+    });
+
+    it('"无错误" → true', () => {
+      expect(parseVerificationResult('检查完毕，无错误')).toBe(true);
+    });
+
+    it('mixed emoji with fail keyword → false (❌ wins)', () => {
+      expect(parseVerificationResult('代码 ❌ 有问题但 ✅ 大部分正确')).toBe(false);
+    });
+
+    it('very long verification output → correct parsing', () => {
+      const longPass = '✅ ' + 'a'.repeat(500) + ' all correct';
+      expect(parseVerificationResult(longPass)).toBe(true);
+    });
+
+    it('unicode whitespace around keywords', () => {
+      expect(parseVerificationResult('  ✅  passed  ')).toBe(true);
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════
