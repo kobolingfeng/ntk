@@ -69,6 +69,17 @@ describe('discoverEndpoints', () => {
     expect(endpoints).toHaveLength(1);
     expect(endpoints[0].name).toBe('endpoint-1');
   });
+
+  it('skips endpoints with invalid URLs', () => {
+    vi.stubEnv('API_ENDPOINT_1_KEY', 'key1');
+    vi.stubEnv('API_ENDPOINT_1_URL', 'not-a-url');
+    vi.stubEnv('API_ENDPOINT_2_KEY', 'key2');
+    vi.stubEnv('API_ENDPOINT_2_URL', 'https://valid.com');
+
+    const endpoints = discoverEndpoints();
+    expect(endpoints).toHaveLength(1);
+    expect(endpoints[0].baseUrl).toBe('https://valid.com');
+  });
 });
 
 describe('buildConfig', () => {

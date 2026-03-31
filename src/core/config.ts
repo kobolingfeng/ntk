@@ -21,6 +21,10 @@ export function discoverEndpoints(): Endpoint[] {
     const url = process.env[`API_ENDPOINT_${i}_URL`];
     const name = process.env[`API_ENDPOINT_${i}_NAME`] || `endpoint-${i}`;
     if (key && url) {
+      if (!isValidUrl(url)) {
+        console.warn(`[config] ⚠️ Skipping ${name}: invalid URL "${url}"`);
+        continue;
+      }
       endpoints.push({ name, apiKey: key, baseUrl: url });
     }
   }
@@ -32,6 +36,15 @@ export function discoverEndpoints(): Endpoint[] {
   }
 
   return endpoints;
+}
+
+function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
 
 /**

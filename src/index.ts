@@ -30,7 +30,7 @@ export type { CompressionLevel, CompressResult } from './core/compressor.js';
 export { Compressor } from './core/compressor.js';
 export { buildConfig, discoverEndpoints } from './core/config.js';
 export type { Endpoint } from './core/llm.js';
-export { defaultEndpointManager, EndpointManager, LLMClient } from './core/llm.js';
+export { defaultEndpointManager, EndpointManager, estimateTokens, LLMClient } from './core/llm.js';
 export type { PreFilterResult, PreFilterStrategyReport } from './core/pre-filter.js';
 export { preFilter } from './core/pre-filter.js';
 export type { Locale } from './core/prompts.js';
@@ -55,6 +55,7 @@ export type { RouteDecision, RouterStats } from './core/router.js';
 export { Router } from './core/router.js';
 export { startMcpServer } from './mcp/server.js';
 export { classifyDepthFastPath } from './pipeline/classifier.js';
+export type { DirectDepthContext } from './pipeline/depth-direct.js';
 export { assembleReport, generateTokenReport, parseVerificationResult } from './pipeline/helpers.js';
 export { Pipeline } from './pipeline/pipeline.js';
 export type {
