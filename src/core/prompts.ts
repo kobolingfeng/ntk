@@ -89,12 +89,14 @@ export const EXECUTOR_LITE_PROMPT: Record<Locale, string> = {
 /** Band-based prompts — select only relevant rules per task type */
 export type TaskBand = 'code' | 'analysis' | 'general';
 
+export const CODE_TASK_PATTERN =
+  /写|实现|编写|创建|模块|重构|生成|write|implement|create|function|class|module|refactor|generate/i;
+export const ANALYSIS_TASK_PATTERN =
+  /分析|检查|比较|对比|解释|评估|诊断|总结|compare|analyze|explain|review|evaluate|debug|summarize/i;
+
 export function detectTaskBand(task: string): TaskBand {
-  const codePat =
-    /写|实现|编写|创建|code|write|implement|create|function|class|模块|module|重构|refactor|生成|generate/i;
-  const analysisPat = /分析|检查|review|compare|对比|比较|解释|explain|评估|evaluate|诊断|debug|总结|summarize/i;
-  if (codePat.test(task)) return 'code';
-  if (analysisPat.test(task)) return 'analysis';
+  if (CODE_TASK_PATTERN.test(task)) return 'code';
+  if (ANALYSIS_TASK_PATTERN.test(task)) return 'analysis';
   return 'general';
 }
 

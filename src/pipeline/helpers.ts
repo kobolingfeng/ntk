@@ -2,7 +2,7 @@
  * Pipeline helpers — verification parsing, report generation, token calculation.
  */
 
-import type { Locale } from '../core/prompts.js';
+import { ANALYSIS_TASK_PATTERN, CODE_TASK_PATTERN, type Locale } from '../core/prompts.js';
 import type { TokenReport, TokenUsage } from '../core/protocol.js';
 import type { ExecutionResult } from './types.js';
 
@@ -141,8 +141,8 @@ export function isStructurallyComplete(
   const hasNumberedList = /^\d+\.\s/m.test(output);
   const hasBulletList = /^[-*]\s/m.test(output);
 
-  const isCodeTask = /写|实现|编写|代码|write|implement|code|function|class/i.test(userRequest);
-  const isAnalysisTask = /分析|比较|对比|解释|compare|analyze|explain/i.test(userRequest);
+  const isCodeTask = CODE_TASK_PATTERN.test(userRequest);
+  const isAnalysisTask = ANALYSIS_TASK_PATTERN.test(userRequest);
 
   if (isCodeTask && hasCodeBlock && output.length > thresholds.codeMinLen) return true;
   if (isAnalysisTask && (hasNumberedList || hasBulletList) && output.length > thresholds.analysisMinLen) return true;

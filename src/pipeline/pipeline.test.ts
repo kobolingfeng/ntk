@@ -613,4 +613,70 @@ describe('isStructurallyComplete', () => {
       expect(FULL_SKIP_THRESHOLDS.generalMinLen).toBeGreaterThanOrEqual(DEFAULT_SKIP_THRESHOLDS.generalMinLen);
     });
   });
+
+  describe('task band consistency with detectTaskBand', () => {
+    const codeBlockOutput = 'a'.repeat(180) + '```js\n' + 'x'.repeat(30) + '\n```';
+
+    it('"重构" recognized as code task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('重构这段代码')).toBe('code');
+      expect(isStructurallyComplete(codeBlockOutput, '重构这段代码')).toBe(true);
+    });
+
+    it('"create" recognized as code task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('create a React component')).toBe('code');
+      expect(isStructurallyComplete(codeBlockOutput, 'create a React component')).toBe(true);
+    });
+
+    it('"生成" recognized as code task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('生成一个工具函数')).toBe('code');
+      expect(isStructurallyComplete(codeBlockOutput, '生成一个工具函数')).toBe(true);
+    });
+
+    it('"refactor" recognized as code task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('refactor this module')).toBe('code');
+      expect(isStructurallyComplete(codeBlockOutput, 'refactor this module')).toBe(true);
+    });
+
+    it('"创建" recognized as code task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('创建一个类')).toBe('code');
+      expect(isStructurallyComplete(codeBlockOutput, '创建一个类')).toBe(true);
+    });
+
+    it('"模块" recognized as code task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('写一个模块')).toBe('code');
+      expect(isStructurallyComplete(codeBlockOutput, '开发一个认证模块')).toBe(true);
+    });
+
+    const analysisListOutput = 'a'.repeat(140) + '\n1. Point one\n2. Point two\n3. Point three';
+
+    it('"检查" recognized as analysis task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('检查这段代码')).toBe('analysis');
+      expect(isStructurallyComplete(analysisListOutput, '检查这段代码')).toBe(true);
+    });
+
+    it('"review" recognized as analysis task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('review this pull request')).toBe('analysis');
+      expect(isStructurallyComplete(analysisListOutput, 'review this pull request')).toBe(true);
+    });
+
+    it('"评估" recognized as analysis task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('评估这个方案')).toBe('analysis');
+      expect(isStructurallyComplete(analysisListOutput, '评估这个方案')).toBe(true);
+    });
+
+    it('"总结" recognized as analysis task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('总结这篇文章')).toBe('analysis');
+      expect(isStructurallyComplete(analysisListOutput, '总结这篇文章')).toBe(true);
+    });
+
+    it('"summarize" recognized as analysis task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('summarize the findings')).toBe('analysis');
+      expect(isStructurallyComplete(analysisListOutput, 'summarize the findings')).toBe(true);
+    });
+
+    it('"debug" recognized as analysis task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('debug this issue')).toBe('analysis');
+      expect(isStructurallyComplete(analysisListOutput, 'debug this issue')).toBe(true);
+    });
+  });
 });
