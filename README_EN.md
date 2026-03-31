@@ -88,29 +88,6 @@ The most compelling dataset — the same function (mergeIntervals, 6 requirement
 
 Direct used **1/20th of Full's tokens** with zero bugs. Full introduced 1 bug due to over-decomposition. **Simpler tasks shouldn't use complex pipelines** — that's exactly why adaptive routing exists.
 
-### 📊 v0.1.2 Benchmark (2026-03-31)
-
-**Baseline Comparison** (gpt-5.4 strong model vs NTK all-cheap routing):
-
-| Task | Strong Direct | NTK | Token Change | Strong Usage |
-|------|-------------|-----|-------------|-------------|
-| Simple code gen | 173 tok | 549 tok | +217% | **0 (all cheap)** |
-| Tech comparison (medium) | 1164 tok | **590 tok** | **-49%** | **0** |
-| API design (medium) | 2489 tok | **1584 tok** | **-36%** | **0** |
-| Debug analysis | 377 tok | 505 tok | +34% | **0** |
-
-**Three-Way Comparison** (11 test cases: Traditional vs Filter-only vs NTK):
-
-| Approach | Total Tokens | Weighted Cost Savings |
-|----------|-------------|----------------------|
-| Traditional (all strong) | 15,437 | Baseline |
-| Filter-only (deterministic) | 13,894 | ~10% |
-| **NTK** | **11,991** | **~92%** |
-
-**Key advantage**: For medium/complex tasks, NTK uses fewer tokens + 100% cheap model = **90%+ total cost savings**.
-
-**v0.1.2 optimization**: Smart verification skip reduces light depth tokens by **76%** (6528→1584), latency by **65%**.
-
 ## Quick Start
 
 ```bash
