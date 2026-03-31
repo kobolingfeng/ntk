@@ -9,6 +9,7 @@ import {
   generateTokenReport,
   isStructurallyComplete,
   parseVerificationResult,
+  predictTokenUsage,
 } from './helpers.js';
 import type { ExecutionResult } from './types.js';
 
@@ -741,5 +742,53 @@ describe('isStructurallyComplete', () => {
     it('"debug" falls to general band (compact output)', () => {
       expect(detectTaskBand('debug this issue')).toBe('general');
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+
+describe('predictTokenUsage', () => {
+  it('direct depth returns reasonable estimate for short input', () => {
+    const result = predictTokenUsage('direct', 20);
+    expect(result.estimated).toBeGreaterThanOrEqual(60);
+    expect(result.estimated).toBeLessThanOrEqual(800);
+    expect(result.range[0]).toBeLessThan(result.estimated);
+    expect(result.range[1]).toBeGreaterThan(result.estimated);
+  });
+
+  it('light depth returns higher estimate than direct', () => {
+    const direct = predictTokenUsage('direct', 100);
+    const light = predictTokenUsage('light', 100);
+    expect(light.estimated).toBeGreaterThan(direct.estimated);
+  });
+
+  it('full depth returns highest estimate', () => {
+    const light = predictTokenUsage('light', 100);
+    const full = predictTokenUsage('full', 100);
+    expect(full.estimated).toBeGreaterThan(light.estimated);
+  });
+
+  it('longer input produces higher estimates within same depth', () => {
+    const short = predictTokenUsage('direct', 20);
+    const long = predictTokenUsage('direct', 500);
+    expect(long.estimated).toBeGreaterThanOrEqual(short.estimated);
+  });
+
+  it('range low is less than estimated', () => {
+    const result = predictTokenUsage('standard', 200);
+    expect(result.range[0]).toBeLessThan(result.estimated);
+  });
+
+  it('range high is greater than estimated', () => {
+    const result = predictTokenUsage('standard', 200);
+    expect(result.range[1]).toBeGreaterThan(result.estimated);
+  });
+
+  it('estimates are within reasonable bounds for all depths', () => {
+    for (const depth of ['direct', 'light', 'standard', 'full'] as const) {
+      const result = predictTokenUsage(depth, 100);
+      expect(result.estimated).toBeGreaterThan(0);
+      expect(result.estimated).toBeLessThan(10000);
+    }
   });
 });

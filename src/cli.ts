@@ -375,6 +375,35 @@ async function main(): Promise<void> {
     case 'gain':
       break;
 
+    case 'estimate': {
+      const estTask = args
+        .slice(1)
+        .filter((a) => !a.startsWith('--'))
+        .join(' ');
+      if (!estTask) {
+        console.log(chalk.yellow('  Usage: npx tsx src/cli.ts estimate "your task"'));
+        break;
+      }
+      const { classifyDepthFastPath } = await import('./pipeline/classifier.js');
+      const { predictTokenUsage } = await import('./pipeline/helpers.js');
+      const { detectLocale, detectTaskBand } = await import('./core/prompts.js');
+
+      const fastDepth = classifyDepthFastPath(estTask) ?? 'light';
+      const locale = detectLocale(estTask);
+      const band = detectTaskBand(estTask);
+      const prediction = predictTokenUsage(fastDepth, estTask.length);
+
+      console.log(chalk.cyan.bold('\n  📊 Token Estimate'));
+      console.log(chalk.dim(`  Task: "${estTask.length > 60 ? estTask.slice(0, 60) + '...' : estTask}"`));
+      console.log(`  Predicted depth: ${chalk.bold(fastDepth)}`);
+      console.log(`  Task band: ${chalk.bold(band)}`);
+      console.log(`  Locale: ${chalk.bold(locale)}`);
+      console.log(`  Estimated tokens: ${chalk.bold(String(prediction.estimated))}`);
+      console.log(`  Range: ${prediction.range[0]} ~ ${prediction.range[1]}`);
+      console.log(chalk.dim(`  (Zero LLM cost — based on heuristic classification)\n`));
+      break;
+    }
+
     case 'mcp': {
       const { startMcpServer } = await import('./mcp/server.js');
       await startMcpServer();
@@ -391,6 +420,7 @@ async function main(): Promise<void> {
         console.log(chalk.dim('    interactive       — Interactive REPL'));
         console.log(chalk.dim('    serve [--port N]  — Start API server'));
         console.log(chalk.dim('    mcp               — Start MCP server (stdio transport)'));
+        console.log(chalk.dim('    estimate <task>   — Predict token usage (zero cost)'));
         console.log(chalk.dim('    gain              — Show cumulative savings statistics'));
         console.log(chalk.dim('    compare           — Three-way comparison benchmark'));
         console.log(chalk.dim('    test              — Run test suite (9 tasks)'));
