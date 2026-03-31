@@ -94,12 +94,19 @@ export const CODE_TASK_PATTERN =
 export const ANALYSIS_TASK_PATTERN =
   /分析|检查|比较|对比|解释|评估|总结|compare|analyze|explain|review|evaluate|summarize/i;
 export const PASSTHROUGH_TASK_PATTERN =
-  /^(翻译|转换|转成|改为|改成|换成|translate|convert|transform|rewrite as|change to)/i;
+  /^(翻译|转换|转成|改为|改成|换成|修复|translate|convert|transform|rewrite as|change to|fix)/i;
 
 export function detectTaskBand(task: string): TaskBand {
   if (PASSTHROUGH_TASK_PATTERN.test(task)) return 'passthrough';
-  if (CODE_TASK_PATTERN.test(task)) return 'code';
-  if (ANALYSIS_TASK_PATTERN.test(task)) return 'analysis';
+
+  const taskHead = task.split(/[:：\n]/)[0] || task;
+
+  if (CODE_TASK_PATTERN.test(taskHead)) return 'code';
+  if (ANALYSIS_TASK_PATTERN.test(taskHead)) {
+    const hasEmbeddedCode = /[{}\[\]();].*[{}\[\]();]/.test(task);
+    if (hasEmbeddedCode) return 'general';
+    return 'analysis';
+  }
   return 'general';
 }
 

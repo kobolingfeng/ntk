@@ -742,6 +742,18 @@ describe('isStructurallyComplete', () => {
     it('"debug" falls to general band (compact output)', () => {
       expect(detectTaskBand('debug this issue')).toBe('general');
     });
+
+    it('analysis with embedded code → general (not analysis)', () => {
+      expect(detectTaskBand('分析这段代码的bug：function sum(arr) { let total; }')).toBe('general');
+    });
+
+    it('analysis without code → analysis', () => {
+      expect(detectTaskBand('分析微服务架构的优缺点')).toBe('analysis');
+    });
+
+    it('analysis with import statement → general', () => {
+      expect(detectTaskBand('review this: import { foo } from bar;')).toBe('general');
+    });
   });
 });
 
