@@ -268,26 +268,31 @@ async function main(): Promise<void> {
   console.log(chalk.dim(`  Compressor model: ${compressorModel}`));
 
   if (fastStart) {
-    console.log(chalk.dim('  Fast start: skipping endpoint probe'));
+    console.log(chalk.dim('  Fast start: skipping endpoint probes'));
+    const ep = endpointManager.getActiveEndpoint();
+    if (!ep) {
+      console.error(chalk.red('\n  ❌ No endpoints configured. Check .env'));
+      process.exit(1);
+    }
+    console.log(chalk.green(`  Using: ${ep.name} (unprobed)\n`));
   } else {
     console.log(chalk.dim('  Probing endpoints...'));
-  }
-
-  const working = await endpointManager.probeEndpoints(plannerModel);
-  if (!working) {
-    console.error(chalk.red('\n  ❌ All API endpoints are down. Check .env and try again.'));
-    process.exit(1);
-  }
-
-  if (compressorModel !== plannerModel && !fastStart) {
-    console.log(chalk.dim(`  Verifying compressor model (${compressorModel})...`));
-    const compressorWorking = await endpointManager.probeEndpoints(compressorModel);
-    if (!compressorWorking) {
-      console.log(chalk.yellow(`  ⚠️  Compressor model probe failed, falling back to planner endpoint`));
+    const working = await endpointManager.probeEndpoints(plannerModel);
+    if (!working) {
+      console.error(chalk.red('\n  ❌ All API endpoints are down. Check .env and try again.'));
+      process.exit(1);
     }
-  }
 
-  console.log(chalk.green(`  Using: ${working}\n`));
+    if (compressorModel !== plannerModel) {
+      console.log(chalk.dim(`  Verifying compressor model (${compressorModel})...`));
+      const compressorWorking = await endpointManager.probeEndpoints(compressorModel);
+      if (!compressorWorking) {
+        console.log(chalk.yellow(`  ⚠️  Compressor model probe failed, falling back to planner endpoint`));
+      }
+    }
+
+    console.log(chalk.green(`  Using: ${working}\n`));
+  }
   const config = loadConfig();
 
   switch (command) {
