@@ -16,7 +16,7 @@ import { DiffContext } from './cli/diff-context.js';
 import { cmdGain, recordGain } from './cli/gain.js';
 import { handleEvent, printTokenReport } from './cli/output.js';
 import { buildConfig, discoverEndpoints } from './core/config.js';
-import { EndpointManager } from './core/llm.js';
+import { defaultEndpointManager, EndpointManager } from './core/llm.js';
 import type { NTKConfig } from './index.js';
 import { Pipeline } from './pipeline/pipeline.js';
 
@@ -35,6 +35,8 @@ function loadEndpoints(): void {
   }
 
   endpointManager.setEndpoints(endpoints);
+  // Also set up defaultEndpointManager so benchmark commands using new LLMClient(config) work
+  defaultEndpointManager.setEndpoints(endpoints);
   console.log(chalk.dim(`  Loaded ${endpoints.length} endpoint(s): ${endpoints.map((e) => e.name).join(', ')}`));
 }
 
