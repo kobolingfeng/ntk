@@ -184,12 +184,27 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
 
       try {
         const startTime = Date.now();
-        const pipeline = new Pipeline(config, handleEvent, { endpointManager });
+        let streamStarted = false;
+        const pipeline = new Pipeline(config, handleEvent, {
+          endpointManager,
+          onToken: (token: string) => {
+            if (!streamStarted) {
+              console.log(chalk.cyan.bold('\n  === Final Report ==='));
+              process.stdout.write('  ');
+              streamStarted = true;
+            }
+            process.stdout.write(token);
+          },
+        });
         const result = await pipeline.run(taskToRun);
         const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-        console.log(chalk.cyan.bold('\n  === Final Report ==='));
-        console.log(`  ${result.report.split('\n').join('\n  ')}`);
+        if (streamStarted) {
+          console.log('');
+        } else {
+          console.log(chalk.cyan.bold('\n  === Final Report ==='));
+          console.log(`  ${result.report.split('\n').join('\n  ')}`);
+        }
         console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
         printTokenReport(result);
 

@@ -36,29 +36,31 @@ export async function runDirect(
 
   const adaptiveTemp = userRequest.length < 30 ? 0.1 : userRequest.length > 200 ? 0.4 : undefined;
 
-  let report: string;
+  let rawContent = '';
   if (llm && onToken) {
     const bandPrompt = getBandPrompt(effectiveRequest, locale);
     const { content } = await llm.chatStream(bandPrompt, effectiveRequest, 'executor', 'execute', onToken, adaptiveMaxTokens, adaptiveTemp);
-    report = content.trim() || emptyOutputMessage(locale);
+    rawContent = content.trim();
   } else if (llm) {
     const bandPrompt = getBandPrompt(effectiveRequest, locale);
     const { content } = await llm.chat(bandPrompt, effectiveRequest, 'executor', 'execute', adaptiveMaxTokens, adaptiveTemp);
-    report = content.trim() || emptyOutputMessage(locale);
+    rawContent = content.trim();
   } else {
     const { createMessage } = await import('../core/protocol.js');
     const msg = createMessage('planner', 'executor', effectiveRequest, '');
     const context = { visibleMessages: [] as never[] };
     const response = await executor.process(msg, context);
-    report = response.payload.trim() || emptyOutputMessage(locale);
+    rawContent = response.payload.trim();
   }
 
+  const success = rawContent.length > 0;
+  let report = rawContent || emptyOutputMessage(locale);
   report = report.replace(/\n*\[完成\]\s*$/g, '').replace(/\n*\[done\]\s*$/gi, '').trimEnd();
 
   emit({ type: 'complete', phase: 'report', detail: 'Done (direct)' });
 
   return {
-    success: !!report,
+    success,
     report,
     tokenReport: getTokenReport(),
     routerStats: getRouterStats(),
