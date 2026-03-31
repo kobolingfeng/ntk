@@ -66,6 +66,21 @@ function loadConfig(): NTKConfig {
   };
 }
 
+let initialized = false;
+
+async function ensureInitialized(): Promise<void> {
+  if (!initialized) {
+    loadEndpoints();
+    const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
+    const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
+    await LLMClient.probeEndpoints(plannerModel);
+    if (compressorModel !== plannerModel) {
+      await LLMClient.probeEndpoints(compressorModel);
+    }
+    initialized = true;
+  }
+}
+
 // ─── MCP Server ───────────────────────────────────────
 
 const server = new McpServer({
@@ -86,15 +101,7 @@ server.tool(
     skipScout: z.boolean().optional().describe('Skip the scout/research phase in standard depth'),
   },
   async ({ task, forceDepth, skipScout }) => {
-    loadEndpoints();
-    const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
-    const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
-    await LLMClient.probeEndpoints(plannerModel);
-    // Probe compressor model separately if different (executor/verifier use cheap model)
-    if (compressorModel !== plannerModel) {
-      await LLMClient.probeEndpoints(compressorModel);
-    }
-    const config = loadConfig();
+    await ensureInitialized();
 
     const pipeline = new Pipeline(config, () => {}, {
       forceDepth: forceDepth as PipelineDepth | undefined,
@@ -130,11 +137,8 @@ server.tool(
     task: z.string().describe('The task to execute'),
   },
   async ({ task }) => {
-    loadEndpoints();
-    const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
-    await LLMClient.probeEndpoints(compressorModel);
+    await ensureInitialized();
     const config = loadConfig();
-    // All cheap model
     const fastConfig = { ...config, planner: { ...config.compressor } };
     const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth });
     const result = await pipeline.run(task);
@@ -164,10 +168,7 @@ server.tool(
     level: z.enum(['minimal', 'standard', 'aggressive']).optional().describe('Compression level (default: standard)'),
   },
   async ({ text, level }) => {
-    loadEndpoints();
-    const model = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
-    await LLMClient.probeEndpoints(model);
-    const config = loadConfig();
+    await ensureInitialized();
 
     const compressor = new Compressor(new LLMClient(config.compressor));
     const result = await compressor.compress(text, level || 'standard', 'summarizer', 'gather');

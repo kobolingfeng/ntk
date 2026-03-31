@@ -48,8 +48,9 @@ export async function classifyDepth(
 export function classifyDepthFastPath(userRequest: string): PipelineDepth | null {
   const codeUnitPattern = /^(写|实现|编写|创建|用\w+写|帮我写|请写).{0,30}(函数|function|算法|方法|脚本|工具|类|class)/;
   const simplePattern =
-    /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为)|分析以下|以下是)/;
-  const directPattern = /^(写一个|实现一个|用\w+实现|生成|输出|列出|什么是|如何|怎么|用.{0,10}写)/;
+    /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为)|分析以下|以下是|帮我|请|给出)/;
+  const directPattern =
+    /^(写一个|实现一个|用\w+实现|生成|输出|列出|什么是|如何|怎么|用.{0,10}写|对比|比较|介绍|说明|描述|总结)/;
   const directPatternEn =
     /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define|analyze|summarize|design|build|add|compare|set up|configure)\b/i;
 
