@@ -26,7 +26,7 @@ import type { NTKConfig, Phase, PipelineState } from '../core/protocol.js';
 import { Router } from '../core/router.js';
 
 // Submodules
-import { classifyDepth } from './classifier.js';
+import { classifyDepth, classifyDepthFastPath } from './classifier.js';
 import { runDirect } from './depth-direct.js';
 import { runFull } from './depth-full.js';
 import { runLight } from './depth-light.js';
@@ -174,73 +174,71 @@ export class Pipeline {
         });
       }
 
-      // Step 0b: Classify task complexity (or use forced depth)
-      const depth = this.forceDepth ?? (await classifyDepth(cleanRequest, this.compressorLLM, this.locale));
-      this.emit({ type: 'start', phase: 'gather', detail: `[${depth}] ${cleanRequest}` });
-
+      // Step 0b: Classify + speculative direct execution
+      // If fast path already returns "direct", skip classifier entirely
       let result: PipelineResult;
-      switch (depth) {
-        case 'direct':
+      const fastPathDepth = this.forceDepth ?? classifyDepthFastPath(cleanRequest);
+
+      if (fastPathDepth === 'direct') {
+        // Fast path hit — skip classifier LLM call, execute directly
+        this.emit({ type: 'start', phase: 'gather', detail: `[direct/fast] ${cleanRequest}` });
+        this.setPhase('execute');
+        result = await runDirect(
+          cleanRequest,
+          this.executor,
+          this.locale,
+          () => this.getTokenReport(),
+          () => this.router.getStats(),
+          (e) => this.emit(e),
+          this.compressorLLM,
+        );
+      } else if (this.forceDepth) {
+        // Forced depth — no speculation needed
+        const depth = this.forceDepth;
+        this.emit({ type: 'start', phase: 'gather', detail: `[${depth}] ${cleanRequest}` });
+        switch (depth) {
+          case 'direct':
+            this.setPhase('execute');
+            result = await runDirect(
+              cleanRequest,
+              this.executor,
+              this.locale,
+              () => this.getTokenReport(),
+              () => this.router.getStats(),
+              (e) => this.emit(e),
+              this.compressorLLM,
+            );
+            break;
+          default: {
+            const d = await this.runNonDirectDepth(depth, cleanRequest);
+            result = d;
+            break;
+          }
+        }
+      } else {
+        // Speculative execution: run classifier + direct in parallel
+        const classifierPromise = classifyDepth(cleanRequest, this.compressorLLM, this.locale);
+        const speculativePromise = runDirect(
+          cleanRequest,
+          this.executor,
+          this.locale,
+          () => this.getTokenReport(),
+          () => this.router.getStats(),
+          () => {},
+          this.compressorLLM,
+        );
+
+        const depth = await classifierPromise;
+        this.emit({ type: 'start', phase: 'gather', detail: `[${depth}/speculative] ${cleanRequest}` });
+
+        if (depth === 'direct') {
           this.setPhase('execute');
-          result = await runDirect(
-            cleanRequest,
-            this.executor,
-            this.locale,
-            () => this.getTokenReport(),
-            () => this.router.getStats(),
-            (e) => this.emit(e),
-            this.compressorLLM,
-          );
-          break;
-        case 'light':
-          this.setPhase('execute');
-          result = await runLight(
-            cleanRequest,
-            this.executor,
-            this.verifier,
-            this.router,
-            this.strings,
-            this.locale,
-            () => this.getTokenReport(),
-            () => this.router.getStats(),
-            (e) => this.emit(e),
-          );
-          break;
-        case 'standard':
-          this.setPhase('gather');
-          result = await runStandard(
-            cleanRequest,
-            this.executor,
-            this.scout,
-            this.router,
-            this.skipScout,
-            this.strings,
-            this.locale,
-            () => this.getTokenReport(),
-            () => this.router.getStats(),
-            (e) => this.emit(e),
-          );
-          break;
-        case 'full':
-          result = await runFull({
-            config: this.config,
-            plannerLLM: this.plannerLLM,
-            compressorLLM: this.compressorLLM,
-            router: this.router,
-            compressor: this.compressor,
-            planner: this.planner,
-            scout: this.scout,
-            summarizer: this.summarizer,
-            executor: this.executor,
-            verifier: this.verifier,
-            strings: this.strings,
-            locale: this.locale,
-            userRequest: cleanRequest,
-            getTokenReport: () => this.getTokenReport(),
-            getRouterStats: () => this.router.getStats(),
-            emit: (e) => this.emit(e),
-          });
-          break;
+          result = await speculativePromise;
+          this.emit({ type: 'complete', phase: 'report', detail: 'Done (direct/speculative)' });
+        } else {
+          // Speculative result not used — discard it (tokens already spent)
+          result = await this.runNonDirectDepth(depth, cleanRequest);
+        }
       }
 
       result.preFilterSavings = this.getPreFilterSavings();
@@ -264,6 +262,68 @@ export class Pipeline {
         depth: 'full',
         preFilterSavings: this.getPreFilterSavings(),
       };
+    }
+  }
+
+  private async runNonDirectDepth(depth: PipelineDepth, cleanRequest: string): Promise<PipelineResult> {
+    switch (depth) {
+      case 'light':
+        this.setPhase('execute');
+        return await runLight(
+          cleanRequest,
+          this.executor,
+          this.verifier,
+          this.router,
+          this.strings,
+          this.locale,
+          () => this.getTokenReport(),
+          () => this.router.getStats(),
+          (e) => this.emit(e),
+        );
+      case 'standard':
+        this.setPhase('gather');
+        return await runStandard(
+          cleanRequest,
+          this.executor,
+          this.scout,
+          this.router,
+          this.skipScout,
+          this.strings,
+          this.locale,
+          () => this.getTokenReport(),
+          () => this.router.getStats(),
+          (e) => this.emit(e),
+        );
+      case 'full':
+        return await runFull({
+          config: this.config,
+          plannerLLM: this.plannerLLM,
+          compressorLLM: this.compressorLLM,
+          router: this.router,
+          compressor: this.compressor,
+          planner: this.planner,
+          scout: this.scout,
+          summarizer: this.summarizer,
+          executor: this.executor,
+          verifier: this.verifier,
+          strings: this.strings,
+          locale: this.locale,
+          userRequest: cleanRequest,
+          getTokenReport: () => this.getTokenReport(),
+          getRouterStats: () => this.router.getStats(),
+          emit: (e) => this.emit(e),
+        });
+      default:
+        this.setPhase('execute');
+        return await runDirect(
+          cleanRequest,
+          this.executor,
+          this.locale,
+          () => this.getTokenReport(),
+          () => this.router.getStats(),
+          (e) => this.emit(e),
+          this.compressorLLM,
+        );
     }
   }
 
