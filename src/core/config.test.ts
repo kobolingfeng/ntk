@@ -149,6 +149,6 @@ describe('buildConfig', () => {
     const config = buildConfig(em);
     expect(config.tokenBudget?.planner).toBe(1024);
     expect(config.tokenBudget?.executor).toBe(4096);
-    expect(config.tokenBudget?.verifier).toBe(64);
+    expect(config.tokenBudget?.verifier).toBe(128);
   });
 });

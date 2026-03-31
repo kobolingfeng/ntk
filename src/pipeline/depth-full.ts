@@ -15,7 +15,7 @@ import type { Locale, PIPELINE_STRINGS } from '../core/prompts.js';
 import type { AgentContext, NTKConfig, TokenReport } from '../core/protocol.js';
 import { createMessage } from '../core/protocol.js';
 import type { Router, RouterStats } from '../core/router.js';
-import { assembleReport, parseVerificationResult } from './helpers.js';
+import { assembleReport, FULL_SKIP_THRESHOLDS, isStructurallyComplete, parseVerificationResult } from './helpers.js';
 import type { ExecutionResult, PipelineEvent, PipelineResult, VerificationResult } from './types.js';
 
 /** Dependencies needed by the full depth runner */
@@ -246,24 +246,9 @@ async function executeParallel(ctx: FullDepthContext, instructions: PlannerInstr
   return results.filter((r): r is ExecutionResult => r !== null);
 }
 
-function allResultsLookComplete(results: ExecutionResult[], userRequest: string): boolean {
-  if (results.length === 0) return false;
-  const combinedOutput = results.map((r) => r.output).join('\n');
-  if (combinedOutput.length < 100) return false;
-
-  const hasCodeBlock = /```[\s\S]{20,}```/.test(combinedOutput);
-  const hasNumberedList = /^\d+\.\s/m.test(combinedOutput);
-  const isCodeTask = /写|实现|编写|代码|write|implement|code|function|class/i.test(userRequest);
-
-  if (isCodeTask && hasCodeBlock && combinedOutput.length > 300) return true;
-  if (hasNumberedList && combinedOutput.length > 300) return true;
-  if (combinedOutput.length > 800 && (hasCodeBlock || hasNumberedList)) return true;
-
-  return false;
-}
-
 async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): Promise<VerificationResult> {
-  if (allResultsLookComplete(results, ctx.userRequest)) {
+  const combinedOutput = results.map((r) => r.output).join('\n');
+  if (results.length > 0 && isStructurallyComplete(combinedOutput, ctx.userRequest, FULL_SKIP_THRESHOLDS)) {
     ctx.emit({ type: 'message', phase: 'verify', detail: 'Smart skip: all results look structurally complete' });
     ctx.compressor.teeClear();
     const summaryMsg = ctx.locale === 'zh' ? '✅ 全部通过（智能跳过）' : '✅ All passed (smart skip)';

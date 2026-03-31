@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { detectLocale, detectTaskBand, getBandPrompt } from '../core/prompts.js';
 import { classifyDepthFastPath } from './classifier.js';
-import { assembleReport, emptyOutputMessage, generateTokenReport, parseVerificationResult } from './helpers.js';
+import {
+  assembleReport,
+  DEFAULT_SKIP_THRESHOLDS,
+  emptyOutputMessage,
+  FULL_SKIP_THRESHOLDS,
+  generateTokenReport,
+  isStructurallyComplete,
+  parseVerificationResult,
+} from './helpers.js';
 import type { ExecutionResult } from './types.js';
 
 /**
@@ -440,5 +448,169 @@ describe('getBandPrompt', () => {
     const zh = getBandPrompt('write code', 'zh');
     const en = getBandPrompt('write code', 'en');
     expect(zh).not.toBe(en);
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+
+describe('isStructurallyComplete', () => {
+  const codeBlock = '```js\n' + 'x'.repeat(30) + '\n```';
+  const numberedList = '\n1. First item\n2. Second item\n3. Third item';
+  const bulletList = '\n- Item A\n- Item B\n- Item C';
+
+  describe('short-circuit for short output', () => {
+    it('output < 100 chars → true regardless of content', () => {
+      expect(isStructurallyComplete('short', '写代码')).toBe(true);
+    });
+
+    it('empty output → true', () => {
+      expect(isStructurallyComplete('', '写代码')).toBe(true);
+    });
+
+    it('exactly 99 chars → true', () => {
+      expect(isStructurallyComplete('a'.repeat(99), '写代码')).toBe(true);
+    });
+  });
+
+  describe('code task detection', () => {
+    it('Chinese "写" + code block + sufficient length → true', () => {
+      const output = 'a'.repeat(180) + codeBlock;
+      expect(isStructurallyComplete(output, '写一个排序函数')).toBe(true);
+    });
+
+    it('Chinese "实现" + code block → true', () => {
+      const output = 'a'.repeat(180) + codeBlock;
+      expect(isStructurallyComplete(output, '实现二分查找')).toBe(true);
+    });
+
+    it('Chinese "编写" + code block → true', () => {
+      const output = 'a'.repeat(180) + codeBlock;
+      expect(isStructurallyComplete(output, '编写一个工具')).toBe(true);
+    });
+
+    it('English "write" + code block → true', () => {
+      const output = 'a'.repeat(180) + codeBlock;
+      expect(isStructurallyComplete(output, 'write a function')).toBe(true);
+    });
+
+    it('English "implement" + code block → true', () => {
+      const output = 'a'.repeat(180) + codeBlock;
+      expect(isStructurallyComplete(output, 'implement binary search')).toBe(true);
+    });
+
+    it('code task but output too short (no code block, below threshold) → false', () => {
+      const output = 'a'.repeat(120);
+      expect(isStructurallyComplete(output, 'write a function')).toBe(false);
+    });
+
+    it('code task with code block but below codeMinLen → false', () => {
+      const output = 'a'.repeat(100) + '```js\nx\n```';
+      expect(isStructurallyComplete(output, 'write code')).toBe(false);
+    });
+  });
+
+  describe('analysis task detection', () => {
+    it('Chinese "分析" + numbered list → true', () => {
+      const output = 'a'.repeat(130) + numberedList;
+      expect(isStructurallyComplete(output, '分析这段代码')).toBe(true);
+    });
+
+    it('Chinese "比较" + bullet list → true', () => {
+      const output = 'a'.repeat(140) + bulletList;
+      expect(isStructurallyComplete(output, '比较 React 和 Vue')).toBe(true);
+    });
+
+    it('Chinese "解释" + numbered list → true', () => {
+      const output = 'a'.repeat(130) + numberedList;
+      expect(isStructurallyComplete(output, '解释闭包的原理')).toBe(true);
+    });
+
+    it('English "analyze" + bullet list → true', () => {
+      const output = 'a'.repeat(140) + bulletList;
+      expect(isStructurallyComplete(output, 'analyze this code')).toBe(true);
+    });
+
+    it('English "compare" + numbered list → true', () => {
+      const output = 'a'.repeat(130) + numberedList;
+      expect(isStructurallyComplete(output, 'compare React vs Vue')).toBe(true);
+    });
+
+    it('English "explain" + bullet list → true', () => {
+      const output = 'a'.repeat(140) + bulletList;
+      expect(isStructurallyComplete(output, 'explain closures')).toBe(true);
+    });
+
+    it('analysis task but too short → false', () => {
+      const output = 'a'.repeat(100) + '\n1. One';
+      expect(isStructurallyComplete(output, '分析代码')).toBe(false);
+    });
+  });
+
+  describe('general output fallback', () => {
+    it('long output with code block → true', () => {
+      const output = 'a'.repeat(480) + codeBlock;
+      expect(isStructurallyComplete(output, 'do something')).toBe(true);
+    });
+
+    it('long output with numbered list → true', () => {
+      const output = 'a'.repeat(480) + numberedList;
+      expect(isStructurallyComplete(output, 'do something')).toBe(true);
+    });
+
+    it('long output without structural indicators → false', () => {
+      const output = 'a'.repeat(600);
+      expect(isStructurallyComplete(output, 'do something')).toBe(false);
+    });
+
+    it('output with bullet list only (no code task, no analysis task) → false unless general threshold met', () => {
+      const output = 'a'.repeat(200) + bulletList;
+      expect(isStructurallyComplete(output, 'do something')).toBe(false);
+    });
+  });
+
+  describe('custom thresholds (FULL_SKIP_THRESHOLDS)', () => {
+    it('code task needs 300+ chars with full thresholds', () => {
+      const output = 'a'.repeat(260) + codeBlock;
+      expect(isStructurallyComplete(output, '写代码', DEFAULT_SKIP_THRESHOLDS)).toBe(true);
+      expect(isStructurallyComplete(output, '写代码', FULL_SKIP_THRESHOLDS)).toBe(false);
+    });
+
+    it('code task with 350+ chars passes full thresholds', () => {
+      const output = 'a'.repeat(320) + codeBlock;
+      expect(isStructurallyComplete(output, '写代码', FULL_SKIP_THRESHOLDS)).toBe(true);
+    });
+
+    it('analysis task needs 300+ chars with full thresholds', () => {
+      const output = 'a'.repeat(200) + numberedList;
+      expect(isStructurallyComplete(output, '分析代码', DEFAULT_SKIP_THRESHOLDS)).toBe(true);
+      expect(isStructurallyComplete(output, '分析代码', FULL_SKIP_THRESHOLDS)).toBe(false);
+    });
+
+    it('general output needs 800+ chars with full thresholds', () => {
+      const output = 'a'.repeat(700) + codeBlock;
+      expect(isStructurallyComplete(output, 'hello', DEFAULT_SKIP_THRESHOLDS)).toBe(true);
+      expect(isStructurallyComplete(output, 'hello', FULL_SKIP_THRESHOLDS)).toBe(false);
+    });
+
+    it('general output with 850+ chars passes full thresholds', () => {
+      const output = 'a'.repeat(820) + codeBlock;
+      expect(isStructurallyComplete(output, 'hello', FULL_SKIP_THRESHOLDS)).toBe(true);
+    });
+  });
+
+  describe('threshold constants', () => {
+    it('DEFAULT_SKIP_THRESHOLDS has expected values', () => {
+      expect(DEFAULT_SKIP_THRESHOLDS).toEqual({ codeMinLen: 200, analysisMinLen: 150, generalMinLen: 500 });
+    });
+
+    it('FULL_SKIP_THRESHOLDS has stricter values', () => {
+      expect(FULL_SKIP_THRESHOLDS).toEqual({ codeMinLen: 300, analysisMinLen: 300, generalMinLen: 800 });
+    });
+
+    it('FULL thresholds are always >= DEFAULT thresholds', () => {
+      expect(FULL_SKIP_THRESHOLDS.codeMinLen).toBeGreaterThanOrEqual(DEFAULT_SKIP_THRESHOLDS.codeMinLen);
+      expect(FULL_SKIP_THRESHOLDS.analysisMinLen).toBeGreaterThanOrEqual(DEFAULT_SKIP_THRESHOLDS.analysisMinLen);
+      expect(FULL_SKIP_THRESHOLDS.generalMinLen).toBeGreaterThanOrEqual(DEFAULT_SKIP_THRESHOLDS.generalMinLen);
+    });
   });
 });

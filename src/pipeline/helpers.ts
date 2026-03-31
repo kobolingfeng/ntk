@@ -116,3 +116,40 @@ export function emptyOutputMessage(locale: Locale): string {
     ? '未生成输出，请重试或换一种方式描述任务。'
     : 'No output generated. Please retry or rephrase the task.';
 }
+
+interface SkipThresholds {
+  codeMinLen: number;
+  analysisMinLen: number;
+  generalMinLen: number;
+}
+
+const DEFAULT_SKIP_THRESHOLDS: SkipThresholds = { codeMinLen: 200, analysisMinLen: 150, generalMinLen: 500 };
+const FULL_SKIP_THRESHOLDS: SkipThresholds = { codeMinLen: 300, analysisMinLen: 300, generalMinLen: 800 };
+
+/**
+ * Heuristic: check if output looks structurally complete enough to skip verification.
+ * Shared by depth-light and depth-full.
+ */
+export function isStructurallyComplete(
+  output: string,
+  userRequest: string,
+  thresholds: SkipThresholds = DEFAULT_SKIP_THRESHOLDS,
+): boolean {
+  if (output.length < 100) return true;
+
+  const hasCodeBlock = /```[\s\S]{20,}```/.test(output);
+  const hasNumberedList = /^\d+\.\s/m.test(output);
+  const hasBulletList = /^[-*]\s/m.test(output);
+
+  const isCodeTask = /写|实现|编写|代码|write|implement|code|function|class/i.test(userRequest);
+  const isAnalysisTask = /分析|比较|对比|解释|compare|analyze|explain/i.test(userRequest);
+
+  if (isCodeTask && hasCodeBlock && output.length > thresholds.codeMinLen) return true;
+  if (isAnalysisTask && (hasNumberedList || hasBulletList) && output.length > thresholds.analysisMinLen) return true;
+  if (output.length > thresholds.generalMinLen && (hasCodeBlock || hasNumberedList)) return true;
+
+  return false;
+}
+
+export { DEFAULT_SKIP_THRESHOLDS, FULL_SKIP_THRESHOLDS };
+export type { SkipThresholds };

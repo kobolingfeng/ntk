@@ -77,7 +77,7 @@ export function buildConfig(
       scout: 512,
       summarizer: 512,
       executor: 4096,
-      verifier: 64,
+      verifier: 128,
     },
   };
 }

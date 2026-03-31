@@ -13,7 +13,7 @@ import { getBandPrompt, type Locale, type PIPELINE_STRINGS } from '../core/promp
 import type { AgentContext, TokenReport } from '../core/protocol.js';
 import { createMessage } from '../core/protocol.js';
 import type { Router, RouterStats } from '../core/router.js';
-import { emptyOutputMessage, parseVerificationResult } from './helpers.js';
+import { emptyOutputMessage, isStructurallyComplete, parseVerificationResult } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
 
 export interface LightDepthContext {
@@ -30,27 +30,6 @@ export interface LightDepthContext {
   onToken?: (token: string) => void;
 }
 
-/**
- * Heuristic: check if output looks structurally complete enough to skip verification.
- * Returns true if verification can be skipped.
- */
-function shouldSkipVerification(output: string, userRequest: string): boolean {
-  if (output.length < 100) return true;
-
-  const hasCodeBlock = /```[\s\S]{20,}```/.test(output);
-  const hasNumberedList = /^\d+\.\s/m.test(output);
-  const hasBulletList = /^[-*]\s/m.test(output);
-
-  const isCodeTask = /写|实现|编写|代码|write|implement|code|function|class/i.test(userRequest);
-  const isAnalysisTask = /分析|比较|对比|解释|compare|analyze|explain/i.test(userRequest);
-
-  if (isCodeTask && hasCodeBlock && output.length > 200) return true;
-  if (isAnalysisTask && (hasNumberedList || hasBulletList) && output.length > 150) return true;
-
-  if (output.length > 500 && (hasCodeBlock || hasNumberedList)) return true;
-
-  return false;
-}
 
 export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> {
   ctx.emit({ type: 'phase', phase: 'execute', detail: 'Light execution...' });
@@ -74,7 +53,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
 
   let report = rawContent || emptyOutputMessage(ctx.locale);
 
-  const skipVerify = shouldSkipVerification(rawContent, ctx.userRequest);
+	const skipVerify = isStructurallyComplete(rawContent, ctx.userRequest);
 
   let passed = true;
   let verifyFeedback = '';
