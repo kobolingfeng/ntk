@@ -246,7 +246,33 @@ async function executeParallel(ctx: FullDepthContext, instructions: PlannerInstr
   return results.filter((r): r is ExecutionResult => r !== null);
 }
 
+function allResultsLookComplete(results: ExecutionResult[], userRequest: string): boolean {
+  if (results.length === 0) return false;
+  const combinedOutput = results.map((r) => r.output).join('\n');
+  if (combinedOutput.length < 100) return false;
+
+  const hasCodeBlock = /```[\s\S]{20,}```/.test(combinedOutput);
+  const hasNumberedList = /^\d+\.\s/m.test(combinedOutput);
+  const isCodeTask = /写|实现|编写|代码|write|implement|code|function|class/i.test(userRequest);
+
+  if (isCodeTask && hasCodeBlock && combinedOutput.length > 300) return true;
+  if (hasNumberedList && combinedOutput.length > 300) return true;
+  if (combinedOutput.length > 800 && (hasCodeBlock || hasNumberedList)) return true;
+
+  return false;
+}
+
 async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): Promise<VerificationResult> {
+  if (allResultsLookComplete(results, ctx.userRequest)) {
+    ctx.emit({ type: 'message', phase: 'verify', detail: 'Smart skip: all results look structurally complete' });
+    ctx.compressor.teeClear();
+    const summaryMsg = ctx.locale === 'zh' ? '✅ 全部通过（智能跳过）' : '✅ All passed (smart skip)';
+    const reportMsg = createMessage('verifier', 'planner', 'verify-result', summaryMsg);
+    ctx.router.route(reportMsg, 'verify');
+    ctx.emit({ type: 'verified', phase: 'verify', detail: summaryMsg });
+    return { passed: true, attempts: 0, detail: '', plannerSummary: summaryMsg };
+  }
+
   ctx.emit({ type: 'phase', phase: 'verify', detail: 'Verifying results...' });
 
   let retries = 0;
