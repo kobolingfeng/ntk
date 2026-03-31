@@ -113,7 +113,13 @@ const BAND_PROMPTS: Record<TaskBand, Record<Locale, string>> = {
   },
 };
 
-export function getBandPrompt(task: string, locale: Locale): string {
+const MICRO_PROMPT: Record<Locale, string> = {
+  zh: '只输出结果。代码用```包裹。不解释不引导不续问。',
+  en: 'Output result only. Code in ```. No explanations, no follow-ups.',
+};
+
+export function getBandPrompt(task: string, locale: Locale, micro = false): string {
+  if (micro) return MICRO_PROMPT[locale];
   const band = detectTaskBand(task);
   return BAND_PROMPTS[band][locale];
 }

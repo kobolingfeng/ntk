@@ -25,8 +25,10 @@ export interface DirectDepthContext {
 export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult> {
   ctx.emit({ type: 'phase', phase: 'execute', detail: 'Direct execution...' });
 
-  const adaptiveMaxTokens =
-    ctx.userRequest.length < 50
+  const isMicroTask = ctx.userRequest.length < 30;
+  const adaptiveMaxTokens = isMicroTask
+    ? 256
+    : ctx.userRequest.length < 50
       ? 512
       : ctx.userRequest.length < 200
         ? 1024
@@ -48,9 +50,10 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
 
   const adaptiveTemp = ctx.userRequest.length < 30 ? 0.1 : ctx.userRequest.length > 200 ? 0.4 : undefined;
 
+  const bandPrompt = getBandPrompt(effectiveRequest, ctx.locale, isMicroTask);
+
   let rawContent = '';
   if (ctx.llm && ctx.onToken) {
-    const bandPrompt = getBandPrompt(effectiveRequest, ctx.locale);
     const { content } = await ctx.llm.chatStream(
       bandPrompt,
       effectiveRequest,
@@ -62,7 +65,6 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
     );
     rawContent = content.trim();
   } else if (ctx.llm) {
-    const bandPrompt = getBandPrompt(effectiveRequest, ctx.locale);
     const { content } = await ctx.llm.chat(
       bandPrompt,
       effectiveRequest,
