@@ -15,17 +15,10 @@ export async function classifyDepth(
   compressorLLM: LLMClient,
   locale: Locale,
 ): Promise<PipelineDepth> {
-  // Fast path: obvious single-code-unit tasks (regex, no LLM cost)
+  // Fast path already checked by pipeline.run() before calling this function,
+  // but guard against direct callers
   const fastResult = classifyDepthFastPath(userRequest);
   if (fastResult) return fastResult;
-
-  // Short requests are almost always direct
-  // Chinese characters carry ~2.5x more info per char than ASCII
-  const hasCJK = /[\u4e00-\u9fff]/.test(userRequest);
-  const shortThreshold = hasCJK ? 12 : 30;
-  if (userRequest.length <= shortThreshold) {
-    return 'direct';
-  }
 
   const system = CLASSIFIER_PROMPT[locale];
 
