@@ -36,6 +36,15 @@ export interface Endpoint {
   baseUrl: string;
 }
 
+const CJK_RANGE = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g;
+
+/** Estimate token count accounting for CJK characters (~1.5 tokens each vs ASCII ~0.25) */
+function estimateTokens(text: string): number {
+  const cjkCount = (text.match(CJK_RANGE) || []).length;
+  const asciiCount = text.length - cjkCount;
+  return Math.ceil(cjkCount * 1.5 + asciiCount / 4);
+}
+
 /**
  * Manages API endpoint registration, probing, failover ordering, and probe caching.
  * Encapsulates all mutable endpoint state that was previously module-global.
@@ -394,10 +403,10 @@ export class LLMClient {
     }
 
     if (inputTokens === 0) {
-      inputTokens = Math.ceil((systemPrompt.length + userMessage.length) / 4);
+      inputTokens = estimateTokens(systemPrompt + userMessage);
     }
     if (outputTokens === 0) {
-      outputTokens = Math.ceil(fullContent.length / 4);
+      outputTokens = estimateTokens(fullContent);
     }
 
     const usage: TokenUsage = {

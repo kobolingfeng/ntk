@@ -2,6 +2,45 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.1.2] — 2026-03-31
+
+### 新增
+- EndpointManager 封装 — 全局可变状态封装到类中，通过依赖注入传递
+- 差分上下文（DiffContext）— interactive 模式多轮对话自动注入增量上下文
+- Interactive 模式流式输出 + `clear` 命令
+- 共享配置工具（discoverEndpoints/buildConfig）
+- MCP 工具输入长度限制（10000 字符）
+- API server 请求超时保护（5 分钟）
+- ResponseCache 升级为真 LRU 淘汰
+
+### 性能
+- depth-predictor 内存缓存，减少磁盘 IO
+- 磁盘写入改为原子操作（write tmp + rename）
+
+### 修复
+- fetch 异常时 timer 未 clearTimeout 的泄漏（3 处）
+- speculative runDirect 在 classifier 不匹配时 promise 未处理
+- cache key 使用原始 userRequest 而非 cleanRequest
+- ResponseCache.clear() 未重置 tokensSavedByHits 统计
+- MCP server 空端点时 getActiveEndpoint() 崩溃
+- API server readBody 连接异常关闭时 promise 挂起
+- recordDepth 仅在 speculative 分支调用的不一致
+- depth-direct success 标志空输出时误报 true
+- parseVerificationResult "error" 关键词误判，增强否定模式
+- API server rate limiter 内存无限增长
+
+### 测试
+- 225 个测试（+33），14 个测试文件
+- 新增 DiffContext 测试（10 个）
+- 新增 ResponseCache LRU/clear 测试（2 个）
+- 新增 parseVerificationResult 否定模式测试（2 个）
+
+### 架构
+- TokenReport.byAgent/byPhase 改为 Partial<Record>，消除 as any
+- 提取 discoverEndpoints/buildConfig 消除三处重复配置代码
+- classifier 去除与 fast path 重复的短阈值逻辑
+- depth-predictor 添加 schema 验证
+
 ## [0.1.1] — 2026-03-31
 
 ### 新增

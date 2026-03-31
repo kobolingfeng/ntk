@@ -51,6 +51,16 @@ import type { PipelineDepth, PipelineEvent, PipelineResult, PreFilterSavings } f
 const sharedCache = new ResponseCache();
 
 export class Pipeline {
+  /** Clear the shared response cache (useful for interactive mode / testing) */
+  static clearCache(): void {
+    sharedCache.clear();
+  }
+
+  /** Get shared cache stats */
+  static getCacheStats() {
+    return sharedCache.getStats();
+  }
+
   private config: NTKConfig;
   private router: Router;
   private compressor: Compressor;
