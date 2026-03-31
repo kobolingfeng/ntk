@@ -13,6 +13,8 @@
     "start": "tsx src/cli.ts",
     "serve": "tsx src/cli.ts serve",
     "mcp": "tsx src/mcp/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:run": "tsx src/cli.ts test",
     "build": "tsc",
     "typecheck": "tsc --noEmit"
@@ -32,12 +34,11 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "chalk": "^5.4.1",
     "dotenv": "^16.5.0",
-    "openai": "^4.91.1",
-    "ora": "^8.2.0",
     "tsx": "^4.19.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.2"
   }
 }

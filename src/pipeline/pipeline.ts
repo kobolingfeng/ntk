@@ -236,7 +236,7 @@ export class Pipeline {
     const verifyCtx: AgentContext = { visibleMessages: [] };
     const verifyResponse = await this.verifier.process(verifyMsg, verifyCtx);
 
-    const passed = verifyResponse.payload.includes('✅');
+    const passed = this.parseVerificationResult(verifyResponse.payload);
     let report = response.payload.trim() || (this.locale === 'zh' ? '未生成输出，请重试或换一种方式描述任务。' : 'No output generated. Please retry or rephrase the task.');
 
     // If verification failed, do one retry with original context
@@ -552,7 +552,7 @@ export class Pipeline {
       this.router.route(response, 'verify');
       lastVerification = response.payload;
 
-      allPassed = response.payload.includes('✅') && !response.payload.includes('❌');
+      allPassed = this.parseVerificationResult(response.payload);
 
       if (!allPassed && retries < this.config.maxLocalRetries - 1) {
         this.emit({
@@ -652,6 +652,41 @@ export class Pipeline {
 
   // ─── Helpers ────────────────────────────────────────
 
+  /**
+   * Parse verifier output to determine pass/fail.
+   * Uses emoji first, then falls back to keyword matching.
+   * This avoids relying solely on LLM producing exact emoji markers.
+   */
+  private parseVerificationResult(payload: string): boolean {
+    // Primary: emoji markers (system prompt instructs verifier to use these)
+    const hasPass = payload.includes('✅');
+    const hasFail = payload.includes('❌');
+    if (hasPass && !hasFail) return true;
+    if (hasFail) return false;
+
+    // Fallback: keyword matching (case-insensitive)
+    const lower = payload.toLowerCase();
+    const passKeywords = ['pass', 'passed', 'all correct', 'no issues', '通过', '正确', '没有问题', '无问题'];
+    const failKeywords = ['fail', 'failed', 'error', 'incorrect', 'wrong', '失败', '错误', '不正确', '有问题'];
+
+    const hasPassKeyword = passKeywords.some(kw => lower.includes(kw));
+
+    // Strip negation-pass patterns before checking fail keywords
+    // to avoid substring conflicts (e.g. "没有问题" contains "有问题")
+    let lowerForFailCheck = lower;
+    const negationPassPatterns = ['没有问题', '无问题', 'no issues', 'no errors'];
+    for (const np of negationPassPatterns) {
+      lowerForFailCheck = lowerForFailCheck.replaceAll(np, '');
+    }
+    const hasFailKeyword = failKeywords.some(kw => lowerForFailCheck.includes(kw));
+
+    if (hasPassKeyword && !hasFailKeyword) return true;
+    if (hasFailKeyword) return false;
+
+    // Default: assume pass if no clear signal (avoid infinite retry loops)
+    return true;
+  }
+
   private setPhase(phase: Phase): void {
     this.state.phase = phase;
     this.planner.setPhase(phase);
@@ -701,19 +736,19 @@ export class Pipeline {
       report.byPhase[u.phase].output += u.outputTokens;
     }
 
-    // Estimate savings based on actual depth and agent usage.
-    // Direct uses minimal overhead; full pipeline saves more vs a single strong-model call.
+    // Cost-weighted savings estimate.
+    // Compares NTK's dual-model approach (cheap + strong) vs using only the strong model.
+    // Assumption: cheap model costs ~10x less per token than strong model (typical GPT-4 vs GPT-3.5 ratio).
+    // We do NOT inflate the "traditional" token count — only the cost difference matters.
     const totalUsed = report.totalInput + report.totalOutput;
     const strongTokens = (report.byAgent.planner?.input ?? 0) + (report.byAgent.planner?.output ?? 0);
     const cheapTokens = totalUsed - strongTokens;
-    // Traditional approach: send the full task to a strong model directly.
-    // Assume strong model would use ~totalOutput tokens of output but with full-context input.
-    const estimatedTraditionalOutput = report.totalOutput;
-    const estimatedTraditionalInput = report.totalInput * 1.5; // no routing = redundant context
-    const estimatedTraditional = estimatedTraditionalInput + estimatedTraditionalOutput;
-    // Cost-weighted savings: cheap tokens cost ~10x less than strong tokens
+
+    // NTK cost: strong tokens at full price + cheap tokens at 1/10 price
     const ntkWeightedCost = strongTokens + cheapTokens * 0.1;
-    const traditionalWeightedCost = estimatedTraditional; // all strong model tokens
+    // Traditional cost: same total tokens, all at strong model price
+    const traditionalWeightedCost = totalUsed;
+
     report.estimatedSavingsVsTraditional =
       traditionalWeightedCost > 0
         ? Math.max(0, Math.min(100, ((traditionalWeightedCost - ntkWeightedCost) / traditionalWeightedCost) * 100))

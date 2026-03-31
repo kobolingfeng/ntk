@@ -2,6 +2,8 @@ node_modules/
 dist/
 .env
 *.log
+*.bak
+*.bak2
 ai_conversations
 
 # Benchmark / experiment data (internal)
