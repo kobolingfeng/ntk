@@ -29,7 +29,8 @@ export async function runDirect(
   if (userRequest.length > 3000) {
     const head = userRequest.slice(0, 1500);
     const tail = userRequest.slice(-500);
-    effectiveRequest = `${head}\n\n[... ${userRequest.length - 2000} chars truncated ...]\n\n${tail}`;
+    effectiveRequest = `${head}\n\n[... ${userRequest.length - 2000} chars truncated for brevity ...]\n\n${tail}`;
+    emit({ type: 'message', phase: 'execute', detail: `Input truncated: ${userRequest.length} → ${effectiveRequest.length} chars` });
   }
 
   const adaptiveTemp = userRequest.length < 30 ? 0.1 : userRequest.length > 200 ? 0.4 : undefined;

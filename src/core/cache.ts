@@ -29,13 +29,13 @@ export class ResponseCache {
     this.ttlMs = ttlMs;
   }
 
-  private hash(task: string): string {
-    const normalized = task.trim().toLowerCase();
+  private hash(task: string, depth?: string): string {
+    const normalized = `${depth ?? 'auto'}:${task.trim().toLowerCase()}`;
     return createHash('sha256').update(normalized).digest('hex').slice(0, 16);
   }
 
-  get(task: string): CacheEntry | null {
-    const key = this.hash(task);
+  get(task: string, depth?: string): CacheEntry | null {
+    const key = this.hash(task, depth);
     const entry = this.cache.get(key);
 
     if (!entry) {
@@ -53,8 +53,8 @@ export class ResponseCache {
     return entry;
   }
 
-  set(task: string, result: string, depth: string, totalTokens: number): void {
-    const key = this.hash(task);
+  set(task: string, result: string, depth: string, totalTokens: number, forceDepth?: string): void {
+    const key = this.hash(task, forceDepth);
 
     if (this.cache.size >= this.maxEntries) {
       const oldest = this.cache.keys().next().value;
