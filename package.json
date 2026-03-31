@@ -1,6 +1,6 @@
 {
   "name": "ntk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "NeedToKnow — Multi-agent framework based on information density routing. Know less. Do more.",
   "type": "module",
   "main": "dist/index.js",
