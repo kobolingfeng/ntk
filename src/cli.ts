@@ -15,6 +15,7 @@ import { NTKServer } from './api/server.js';
 import { DiffContext } from './cli/diff-context.js';
 import { cmdGain, recordGain } from './cli/gain.js';
 import { handleEvent, printTokenReport } from './cli/output.js';
+import { buildConfig, discoverEndpoints } from './core/config.js';
 import { EndpointManager } from './core/llm.js';
 import type { NTKConfig } from './index.js';
 import { Pipeline } from './pipeline/pipeline.js';
@@ -26,22 +27,7 @@ dotenv.config();
 // ─── Configuration ────────────────────────────────────
 
 function loadEndpoints(): void {
-  const endpoints = [];
-
-  for (let i = 1; i <= 10; i++) {
-    const key = process.env[`API_ENDPOINT_${i}_KEY`];
-    const url = process.env[`API_ENDPOINT_${i}_URL`];
-    const name = process.env[`API_ENDPOINT_${i}_NAME`] || `endpoint-${i}`;
-    if (key && url) {
-      endpoints.push({ name, apiKey: key, baseUrl: url });
-    }
-  }
-
-  if (endpoints.length === 0) {
-    const key = process.env.UNIFIED_API_KEY || '';
-    const url = process.env.UNIFIED_BASE_URL || 'https://api.openai.com/v1';
-    if (key) endpoints.push({ name: 'default', apiKey: key, baseUrl: url });
-  }
+  const endpoints = discoverEndpoints();
 
   if (endpoints.length === 0) {
     console.error(chalk.red('❌ No API endpoints found. Set API_ENDPOINT_1_KEY and API_ENDPOINT_1_URL in .env'));
@@ -53,25 +39,7 @@ function loadEndpoints(): void {
 }
 
 function loadConfig(): NTKConfig {
-  const ep = endpointManager.getActiveEndpoint()!;
-
-  const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
-  const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
-
-  return {
-    planner: { apiKey: ep.apiKey, baseUrl: ep.baseUrl, model: plannerModel, maxTokens: 4096, temperature: 0.3 },
-    compressor: { apiKey: ep.apiKey, baseUrl: ep.baseUrl, model: compressorModel, maxTokens: 2048, temperature: 0.2 },
-    maxLocalRetries: 2,
-    debug: process.env.DEBUG === 'true',
-    parallelExecution: true,
-    tokenBudget: {
-      planner: 1024,
-      scout: 512,
-      summarizer: 512,
-      executor: 4096,
-      verifier: 256,
-    },
-  };
+  return buildConfig(endpointManager);
 }
 
 // ─── Commands ─────────────────────────────────────────

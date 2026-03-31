@@ -27,6 +27,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import dotenv from 'dotenv';
 import { z } from 'zod';
 import { Compressor } from '../core/compressor.js';
+import { buildConfig, discoverEndpoints } from '../core/config.js';
 import { EndpointManager, LLMClient } from '../core/llm.js';
 import type { NTKConfig, PipelineDepth } from '../index.js';
 import { Pipeline } from '../pipeline/pipeline.js';
@@ -38,37 +39,12 @@ dotenv.config();
 const endpointManager = new EndpointManager();
 
 function loadEndpoints(): void {
-  const endpoints = [];
-  for (let i = 1; i <= 10; i++) {
-    const key = process.env[`API_ENDPOINT_${i}_KEY`];
-    const url = process.env[`API_ENDPOINT_${i}_URL`];
-    const name = process.env[`API_ENDPOINT_${i}_NAME`] || `endpoint-${i}`;
-    if (key && url) endpoints.push({ name, apiKey: key, baseUrl: url });
-  }
-  if (endpoints.length === 0) {
-    const key = process.env.UNIFIED_API_KEY || '';
-    const url = process.env.UNIFIED_BASE_URL || 'https://api.openai.com/v1';
-    if (key) endpoints.push({ name: 'default', apiKey: key, baseUrl: url });
-  }
+  const endpoints = discoverEndpoints();
   endpointManager.setEndpoints(endpoints);
 }
 
 function loadConfig(): NTKConfig {
-  const ep = endpointManager.getActiveEndpoint();
-  if (!ep) {
-    throw new Error('No active endpoint available. Ensure API_ENDPOINT_*_KEY and API_ENDPOINT_*_URL are set in .env');
-  }
-  const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-4o';
-  const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-4o';
-
-  return {
-    planner: { apiKey: ep.apiKey, baseUrl: ep.baseUrl, model: plannerModel, maxTokens: 4096, temperature: 0.3 },
-    compressor: { apiKey: ep.apiKey, baseUrl: ep.baseUrl, model: compressorModel, maxTokens: 2048, temperature: 0.2 },
-    maxLocalRetries: 2,
-    debug: false,
-    parallelExecution: true,
-    tokenBudget: { planner: 1024, scout: 512, summarizer: 512, executor: 4096, verifier: 256 },
-  };
+  return buildConfig(endpointManager);
 }
 
 let initialized = false;

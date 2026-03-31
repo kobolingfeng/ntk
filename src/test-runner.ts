@@ -5,47 +5,24 @@
 
 import { writeFileSync } from 'node:fs';
 import dotenv from 'dotenv';
-import { LLMClient } from './core/llm.js';
+import { buildConfig, discoverEndpoints } from './core/config.js';
+import { EndpointManager } from './core/llm.js';
 import type { NTKConfig } from './core/protocol.js';
 import type { PipelineEvent, PipelineResult } from './pipeline/pipeline.js';
 import { Pipeline } from './pipeline/pipeline.js';
 
 dotenv.config();
 
+const endpointManager = new EndpointManager();
+
 function setupEndpoints(): void {
-  const endpoints = [];
-  for (let i = 1; i <= 10; i++) {
-    const key = process.env[`API_ENDPOINT_${i}_KEY`];
-    const url = process.env[`API_ENDPOINT_${i}_URL`];
-    const name = process.env[`API_ENDPOINT_${i}_NAME`] || `endpoint-${i}`;
-    if (key && url) endpoints.push({ name, apiKey: key, baseUrl: url });
-  }
-  if (endpoints.length === 0) {
-    const key = process.env.UNIFIED_API_KEY || '';
-    const url = process.env.UNIFIED_BASE_URL || 'https://api.openai.com/v1';
-    if (key) endpoints.push({ name: 'default', apiKey: key, baseUrl: url });
-  }
-  LLMClient.setEndpoints(endpoints);
+  const endpoints = discoverEndpoints();
+  endpointManager.setEndpoints(endpoints);
 }
 
 function loadConfig(): NTKConfig {
   const model = process.env.MODEL || 'gpt-4o';
-  const ep = LLMClient.getActiveEndpoint()!;
-
-  return {
-    planner: { apiKey: ep.apiKey, baseUrl: ep.baseUrl, model, maxTokens: 4096, temperature: 0.3 },
-    compressor: { apiKey: ep.apiKey, baseUrl: ep.baseUrl, model, maxTokens: 2048, temperature: 0.2 },
-    maxLocalRetries: 2,
-    debug: false,
-    parallelExecution: true,
-    tokenBudget: {
-      planner: 1024,
-      scout: 512,
-      summarizer: 512,
-      executor: 4096,
-      verifier: 256,
-    },
-  };
+  return buildConfig(endpointManager, { plannerModel: model, compressorModel: model });
 }
 
 async function runTest(
@@ -74,7 +51,7 @@ async function main() {
   const model = process.env.MODEL || 'gpt-4o';
 
   console.log('Probing endpoints...');
-  const working = await LLMClient.probeEndpoints(model);
+  const working = await endpointManager.probeEndpoints(model);
   if (!working) {
     console.error('All endpoints down!');
     process.exit(1);

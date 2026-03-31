@@ -28,6 +28,7 @@ export {
 } from './core/errors.js';
 export type { CompressionLevel, CompressResult } from './core/compressor.js';
 export { Compressor } from './core/compressor.js';
+export { buildConfig, discoverEndpoints } from './core/config.js';
 export type { Endpoint } from './core/llm.js';
 export { defaultEndpointManager, EndpointManager, LLMClient } from './core/llm.js';
 export type { PreFilterResult, PreFilterStrategyReport } from './core/pre-filter.js';
