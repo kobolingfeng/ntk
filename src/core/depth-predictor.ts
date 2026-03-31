@@ -3,6 +3,8 @@
  *
  * Learns from past task executions to predict the most likely
  * depth for new tasks. Like CPU branch prediction tables.
+ *
+ * Uses in-memory caching with lazy disk loading to minimize I/O.
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -24,6 +26,9 @@ interface PredictorData {
 const PREDICTOR_DIR = join(homedir(), '.ntk');
 const PREDICTOR_FILE = join(PREDICTOR_DIR, 'depth-predictor.json');
 const VALID_DEPTHS = new Set(['direct', 'light', 'standard', 'full']);
+
+let memoryCache: PredictorData | null = null;
+let dirty = false;
 
 function extractPattern(task: string): string {
   const first50 = task.slice(0, 50).toLowerCase();
@@ -49,7 +54,7 @@ function isValidData(data: unknown): data is PredictorData {
   );
 }
 
-function loadData(): PredictorData {
+function loadFromDisk(): PredictorData {
   try {
     if (existsSync(PREDICTOR_FILE)) {
       const raw = JSON.parse(readFileSync(PREDICTOR_FILE, 'utf-8'));
@@ -61,12 +66,20 @@ function loadData(): PredictorData {
   return { version: 1, records: [] };
 }
 
-function saveData(data: PredictorData): void {
+function getData(): PredictorData {
+  if (!memoryCache) {
+    memoryCache = loadFromDisk();
+  }
+  return memoryCache;
+}
+
+function saveToDisk(data: PredictorData): void {
   try {
     if (!existsSync(PREDICTOR_DIR)) mkdirSync(PREDICTOR_DIR, { recursive: true });
     const tmpFile = `${PREDICTOR_FILE}.tmp`;
     writeFileSync(tmpFile, JSON.stringify(data));
     renameSync(tmpFile, PREDICTOR_FILE);
+    dirty = false;
   } catch {
     // Non-critical
   }
@@ -74,7 +87,7 @@ function saveData(data: PredictorData): void {
 
 export function recordDepth(task: string, depth: PipelineDepth): void {
   const pattern = extractPattern(task);
-  const data = loadData();
+  const data = getData();
 
   const existing = data.records.find((r) => r.pattern === pattern && r.depth === depth);
   if (existing) {
@@ -88,11 +101,12 @@ export function recordDepth(task: string, depth: PipelineDepth): void {
     data.records = data.records.slice(0, 300);
   }
 
-  saveData(data);
+  dirty = true;
+  saveToDisk(data);
 }
 
 export function predictDepth(task: string): { depth: PipelineDepth; confidence: number } | null {
-  const data = loadData();
+  const data = getData();
   if (data.records.length === 0) return null;
 
   const pattern = extractPattern(task);
@@ -133,4 +147,11 @@ export function predictDepth(task: string): { depth: PipelineDepth; confidence: 
   }
 
   return { depth: best, confidence: bestCount / total };
+}
+
+/** Flush any pending changes to disk (for testing/cleanup) */
+export function flushPredictorCache(): void {
+  if (dirty && memoryCache) {
+    saveToDisk(memoryCache);
+  }
 }

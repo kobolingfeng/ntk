@@ -207,8 +207,8 @@ export interface TokenUsage {
 export interface TokenReport {
   totalInput: number;
   totalOutput: number;
-  byAgent: Record<AgentType, { input: number; output: number }>;
-  byPhase: Record<Phase, { input: number; output: number }>;
+  byAgent: Partial<Record<AgentType, { input: number; output: number }>>;
+  byPhase: Partial<Record<Phase, { input: number; output: number }>>;
   estimatedSavingsVsTraditional: number;
 }
 

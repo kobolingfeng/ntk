@@ -98,7 +98,7 @@ server.tool(
   'ntk_run',
   'Run a task through NTK adaptive pipeline. Auto-routes to optimal depth (direct/light/standard/full) based on task complexity. Uses cheap model for most work, strong model only for complex planning.',
   {
-    task: z.string().describe('The task to execute (e.g., "用Python写斐波那契函数", "比较React和Vue")'),
+    task: z.string().max(10000).describe('The task to execute (e.g., "用Python写斐波那契函数", "比较React和Vue")'),
     forceDepth: z
       .enum(['direct', 'light', 'standard', 'full'])
       .optional()
@@ -141,7 +141,7 @@ server.tool(
   'ntk_run_fast',
   'Run a task with minimal overhead: direct depth, skip classification, all cheap model. Best for simple code generation, translation, bug fixes.',
   {
-    task: z.string().describe('The task to execute'),
+    task: z.string().max(10000).describe('The task to execute'),
   },
   async ({ task }) => {
     await ensureInitialized();

@@ -32,6 +32,7 @@ export class NTKServer {
   }> = [];
   private rateLimiter = new Map<string, { count: number; resetAt: number }>();
   private readonly rateLimit = { windowMs: 60_000, maxRequests: 30 };
+  private readonly requestTimeoutMs = 300_000; // 5 minutes max per request
 
   constructor(config: NTKConfig, endpointManager?: EndpointManager) {
     this.config = config;
@@ -159,7 +160,12 @@ export class NTKServer {
     }, { endpointManager: this.endpointManager });
 
     const startTime = Date.now();
-    const result = await pipeline.run(task);
+    const result = await Promise.race([
+      pipeline.run(task),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout: pipeline exceeded 5 minute limit')), this.requestTimeoutMs),
+      ),
+    ]);
     const durationMs = Date.now() - startTime;
 
     this.lastResult = result;

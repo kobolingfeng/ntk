@@ -65,8 +65,8 @@ export function generateTokenReport(allUsage: TokenUsage[]): TokenReport {
   const report: TokenReport = {
     totalInput: 0,
     totalOutput: 0,
-    byAgent: {} as any,
-    byPhase: {} as any,
+    byAgent: {},
+    byPhase: {},
     estimatedSavingsVsTraditional: 0,
   };
 
@@ -74,17 +74,15 @@ export function generateTokenReport(allUsage: TokenUsage[]): TokenReport {
     report.totalInput += u.inputTokens;
     report.totalOutput += u.outputTokens;
 
-    if (!report.byAgent[u.agent]) {
-      report.byAgent[u.agent] = { input: 0, output: 0 };
-    }
-    report.byAgent[u.agent].input += u.inputTokens;
-    report.byAgent[u.agent].output += u.outputTokens;
+    const agentEntry = report.byAgent[u.agent] ?? { input: 0, output: 0 };
+    agentEntry.input += u.inputTokens;
+    agentEntry.output += u.outputTokens;
+    report.byAgent[u.agent] = agentEntry;
 
-    if (!report.byPhase[u.phase]) {
-      report.byPhase[u.phase] = { input: 0, output: 0 };
-    }
-    report.byPhase[u.phase].input += u.inputTokens;
-    report.byPhase[u.phase].output += u.outputTokens;
+    const phaseEntry = report.byPhase[u.phase] ?? { input: 0, output: 0 };
+    phaseEntry.input += u.inputTokens;
+    phaseEntry.output += u.outputTokens;
+    report.byPhase[u.phase] = phaseEntry;
   }
 
   // Cost-weighted savings estimate
