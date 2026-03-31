@@ -25,10 +25,17 @@ export async function runDirect(
   const adaptiveMaxTokens =
     userRequest.length < 50 ? 512 : userRequest.length < 200 ? 1024 : userRequest.length > 2000 ? 1024 : undefined;
 
+  let effectiveRequest = userRequest;
+  if (userRequest.length > 3000) {
+    const head = userRequest.slice(0, 1500);
+    const tail = userRequest.slice(-500);
+    effectiveRequest = `${head}\n\n[... ${userRequest.length - 2000} chars truncated ...]\n\n${tail}`;
+  }
+
   let report: string;
   if (llm) {
-    const bandPrompt = getBandPrompt(userRequest, locale);
-    const { content } = await llm.chat(bandPrompt, userRequest, 'executor', 'execute', adaptiveMaxTokens);
+    const bandPrompt = getBandPrompt(effectiveRequest, locale);
+    const { content } = await llm.chat(bandPrompt, effectiveRequest, 'executor', 'execute', adaptiveMaxTokens);
     report = content.trim() || emptyOutputMessage(locale);
   } else {
     const { createMessage } = await import('../core/protocol.js');
@@ -37,6 +44,8 @@ export async function runDirect(
     const response = await executor.process(msg, context);
     report = response.payload.trim() || emptyOutputMessage(locale);
   }
+
+  report = report.replace(/\n*\[完成\]\s*$/g, '').replace(/\n*\[done\]\s*$/gi, '').trimEnd();
 
   emit({ type: 'complete', phase: 'report', detail: 'Done (direct)' });
 
