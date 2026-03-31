@@ -1,5 +1,9 @@
 /**
- * Light depth — executor + lightweight verification with one retry.
+ * Light depth — executor + smart verification skip + one retry.
+ *
+ * Smart skip: if executor output looks structurally complete (has code blocks,
+ * numbered lists, or sufficient length), skip the verifier LLM call entirely.
+ * This saves ~50% of light depth token costs for well-formed outputs.
  */
 
 import type { Executor } from '../agents/executor.js';
@@ -26,6 +30,28 @@ export interface LightDepthContext {
   onToken?: (token: string) => void;
 }
 
+/**
+ * Heuristic: check if output looks structurally complete enough to skip verification.
+ * Returns true if verification can be skipped.
+ */
+function shouldSkipVerification(output: string, userRequest: string): boolean {
+  if (output.length < 100) return true;
+
+  const hasCodeBlock = /```[\s\S]{20,}```/.test(output);
+  const hasNumberedList = /^\d+\.\s/m.test(output);
+  const hasBulletList = /^[-*]\s/m.test(output);
+
+  const isCodeTask = /写|实现|编写|代码|write|implement|code|function|class/i.test(userRequest);
+  const isAnalysisTask = /分析|比较|对比|解释|compare|analyze|explain/i.test(userRequest);
+
+  if (isCodeTask && hasCodeBlock && output.length > 200) return true;
+  if (isAnalysisTask && (hasNumberedList || hasBulletList) && output.length > 150) return true;
+
+  if (output.length > 500 && (hasCodeBlock || hasNumberedList)) return true;
+
+  return false;
+}
+
 export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> {
   ctx.emit({ type: 'phase', phase: 'execute', detail: 'Light execution...' });
 
@@ -48,7 +74,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
 
   let report = rawContent || emptyOutputMessage(ctx.locale);
 
-  const skipVerify = report.length < 100;
+  const skipVerify = shouldSkipVerification(rawContent, ctx.userRequest);
 
   let passed = true;
   let verifyFeedback = '';
@@ -61,6 +87,8 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
 
     passed = parseVerificationResult(verifyResponse.payload);
     verifyFeedback = verifyResponse.payload;
+  } else if (rawContent.length >= 100) {
+    ctx.emit({ type: 'message', phase: 'verify', detail: 'Smart skip: output looks structurally complete' });
   }
 
   if (!passed) {
