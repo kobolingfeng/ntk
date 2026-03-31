@@ -49,7 +49,7 @@ export function detectOutputType(text: string): OutputType {
   const lines = text.split('\n').slice(0, 30);
   const sample = lines.join('\n');
 
-  const testIndicators = /[✓✔✗✘×]|PASS\s|FAIL\s|Tests?:\s+\d|passed|failed.*total/i;
+  const testIndicators = /[✓✔✗✘×]|^PASS\s|^FAIL\s|Tests?:\s+\d+\s+(passed|failed)|^\s*(ok|not ok)\s+\d/im;
   if (testIndicators.test(sample)) return 'test';
 
   const jsonIndicators = /^\s*[{[]/m;
@@ -121,7 +121,7 @@ function stripProgressBars(text: string): { result: string; name: string } {
   const filtered = lines.filter((line) => {
     if (/^[▓░█▒■□●○◆◇\-=>#\s|]*\d{1,3}%/.test(line.trim())) return false;
     if (/^\s*[|/\-\\]\s*$/.test(line)) return false;
-    if (/^.*\[=*>?\s*\].*\d+%/.test(line)) return false;
+    if (/^\s*\[=+>?\s*\]\s*\d+%/.test(line)) return false;
     if (/^(Downloading|Uploading|Installing|Progress).*\.\.\.\s*\d+%/i.test(line.trim())) return false;
     return true;
   });
@@ -146,7 +146,7 @@ function normalizeForDedup(line: string): string {
     .trim()
     .replace(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\dZ]*/g, '<TS>')
     .replace(/\b\d{10,13}\b/g, '<EPOCH>')
-    .replace(/\b[0-9a-f]{8,}\b/gi, '<HEX>');
+    .replace(/\b[0-9a-f]{12,}\b/gi, '<HEX>');
 }
 
 function deduplicateLines(text: string): { result: string; name: string } {
@@ -233,6 +233,12 @@ function compactStandaloneJson(text: string): string {
     }
 
     jsonBuf.push(line);
+    if (jsonBuf.length > 100) {
+      output.push(...jsonBuf);
+      jsonBuf = [];
+      inJson = false;
+      continue;
+    }
     braceDepth += countBraceDepth(trimmed);
 
     if (braceDepth > 0) continue;
