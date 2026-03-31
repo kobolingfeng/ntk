@@ -1,9 +1,9 @@
 /**
- * Compare benchmark — RTK-like vs Traditional vs NTK.
+ * Compare benchmark — I/O-filter-only vs Traditional vs NTK.
  *
  * Measures three approaches on the same tasks:
  * 1. Traditional: raw task → single LLM (no filtering)
- * 2. RTK-like: deterministic pre-filter → single LLM (no routing/compression)
+ * 2. Filter-only: deterministic pre-filter → single LLM (no routing/compression)
  * 3. NTK: full pipeline (pre-filter + LLM compression + routing + multi-agent)
  */
 
@@ -17,7 +17,7 @@ interface CompareResult {
   name: string;
   category: string;
   traditional: RunMetrics;
-  rtkLike: RunMetrics;
+  filterOnly: RunMetrics;
   ntk: NTKRunMetrics;
 }
 
@@ -289,7 +289,7 @@ export class Module${i} {
 }
 
 export async function cmdCompare(config: NTKConfig): Promise<void> {
-  console.log(chalk.cyan.bold('\n  📊 RTK vs Traditional vs NTK — 三方对比基准测试\n'));
+  console.log(chalk.cyan.bold('\n  📊 Traditional vs Filter-only vs NTK — 三方对比基准测试\n'));
   console.log(chalk.dim(`  Planner: ${config.planner.model}`));
   console.log(chalk.dim(`  Compressor: ${config.compressor.model}`));
   console.log(chalk.dim(`  测试用例: ${testCases.length} 个\n`));
@@ -308,11 +308,11 @@ export async function cmdCompare(config: NTKConfig): Promise<void> {
       ),
     );
 
-    // 2. RTK-like: pre-filter → LLM
-    const rtkLike = await runRTKLike(llm, tc.task);
+    // 2. Filter-only: pre-filter → LLM
+    const filterOnlyResult = await runFilterOnly(llm, tc.task);
     console.log(
       chalk.blue(
-        `  RTK-like:    ${rtkLike.totalTokens} tok, ${(rtkLike.timeMs / 1000).toFixed(1)}s, ${rtkLike.inputChars} chars in (pre-filter: -${traditional.inputChars - rtkLike.inputChars} chars)`,
+        `  Filter-only: ${filterOnlyResult.totalTokens} tok, ${(filterOnlyResult.timeMs / 1000).toFixed(1)}s, ${filterOnlyResult.inputChars} chars in (pre-filter: -${traditional.inputChars - filterOnlyResult.inputChars} chars)`,
       ),
     );
 
@@ -328,7 +328,7 @@ export async function cmdCompare(config: NTKConfig): Promise<void> {
       name: tc.name,
       category: tc.category,
       traditional,
-      rtkLike,
+      filterOnly: filterOnlyResult,
       ntk,
     });
   }
@@ -355,7 +355,7 @@ async function runTraditional(llm: LLMClient, task: string): Promise<RunMetrics>
   };
 }
 
-async function runRTKLike(llm: LLMClient, task: string): Promise<RunMetrics> {
+async function runFilterOnly(llm: LLMClient, task: string): Promise<RunMetrics> {
   const start = Date.now();
   const pfResult = preFilter(task);
   const { usage } = await llm.chat(
@@ -418,12 +418,12 @@ function printSummary(results: CompareResult[]): void {
 
   // Per-test comparison table
   console.log(
-    chalk.white.bold('  测试用例                        | Traditional | RTK-like    | NTK         | NTK优势'),
+    chalk.white.bold('  测试用例                        | Traditional | Filter-only | NTK         | NTK优势'),
   );
   console.log(chalk.dim(`  ${'─'.repeat(95)}`));
 
   let totalTraditional = 0;
-  let totalRTK = 0;
+  let totalFilter = 0;
   let totalNTK = 0;
   let totalNTKCost = 0;
   let totalTraditionalCost = 0;
@@ -431,16 +431,16 @@ function printSummary(results: CompareResult[]): void {
   for (const r of results) {
     const name = r.name.padEnd(32);
     const trad = `${r.traditional.totalTokens}tok`.padEnd(12);
-    const rtk = `${r.rtkLike.totalTokens}tok`.padEnd(12);
+    const filter = `${r.filterOnly.totalTokens}tok`.padEnd(12);
     const ntk = `${r.ntk.totalTokens}tok`.padEnd(12);
 
     const ntkSaving =
       r.traditional.totalTokens > 0 ? ((1 - r.ntk.costWeighted / r.traditional.costWeighted) * 100).toFixed(0) : '0';
 
-    console.log(`  ${name}| ${trad}| ${rtk}| ${ntk}| ${ntkSaving}% cost`);
+    console.log(`  ${name}| ${trad}| ${filter}| ${ntk}| ${ntkSaving}% cost`);
 
     totalTraditional += r.traditional.totalTokens;
-    totalRTK += r.rtkLike.totalTokens;
+    totalFilter += r.filterOnly.totalTokens;
     totalNTK += r.ntk.totalTokens;
     totalNTKCost += r.ntk.costWeighted;
     totalTraditionalCost += r.traditional.costWeighted;
@@ -448,16 +448,16 @@ function printSummary(results: CompareResult[]): void {
 
   console.log(chalk.dim(`  ${'─'.repeat(95)}`));
   console.log(
-    `  ${'总计'.padEnd(31)}| ${`${totalTraditional}tok`.padEnd(12)}| ${`${totalRTK}tok`.padEnd(12)}| ${`${totalNTK}tok`.padEnd(12)}|`,
+    `  ${'总计'.padEnd(31)}| ${`${totalTraditional}tok`.padEnd(12)}| ${`${totalFilter}tok`.padEnd(12)}| ${`${totalNTK}tok`.padEnd(12)}|`,
   );
 
   // NTK unique advantages section
   console.log(chalk.cyan.bold('\n  ═══ NTK 独有优势 ═══\n'));
 
-  // 1. Pre-filter savings (RTK-compatible)
+  // 1. Pre-filter savings
   const totalPFRemoved = results.reduce((s, r) => s + r.ntk.preFilterCharsRemoved, 0);
   const avgPFPct = results.reduce((s, r) => s + r.ntk.preFilterReductionPct, 0) / results.length;
-  console.log(chalk.magenta.bold('  🧹 确定性预过滤（RTK 兼容层）'));
+  console.log(chalk.magenta.bold('  🧹 确定性预过滤（零 token 成本）'));
   console.log(chalk.dim(`     总移除字符: ${totalPFRemoved} chars`));
   console.log(chalk.dim(`     平均降噪率: ${renderBar(avgPFPct)} ${avgPFPct.toFixed(1)}%`));
 
@@ -489,7 +489,7 @@ function printSummary(results: CompareResult[]): void {
 
   // Final comparison matrix
   console.log(chalk.cyan.bold('\n  ═══ 能力矩阵 ═══\n'));
-  console.log(chalk.white('  能力                        | Traditional | RTK         | NTK'));
+  console.log(chalk.white('  能力                        | Traditional | Filter-only | NTK'));
   console.log(chalk.dim(`  ${'─'.repeat(75)}`));
   const matrix = [
     ['确定性预过滤（零token成本）', '❌', '✅', '✅'],
@@ -508,7 +508,7 @@ function printSummary(results: CompareResult[]): void {
   }
 
   console.log(chalk.cyan.bold('\n  ═══ 结论 ═══'));
-  console.log(chalk.white('\n  RTK 压缩数据（I/O层过滤），NTK 压缩认知（编排层信息控制）。'));
-  console.log(chalk.white('  NTK 涵盖了 RTK 的全部能力，同时增加了语义压缩、路由隔离、'));
-  console.log(chalk.white('  自适应深度和双模型成本分离等 RTK 做不到的能力。\n'));
+  console.log(chalk.white('\n  I/O 过滤压缩数据（删字符），NTK 压缩认知（控信息流）。'));
+  console.log(chalk.white('  NTK 涵盖了所有 I/O 过滤能力，同时拥有语义压缩、路由隔离、'));
+  console.log(chalk.white('  自适应深度和双模型成本分离等独有能力。\n'));
 }
