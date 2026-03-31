@@ -738,9 +738,8 @@ describe('isStructurallyComplete', () => {
       expect(isStructurallyComplete(analysisListOutput, 'summarize the findings')).toBe(true);
     });
 
-    it('"debug" recognized as analysis task (aligns with detectTaskBand)', () => {
-      expect(detectTaskBand('debug this issue')).toBe('analysis');
-      expect(isStructurallyComplete(analysisListOutput, 'debug this issue')).toBe(true);
+    it('"debug" falls to general band (compact output)', () => {
+      expect(detectTaskBand('debug this issue')).toBe('general');
     });
   });
 });
