@@ -47,22 +47,27 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
     detail: ctx.skipScout ? 'Executing (no scout)...' : 'Executing with research context...',
   });
 
-  let report: string;
+  let rawContent = '';
   if (ctx.llm && ctx.onToken) {
     const bandPrompt = getBandPrompt(ctx.userRequest, ctx.locale);
     const fullPrompt = scoutContext ? `${scoutContext}\n\n${ctx.userRequest}` : ctx.userRequest;
     const { content } = await ctx.llm.chatStream(bandPrompt, fullPrompt, 'executor', 'execute', ctx.onToken);
-    report = content.trim() || emptyOutputMessage(ctx.locale);
+    rawContent = content.trim();
+    const streamedResponse = createMessage('executor', 'planner', ctx.userRequest, rawContent);
+    ctx.router.route(streamedResponse, 'execute');
   } else {
     const execMsg = createMessage('planner', 'executor', ctx.userRequest, scoutContext);
+    ctx.router.route(execMsg, 'execute');
     const execCtx: AgentContext = { visibleMessages: [] };
     const execResponse = await ctx.executor.process(execMsg, execCtx);
-    report = execResponse.payload.trim() || emptyOutputMessage(ctx.locale);
+    ctx.router.route(execResponse, 'execute');
+    rawContent = execResponse.payload.trim();
   }
+  const report = rawContent || emptyOutputMessage(ctx.locale);
   ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (standard)' });
 
   return {
-    success: !!report.trim(),
+    success: rawContent.length > 0,
     report,
     tokenReport: ctx.getTokenReport(),
     routerStats: ctx.getRouterStats(),

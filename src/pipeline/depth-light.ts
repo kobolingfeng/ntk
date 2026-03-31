@@ -27,10 +27,13 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
   ctx.emit({ type: 'phase', phase: 'execute', detail: 'Light execution...' });
 
   const msg = createMessage('planner', 'executor', ctx.userRequest, '');
+  ctx.router.route(msg, 'execute');
   const context: AgentContext = { visibleMessages: [] };
   const response = await ctx.executor.process(msg, context);
+  ctx.router.route(response, 'execute');
 
-  let report = response.payload.trim() || emptyOutputMessage(ctx.locale);
+  const rawContent = response.payload.trim();
+  let report = rawContent || emptyOutputMessage(ctx.locale);
 
   // Skip verification for very short responses — verification cost > value
   const skipVerify = report.length < 100;
@@ -64,7 +67,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
   ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (light)' });
 
   return {
-    success: !!report.trim(),
+    success: rawContent.length > 0,
     report,
     tokenReport: ctx.getTokenReport(),
     routerStats: ctx.getRouterStats(),
