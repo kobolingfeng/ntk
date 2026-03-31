@@ -17,7 +17,12 @@ describe('DiffContext', () => {
 
   it('injects context for short follow-up question', () => {
     const dc = new DiffContext();
-    dc.addTurn('用Python写斐波那契函数', 'def fibonacci(n):\n  if n <= 1: return n\n  return fibonacci(n-1) + fibonacci(n-2)', 'direct', 80);
+    dc.addTurn(
+      '用Python写斐波那契函数',
+      'def fibonacci(n):\n  if n <= 1: return n\n  return fibonacci(n-1) + fibonacci(n-2)',
+      'direct',
+      80,
+    );
 
     const result = dc.buildAugmentedQuery('用JavaScript实现');
     expect(result).toBeDefined();

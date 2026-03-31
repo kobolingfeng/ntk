@@ -18,6 +18,9 @@ export { Verifier } from './agents/verifier.js';
 export { NTKServer } from './api/server.js';
 export type { CacheStats } from './core/cache.js';
 export { ResponseCache } from './core/cache.js';
+export type { CompressionLevel, CompressResult } from './core/compressor.js';
+export { Compressor } from './core/compressor.js';
+export { buildConfig, discoverEndpoints } from './core/config.js';
 export {
   AllEndpointsFailedError,
   ClassifierError,
@@ -26,9 +29,6 @@ export {
   NTKError,
   PipelineError,
 } from './core/errors.js';
-export type { CompressionLevel, CompressResult } from './core/compressor.js';
-export { Compressor } from './core/compressor.js';
-export { buildConfig, discoverEndpoints } from './core/config.js';
 export type { Endpoint } from './core/llm.js';
 export { defaultEndpointManager, EndpointManager, estimateTokens, LLMClient } from './core/llm.js';
 export type { PreFilterResult, PreFilterStrategyReport } from './core/pre-filter.js';

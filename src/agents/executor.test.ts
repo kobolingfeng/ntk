@@ -81,22 +81,14 @@ describe('Executor', () => {
     const msg = createMessage('planner', 'executor', 'task', '');
     await executor.process(msg, { visibleMessages: [] });
 
-    expect(llm.chat).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      'executor',
-      'gather',
-      256,
-    );
+    expect(llm.chat).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'executor', 'gather', 256);
   });
 
   it('limits visible messages to last 5', async () => {
     const llm = createMockLLM('result');
     const executor = new Executor(llm);
 
-    const msgs = Array.from({ length: 10 }, (_, i) =>
-      createMessage('scout', 'executor', `info-${i}`, `content-${i}`),
-    );
+    const msgs = Array.from({ length: 10 }, (_, i) => createMessage('scout', 'executor', `info-${i}`, `content-${i}`));
     const msg = createMessage('planner', 'executor', 'task', '');
     await executor.process(msg, { visibleMessages: msgs });
 

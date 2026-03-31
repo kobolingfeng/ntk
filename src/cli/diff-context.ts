@@ -59,9 +59,7 @@ export class DiffContext {
     if (!this.isFollowUp(newQuestion)) return undefined;
 
     const recentTurns = this.turns.slice(-3);
-    const contextLines = recentTurns.map(
-      (t, i) => `[${i + 1}] Q: ${t.question}\n    A: ${t.responseSummary}`,
-    );
+    const contextLines = recentTurns.map((t, i) => `[${i + 1}] Q: ${t.question}\n    A: ${t.responseSummary}`);
 
     return `[对话上下文 / Conversation context]\n${contextLines.join('\n')}\n\n[当前问题 / Current question]\n${newQuestion}`;
   }

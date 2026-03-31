@@ -18,3 +18,5 @@ src/benchmark*.ts
 src/probe.ts
 
 .cursor/
+
+.ntk

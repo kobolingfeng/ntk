@@ -51,12 +51,6 @@ describe('Scout', () => {
     const msg = createMessage('planner', 'scout', 'research', '');
     await scout.process(msg, { visibleMessages: [] });
 
-    expect(llm.chat).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      'scout',
-      'gather',
-      undefined,
-    );
+    expect(llm.chat).toHaveBeenCalledWith(expect.any(String), expect.any(String), 'scout', 'gather', undefined);
   });
 });

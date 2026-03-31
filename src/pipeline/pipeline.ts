@@ -29,7 +29,7 @@ import { Router } from '../core/router.js';
 
 // Submodules
 import { classifyDepth, classifyDepthFastPath } from './classifier.js';
-import { runDirect, type DirectDepthContext } from './depth-direct.js';
+import { type DirectDepthContext, runDirect } from './depth-direct.js';
 import { runFull } from './depth-full.js';
 import { runLight } from './depth-light.js';
 import { runStandard } from './depth-standard.js';
@@ -93,7 +93,13 @@ export class Pipeline {
   constructor(
     config: NTKConfig,
     onEvent?: (event: PipelineEvent) => void,
-    options?: { forceDepth?: PipelineDepth; skipScout?: boolean; speculative?: boolean; onToken?: (token: string) => void; endpointManager?: EndpointManager },
+    options?: {
+      forceDepth?: PipelineDepth;
+      skipScout?: boolean;
+      speculative?: boolean;
+      onToken?: (token: string) => void;
+      endpointManager?: EndpointManager;
+    },
   ) {
     this.config = config;
     this.onEvent = onEvent;

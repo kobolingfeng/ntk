@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EndpointManager } from './llm.js';
 import { buildConfig, discoverEndpoints } from './config.js';
+import { EndpointManager } from './llm.js';
 
 describe('discoverEndpoints', () => {
   afterEach(() => {

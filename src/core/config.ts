@@ -4,7 +4,7 @@
  * Eliminates endpoint loading duplication across CLI, MCP server, and test runner.
  */
 
-import type { EndpointManager, Endpoint } from './llm.js';
+import type { Endpoint, EndpointManager } from './llm.js';
 import type { NTKConfig } from './protocol.js';
 
 /**
@@ -50,11 +50,14 @@ function isValidUrl(url: string): boolean {
 /**
  * Build NTKConfig from an EndpointManager's active endpoint and model env vars.
  */
-export function buildConfig(em: EndpointManager, overrides?: Partial<{
-  plannerModel: string;
-  compressorModel: string;
-  debug: boolean;
-}>): NTKConfig {
+export function buildConfig(
+  em: EndpointManager,
+  overrides?: Partial<{
+    plannerModel: string;
+    compressorModel: string;
+    debug: boolean;
+  }>,
+): NTKConfig {
   const ep = em.getActiveEndpoint();
   if (!ep) {
     throw new Error('No active endpoint available. Ensure API endpoints are configured in .env');

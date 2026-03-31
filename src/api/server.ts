@@ -155,9 +155,13 @@ export class NTKServer {
     const config = { ...this.config, debug: debug === true ? true : this.config.debug };
     const events: PipelineEvent[] = [];
 
-    const pipeline = new Pipeline(config, (event) => {
-      events.push(event);
-    }, { endpointManager: this.endpointManager });
+    const pipeline = new Pipeline(
+      config,
+      (event) => {
+        events.push(event);
+      },
+      { endpointManager: this.endpointManager },
+    );
 
     const startTime = Date.now();
     const result = await Promise.race([
@@ -217,11 +221,15 @@ export class NTKServer {
 
     const config = { ...this.config, debug: debug === true };
 
-    const pipeline = new Pipeline(config, (event) => {
-      if (!res.destroyed) {
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
-      }
-    }, { endpointManager: this.endpointManager });
+    const pipeline = new Pipeline(
+      config,
+      (event) => {
+        if (!res.destroyed) {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        }
+      },
+      { endpointManager: this.endpointManager },
+    );
 
     const startTime = Date.now();
     try {
