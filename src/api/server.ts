@@ -98,7 +98,8 @@ export class NTKServer {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.sendJson(res, 500, { error: message });
+      const status = message.includes('too large') ? 413 : 500;
+      this.sendJson(res, status, { error: message });
     }
   }
 
@@ -149,7 +150,7 @@ export class NTKServer {
     const durationMs = Date.now() - startTime;
 
     this.lastResult = result;
-    this.runHistory.push({ request: task, result, timestamp: startTime, durationMs });
+    this.addToHistory(task, result, startTime, durationMs);
 
     this.sendJson(res, 200, {
       success: result.success,
@@ -204,7 +205,7 @@ export class NTKServer {
     const durationMs = Date.now() - startTime;
 
     this.lastResult = result;
-    this.runHistory.push({ request: task, result, timestamp: startTime, durationMs });
+    this.addToHistory(task, result, startTime, durationMs);
 
     res.write(`data: ${JSON.stringify({
       type: 'final',
@@ -297,6 +298,14 @@ export class NTKServer {
   private sendJson(res: http.ServerResponse, status: number, data: any): void {
     res.writeHead(status);
     res.end(JSON.stringify(data, null, 2));
+  }
+
+  /** Cap history to prevent unbounded memory growth */
+  private addToHistory(request: string, result: PipelineResult, timestamp: number, durationMs: number): void {
+    this.runHistory.push({ request, result, timestamp, durationMs });
+    if (this.runHistory.length > 100) {
+      this.runHistory = this.runHistory.slice(-100);
+    }
   }
 
   private readBody(req: http.IncomingMessage, maxBytes: number = 1_048_576): Promise<string> {

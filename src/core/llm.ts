@@ -36,6 +36,9 @@ let activeEndpointIndex = 0;
 let registeredEndpoints: Endpoint[] = [];
 /** Track which endpoints passed probe for each model — prevents failover to incompatible endpoints */
 const modelEndpointMap = new Map<string, Set<number>>();
+/** Probe result cache: avoids redundant probing in interactive/server mode */
+const probeCache = new Map<string, { name: string; timestamp: number }>();
+const PROBE_CACHE_TTL = 60_000; // 60 seconds
 
 export class LLMClient {
   private model: string;
@@ -77,6 +80,12 @@ export class LLMClient {
    * Returns the name of the working endpoint or null if all fail.
    */
   static async probeEndpoints(model: string): Promise<string | null> {
+    // Return cached result if probe was done recently
+    const cached = probeCache.get(model);
+    if (cached && Date.now() - cached.timestamp < PROBE_CACHE_TTL) {
+      return cached.name;
+    }
+
     const TIMEOUT = 8000;
 
     const probes = registeredEndpoints.map(async (ep, i) => {
@@ -129,7 +138,9 @@ export class LLMClient {
       // Record which endpoints support this model
       const supportedSet = new Set(working.map(w => w.resultIdx));
       modelEndpointMap.set(model, supportedSet);
-      return registeredEndpoints[activeEndpointIndex].name;
+      const name = registeredEndpoints[activeEndpointIndex].name;
+      probeCache.set(model, { name, timestamp: Date.now() });
+      return name;
     }
     return null;
   }

@@ -164,7 +164,12 @@ export class Pipeline {
     const directPattern = /^(写一个|实现一个|用\w+实现|生成|输出|列出|什么是|如何|怎么)/;
     const directPatternEn = /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define)\b/i;
     if (codeUnitPattern.test(userRequest) || simplePattern.test(userRequest) || directPattern.test(userRequest) || directPatternEn.test(userRequest)) {
-      return 'direct';
+      // Long inputs that happen to start with a fast-path keyword may still be complex
+      if (userRequest.length > 100) {
+        // Fall through to classifier — don't trust regex alone for lengthy requests
+      } else {
+        return 'direct';
+      }
     }
 
     // Short requests (≤30 chars) are almost always direct
@@ -174,8 +179,13 @@ export class Pipeline {
 
     const system = CLASSIFIER_PROMPT[this.locale];
 
+    // Truncate long inputs for classifier — it only needs the task description, not the full payload
+    const classifierInput = userRequest.length > 200
+      ? userRequest.slice(0, 200) + '...'
+      : userRequest;
+
     const { content } = await this.compressorLLM.chat(
-      system, userRequest, 'classifier', 'gather', 10
+      system, classifierInput, 'classifier', 'gather', 10
     );
 
     const word = content.trim().toLowerCase();
@@ -328,7 +338,12 @@ export class Pipeline {
       return results[0].output;
     }
     return results
-      .map((r, i) => `### ${i + 1}. ${r.instruction}\n\n${r.output}`)
+      .map((r, i) => {
+        const title = r.instruction.length > 80
+          ? r.instruction.slice(0, 80) + '...'
+          : r.instruction;
+        return `### ${i + 1}. ${title}\n\n${r.output}`;
+      })
       .join('\n\n---\n\n');
   }
 
@@ -404,7 +419,13 @@ export class Pipeline {
   private async executePhase(instructions: PlannerInstruction[]): Promise<ExecutionResult[]> {
     this.setPhase('execute');
     // Cap at 3 executor tasks to prevent over-decomposition
-    const executorInstructions = instructions.filter((i) => i.target === 'executor').slice(0, 3);
+    let executorInstructions = instructions.filter((i) => i.target === 'executor').slice(0, 3);
+
+    // Fallback: if planner produced no parseable executor instructions, execute user request directly
+    if (executorInstructions.length === 0) {
+      executorInstructions = [{ target: 'executor' as const, instruction: this.state.userRequest }];
+    }
+
     this.emit({
       type: 'phase',
       phase: 'execute',
