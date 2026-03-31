@@ -36,6 +36,7 @@ export interface FullDepthContext {
   getTokenReport: () => TokenReport;
   getRouterStats: () => RouterStats;
   emit: (event: PipelineEvent) => void;
+  onToken?: (token: string) => void;
 }
 
 export async function runFull(ctx: FullDepthContext): Promise<PipelineResult> {
@@ -176,20 +177,30 @@ async function executeSerial(ctx: FullDepthContext, instructions: PlannerInstruc
       continue;
     }
 
-    const context: AgentContext = { visibleMessages: [] };
-    const response = await ctx.executor.process(msg, context);
-    ctx.router.route(response, 'execute');
+    let output: string;
+    if (ctx.onToken && ctx.compressorLLM) {
+      const { getBandPrompt } = await import('../core/prompts.js');
+      const prompt = getBandPrompt(inst.instruction, ctx.locale);
+      const fullInput = `${ctx.strings.originalRequest}: ${ctx.userRequest}\n\n${inst.instruction}`;
+      const { content } = await ctx.compressorLLM.chatStream(prompt, fullInput, 'executor', 'execute', ctx.onToken);
+      output = content;
+    } else {
+      const context: AgentContext = { visibleMessages: [] };
+      const response = await ctx.executor.process(msg, context);
+      ctx.router.route(response, 'execute');
+      output = response.payload;
+    }
 
     results.push({
       instruction: inst.instruction,
-      output: response.payload,
+      output,
       success: true,
     });
 
     ctx.emit({
       type: 'execution',
       phase: 'execute',
-      detail: `${inst.instruction}: ${response.payload.slice(0, 80)}...`,
+      detail: `${inst.instruction}: ${output.slice(0, 80)}...`,
     });
   }
 

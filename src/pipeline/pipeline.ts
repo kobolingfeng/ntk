@@ -376,6 +376,7 @@ export class Pipeline {
           getTokenReport: () => this.getTokenReport(),
           getRouterStats: () => this.router.getStats(),
           emit: (e) => this.emit(e),
+          onToken: this.onToken,
         });
       default:
         this.setPhase('execute');
