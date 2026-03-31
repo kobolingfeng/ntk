@@ -29,7 +29,7 @@ import { Router } from '../core/router.js';
 
 // Submodules
 import { classifyDepth, classifyDepthFastPath } from './classifier.js';
-import { runDirect } from './depth-direct.js';
+import { runDirect, type DirectDepthContext } from './depth-direct.js';
 import { runFull } from './depth-full.js';
 import { runLight } from './depth-light.js';
 import { runStandard } from './depth-standard.js';
@@ -205,16 +205,7 @@ export class Pipeline {
         // Fast path hit — skip classifier LLM call, execute directly
         this.emit({ type: 'start', phase: 'gather', detail: `[direct/fast] ${cleanRequest}` });
         this.setPhase('execute');
-        result = await runDirect(
-          cleanRequest,
-          this.executor,
-          this.locale,
-          () => this.getTokenReport(),
-          () => this.router.getStats(),
-          (e) => this.emit(e),
-          this.compressorLLM,
-          this.onToken,
-        );
+        result = await runDirect(this.directCtx(cleanRequest, { onToken: this.onToken }));
       } else if (this.forceDepth) {
         // Forced depth — no speculation needed
         const depth = this.forceDepth;
@@ -222,15 +213,7 @@ export class Pipeline {
         switch (depth) {
           case 'direct':
             this.setPhase('execute');
-            result = await runDirect(
-              cleanRequest,
-              this.executor,
-              this.locale,
-              () => this.getTokenReport(),
-              () => this.router.getStats(),
-              (e) => this.emit(e),
-              this.compressorLLM,
-            );
+            result = await runDirect(this.directCtx(cleanRequest));
             break;
           default: {
             const d = await this.runNonDirectDepth(depth, cleanRequest);
@@ -247,15 +230,7 @@ export class Pipeline {
         // When speculation misses, the direct result is awaited and discarded to avoid leaked promises
         let speculativePromise: Promise<PipelineResult> | null = null;
         if (speculateDepth === 'direct') {
-          speculativePromise = runDirect(
-            cleanRequest,
-            this.executor,
-            this.locale,
-            () => this.getTokenReport(),
-            () => this.router.getStats(),
-            () => {},
-            this.compressorLLM,
-          );
+          speculativePromise = runDirect(this.directCtx(cleanRequest, { emit: () => {} }));
         }
 
         const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
@@ -271,15 +246,7 @@ export class Pipeline {
           try {
             result = await speculativePromise;
           } catch {
-            result = await runDirect(
-              cleanRequest,
-              this.executor,
-              this.locale,
-              () => this.getTokenReport(),
-              () => this.router.getStats(),
-              (e) => this.emit(e),
-              this.compressorLLM,
-            );
+            result = await runDirect(this.directCtx(cleanRequest));
           }
           this.emit({ type: 'complete', phase: 'report', detail: `Done (${depth}/speculative-hit)` });
         } else {
@@ -290,15 +257,7 @@ export class Pipeline {
 
           if (depth === 'direct') {
             this.setPhase('execute');
-            result = await runDirect(
-              cleanRequest,
-              this.executor,
-              this.locale,
-              () => this.getTokenReport(),
-              () => this.router.getStats(),
-              (e) => this.emit(e),
-              this.compressorLLM,
-            );
+            result = await runDirect(this.directCtx(cleanRequest));
           } else {
             result = await this.runNonDirectDepth(depth, cleanRequest);
           }
@@ -312,15 +271,7 @@ export class Pipeline {
 
         if (depth === 'direct') {
           this.setPhase('execute');
-          result = await runDirect(
-            cleanRequest,
-            this.executor,
-            this.locale,
-            () => this.getTokenReport(),
-            () => this.router.getStats(),
-            (e) => this.emit(e),
-            this.compressorLLM,
-          );
+          result = await runDirect(this.directCtx(cleanRequest));
         } else {
           result = await this.runNonDirectDepth(depth, cleanRequest);
         }
@@ -405,15 +356,7 @@ export class Pipeline {
         });
       default:
         this.setPhase('execute');
-        return await runDirect(
-          cleanRequest,
-          this.executor,
-          this.locale,
-          () => this.getTokenReport(),
-          () => this.router.getStats(),
-          (e) => this.emit(e),
-          this.compressorLLM,
-        );
+        return await runDirect(this.directCtx(cleanRequest));
     }
   }
 
@@ -440,6 +383,22 @@ export class Pipeline {
   private getTokenReport() {
     const allUsage = [...this.plannerLLM.getTokenLog(), ...this.compressorLLM.getTokenLog()];
     return generateTokenReport(allUsage);
+  }
+
+  private directCtx(
+    userRequest: string,
+    overrides?: { onToken?: (token: string) => void; emit?: (e: PipelineEvent) => void },
+  ): DirectDepthContext {
+    return {
+      userRequest,
+      executor: this.executor,
+      locale: this.locale,
+      getTokenReport: () => this.getTokenReport(),
+      getRouterStats: () => this.router.getStats(),
+      emit: overrides?.emit ?? ((e) => this.emit(e)),
+      llm: this.compressorLLM,
+      onToken: overrides?.onToken,
+    };
   }
 
   private getPreFilterSavings(): PreFilterSavings {

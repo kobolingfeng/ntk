@@ -11,59 +11,89 @@ import type { RouterStats } from '../core/router.js';
 import { emptyOutputMessage } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
 
-export async function runDirect(
-  userRequest: string,
-  executor: Executor,
-  locale: Locale,
-  getTokenReport: () => TokenReport,
-  getRouterStats: () => RouterStats,
-  emit: (event: PipelineEvent) => void,
-  llm?: LLMClient,
-  onToken?: (token: string) => void,
-): Promise<PipelineResult> {
-  emit({ type: 'phase', phase: 'execute', detail: 'Direct execution...' });
+export interface DirectDepthContext {
+  userRequest: string;
+  executor: Executor;
+  locale: Locale;
+  getTokenReport: () => TokenReport;
+  getRouterStats: () => RouterStats;
+  emit: (event: PipelineEvent) => void;
+  llm?: LLMClient;
+  onToken?: (token: string) => void;
+}
+
+export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult> {
+  ctx.emit({ type: 'phase', phase: 'execute', detail: 'Direct execution...' });
 
   const adaptiveMaxTokens =
-    userRequest.length < 50 ? 512 : userRequest.length < 200 ? 1024 : userRequest.length > 2000 ? 1024 : undefined;
+    ctx.userRequest.length < 50
+      ? 512
+      : ctx.userRequest.length < 200
+        ? 1024
+        : ctx.userRequest.length > 2000
+          ? 1024
+          : undefined;
 
-  let effectiveRequest = userRequest;
-  if (userRequest.length > 3000) {
-    const head = userRequest.slice(0, 1500);
-    const tail = userRequest.slice(-500);
-    effectiveRequest = `${head}\n\n[... ${userRequest.length - 2000} chars truncated for brevity ...]\n\n${tail}`;
-    emit({ type: 'message', phase: 'execute', detail: `Input truncated: ${userRequest.length} → ${effectiveRequest.length} chars` });
+  let effectiveRequest = ctx.userRequest;
+  if (ctx.userRequest.length > 3000) {
+    const head = ctx.userRequest.slice(0, 1500);
+    const tail = ctx.userRequest.slice(-500);
+    effectiveRequest = `${head}\n\n[... ${ctx.userRequest.length - 2000} chars truncated for brevity ...]\n\n${tail}`;
+    ctx.emit({
+      type: 'message',
+      phase: 'execute',
+      detail: `Input truncated: ${ctx.userRequest.length} → ${effectiveRequest.length} chars`,
+    });
   }
 
-  const adaptiveTemp = userRequest.length < 30 ? 0.1 : userRequest.length > 200 ? 0.4 : undefined;
+  const adaptiveTemp = ctx.userRequest.length < 30 ? 0.1 : ctx.userRequest.length > 200 ? 0.4 : undefined;
 
   let rawContent = '';
-  if (llm && onToken) {
-    const bandPrompt = getBandPrompt(effectiveRequest, locale);
-    const { content } = await llm.chatStream(bandPrompt, effectiveRequest, 'executor', 'execute', onToken, adaptiveMaxTokens, adaptiveTemp);
+  if (ctx.llm && ctx.onToken) {
+    const bandPrompt = getBandPrompt(effectiveRequest, ctx.locale);
+    const { content } = await ctx.llm.chatStream(
+      bandPrompt,
+      effectiveRequest,
+      'executor',
+      'execute',
+      ctx.onToken,
+      adaptiveMaxTokens,
+      adaptiveTemp,
+    );
     rawContent = content.trim();
-  } else if (llm) {
-    const bandPrompt = getBandPrompt(effectiveRequest, locale);
-    const { content } = await llm.chat(bandPrompt, effectiveRequest, 'executor', 'execute', adaptiveMaxTokens, adaptiveTemp);
+  } else if (ctx.llm) {
+    const bandPrompt = getBandPrompt(effectiveRequest, ctx.locale);
+    const { content } = await ctx.llm.chat(
+      bandPrompt,
+      effectiveRequest,
+      'executor',
+      'execute',
+      adaptiveMaxTokens,
+      adaptiveTemp,
+    );
     rawContent = content.trim();
   } else {
     const { createMessage } = await import('../core/protocol.js');
     const msg = createMessage('planner', 'executor', effectiveRequest, '');
     const context = { visibleMessages: [] as never[] };
-    const response = await executor.process(msg, context);
+    const response = await ctx.executor.process(msg, context);
     rawContent = response.payload.trim();
   }
 
   const success = rawContent.length > 0;
-  let report = rawContent || emptyOutputMessage(locale);
-  report = report.replace(/\n*\[完成\]\s*$/g, '').replace(/\n*\[done\]\s*$/gi, '').trimEnd();
+  let report = rawContent || emptyOutputMessage(ctx.locale);
+  report = report
+    .replace(/\n*\[完成\]\s*$/g, '')
+    .replace(/\n*\[done\]\s*$/gi, '')
+    .trimEnd();
 
-  emit({ type: 'complete', phase: 'report', detail: 'Done (direct)' });
+  ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (direct)' });
 
   return {
     success,
     report,
-    tokenReport: getTokenReport(),
-    routerStats: getRouterStats(),
+    tokenReport: ctx.getTokenReport(),
+    routerStats: ctx.getRouterStats(),
     blockedMessages: [],
     depth: 'direct',
   };
