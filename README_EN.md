@@ -88,7 +88,8 @@ The most compelling dataset — the same function (mergeIntervals, 6 requirement
 
 Direct used **1/20th of Full's tokens** with zero bugs. Full introduced 1 bug due to over-decomposition. **Simpler tasks shouldn't use complex pipelines** — that's exactly why adaptive routing exists.
 
-### 📊 v0.1.2 Benchmark
+<details>
+<summary><b>📊 v0.1.2 Benchmark (click to expand)</b></summary>
 
 NTK **outperforms** strong model direct calls across all tasks, using **100% cheap model**:
 
@@ -98,6 +99,10 @@ NTK **outperforms** strong model direct calls across all tasks, using **100% che
 | Tech comparison (medium) | 1,010 tok | 831 tok | **690 tok** | **-32%** | 0 |
 | API design (medium) | 2,299 tok | 1,652 tok | **1,245 tok** | **-46%** | 0 |
 | Debug analysis | 401 tok | 371 tok | **366 tok** | **-9%** | 0 |
+
+> Test conditions: cheap model gpt-5.4-mini, strong model gpt-5.4, single run, direct/light depth.
+
+</details>
 
 > **NTK uses fewer tokens + all-cheap model = 90%+ total cost savings**.
 > Smart verification skip reduces light depth tokens by 76%, latency by 65%.
@@ -286,11 +291,14 @@ API_ENDPOINT_1_KEY=sk-your-api-key
 API_ENDPOINT_1_URL=https://api.openai.com/v1
 API_ENDPOINT_1_NAME=openai
 
-PLANNER_MODEL=gpt-4o          # Strong model — only used for full-depth planning
-COMPRESSOR_MODEL=gpt-4o-mini  # Cheap model — Scout/Executor/Verifier all use this
+PLANNER_MODEL=gpt-5.4          # Strong model — only used for full-depth planning
+COMPRESSOR_MODEL=gpt-5.4-mini  # Cheap model — Scout/Executor/Verifier all use this
 ```
 
 63% of tasks take the Direct path and never trigger the Planner, so most requests run on the cheap model.
+
+<details>
+<summary><b>Multi-Endpoint Failover + Compatible API Providers + Configuration in MCP Clients</b></summary>
 
 ### Multi-Endpoint Failover
 
@@ -305,8 +313,8 @@ API_ENDPOINT_2_KEY=sk-key-b
 API_ENDPOINT_2_URL=https://your-backup.com/v1
 API_ENDPOINT_2_NAME=backup
 
-PLANNER_MODEL=gpt-4o
-COMPRESSOR_MODEL=gpt-4o-mini
+PLANNER_MODEL=gpt-5.4
+COMPRESSOR_MODEL=gpt-5.4-mini
 ```
 
 If the current endpoint goes down, NTK automatically fails over to the next one.
@@ -338,13 +346,15 @@ When connecting via MCP, you can pass API config directly in the `env` field —
         "API_ENDPOINT_1_KEY": "sk-your-key",
         "API_ENDPOINT_1_URL": "https://api.openai.com/v1",
         "API_ENDPOINT_1_NAME": "openai",
-        "PLANNER_MODEL": "gpt-4o",
-        "COMPRESSOR_MODEL": "gpt-4o-mini"
+        "PLANNER_MODEL": "gpt-5.4",
+        "COMPRESSOR_MODEL": "gpt-5.4-mini"
       }
     }
   }
 }
 ```
+
+</details>
 
 ### Debug
 
@@ -371,7 +381,50 @@ User Request
 - **Executor** — Cheap model, core task execution
 - **Verifier** — Cheap model, result validation
 
-## Benchmarks
+### 🔄 Tee Mechanism (Compression Backtracking)
+
+Compression is lossy. NTK's Tee mechanism saves a copy of the original text during compression. When verification fails, the full content can be recovered — avoiding critical information loss.
+
+```
+Compress:  Original(500 tok) → teeStore → Compressed(80 tok) passed to downstream Agent
+Verify fail:  Verifier reports missing details → teeRetrieve → Restore original(500 tok) re-execute
+Verify pass:  teeClear → Release storage
+```
+
+This allows NTK to compress aggressively without fear of losing information — worst case, it falls back to the full content instead of retrying with incomplete data.
+
+<details>
+<summary><b>NTK vs traditional approaches — capability comparison (click to expand)</b></summary>
+
+| Capability | Traditional single-LLM | I/O filtering only | NTK |
+|------|:-----------:|:---:|:---:|
+| Deterministic pre-filtering (zero token cost) | ❌ | ✅ | ✅ |
+| Semantic compression (LLM understands content) | ❌ | ❌ | ✅ |
+| Information routing isolation | ❌ | ❌ | ✅ |
+| Adaptive pipeline depth | ❌ | ❌ | ✅ |
+| Dual-model cost isolation | ❌ | ❌ | ✅ |
+| Compression backtracking (Tee mechanism) | ❌ | ❌ | ✅ |
+| Multi-agent collaboration | ❌ | ❌ | ✅ |
+| Response cache (zero-cost repeat queries) | ❌ | ❌ | ✅ |
+| Smart output-type detection | ❌ | ❌ | ✅ |
+| Code-aware compression | ❌ | ❌ | ✅ |
+
+**Benchmark results (11 test cases)**:
+
+| Approach | Total tokens | Weighted cost |
+|------|----------|---------|
+| Traditional single LLM | 13407 | 100% |
+| I/O filtering only | 11263 | — |
+| **NTK** | **12339** | **~9%** |
+
+> I/O filtering compresses data (deletes characters); NTK compresses cognition (controls information flow).
+
+Run comparison: `npx tsx src/cli.ts compare`
+
+</details>
+
+<details>
+<summary><b>Research experiments (benchmarking toolkit)</b></summary>
 
 NTK includes a complete benchmarking toolkit:
 
@@ -385,6 +438,8 @@ npx tsx src/cli.ts optimize   # 6-config optimization matrix
 ```
 
 See [SKILL.md](SKILL.md) for detailed skill documentation.
+
+</details>
 
 ## Community
 

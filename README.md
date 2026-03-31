@@ -291,8 +291,8 @@ API_ENDPOINT_1_KEY=sk-your-api-key
 API_ENDPOINT_1_URL=https://api.openai.com/v1
 API_ENDPOINT_1_NAME=openai
 
-PLANNER_MODEL=gpt-4o          # 强模型 — 仅 full 深度规划使用
-COMPRESSOR_MODEL=gpt-4o-mini  # 廉价模型 — Scout/Executor/Verifier 全用这个
+PLANNER_MODEL=gpt-5.4          # 强模型 — 仅 full 深度规划使用
+COMPRESSOR_MODEL=gpt-5.4-mini  # 廉价模型 — Scout/Executor/Verifier 全用这个
 ```
 
 63% 的任务走 Direct 路径根本不触发 Planner，所以绝大部分请求都在用廉价模型。
@@ -311,8 +311,8 @@ API_ENDPOINT_2_KEY=sk-key-b
 API_ENDPOINT_2_URL=https://your-backup.com/v1
 API_ENDPOINT_2_NAME=backup
 
-PLANNER_MODEL=gpt-4o
-COMPRESSOR_MODEL=gpt-4o-mini
+PLANNER_MODEL=gpt-5.4
+COMPRESSOR_MODEL=gpt-5.4-mini
 ```
 
 如果当前端点挂了，自动切换到下一个。
@@ -340,8 +340,8 @@ COMPRESSOR_MODEL=gpt-4o-mini
         "API_ENDPOINT_1_KEY": "sk-your-key",
         "API_ENDPOINT_1_URL": "https://api.openai.com/v1",
         "API_ENDPOINT_1_NAME": "openai",
-        "PLANNER_MODEL": "gpt-4o",
-        "COMPRESSOR_MODEL": "gpt-4o-mini"
+        "PLANNER_MODEL": "gpt-5.4",
+        "COMPRESSOR_MODEL": "gpt-5.4-mini"
       }
     }
   }
