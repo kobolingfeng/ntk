@@ -423,7 +423,12 @@ export class Pipeline {
   }
 
   private getTokenReport() {
-    const allUsage = [...this.plannerLLM.getTokenLog(), ...this.compressorLLM.getTokenLog()];
+    const plannerLog = this.plannerLLM.getTokenLog();
+    const compressorLog = this.compressorLLM.getTokenLog();
+    // Avoid spread when one is empty (common for direct-depth: planner unused)
+    const allUsage = plannerLog.length === 0 ? compressorLog
+      : compressorLog.length === 0 ? plannerLog
+      : [...plannerLog, ...compressorLog];
     return generateTokenReport(allUsage);
   }
 

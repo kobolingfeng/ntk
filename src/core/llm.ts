@@ -128,8 +128,6 @@ export class EndpointManager {
       const epIndex = i;
       probePromises.push(
         (async () => {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), TIMEOUT);
           try {
             const url = `${ep.baseUrl}/chat/completions`;
             const response = await fetch(url, {
@@ -139,7 +137,7 @@ export class EndpointManager {
                 Authorization: `Bearer ${ep.apiKey}`,
               },
               body: probeBody,
-              signal: controller.signal,
+              signal: AbortSignal.timeout(TIMEOUT),
             });
 
             if (response.ok) {
@@ -153,8 +151,6 @@ export class EndpointManager {
           } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
             console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — ${msg.slice(0, 80)}`);
-          } finally {
-            clearTimeout(timer);
           }
           this.negativeProbeCache.set(epIndex, Date.now());
           return -1;
@@ -195,14 +191,12 @@ export class EndpointManager {
       const lastFail = this.negativeProbeCache.get(i);
       if (lastFail && now - lastFail < this.negativeProbeTTL) return false;
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), TIMEOUT);
       try {
         const res = await fetch(`${ep.baseUrl}/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
           body: probeBody,
-          signal: controller.signal,
+          signal: AbortSignal.timeout(TIMEOUT),
         });
         if (res.ok) {
           const data = (await res.json()) as { choices?: unknown[] };
@@ -210,8 +204,6 @@ export class EndpointManager {
         }
       } catch {
         // probe failed
-      } finally {
-        clearTimeout(timer);
       }
       this.negativeProbeCache.set(i, Date.now());
       return false;
@@ -495,8 +487,8 @@ export class LLMClient {
     }
   }
 
-  getTokenLog(): TokenUsage[] {
-    return [...this.tokenLog];
+  getTokenLog(): readonly TokenUsage[] {
+    return this.tokenLog;
   }
   resetTokenLog(): void {
     this.tokenLog = [];

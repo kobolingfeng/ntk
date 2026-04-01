@@ -56,7 +56,7 @@ export function assembleReport(results: ExecutionResult[]): string {
 /**
  * Generate token usage report from LLM logs.
  */
-export function generateTokenReport(allUsage: TokenUsage[]): TokenReport {
+export function generateTokenReport(allUsage: readonly TokenUsage[]): TokenReport {
   const report: TokenReport = {
     totalInput: 0,
     totalOutput: 0,

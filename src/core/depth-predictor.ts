@@ -28,6 +28,8 @@ const PREDICTOR_FILE = join(PREDICTOR_DIR, 'depth-predictor.json');
 const VALID_DEPTHS = new Set(['direct', 'light', 'standard', 'full']);
 
 let memoryCache: PredictorData | null = null;
+/** Index: pattern → DepthRecord[] for O(1) exact lookup */
+let patternIndex: Map<string, DepthRecord[]> | null = null;
 let dirty = false;
 let saveDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 const SAVE_DEBOUNCE_MS = 2000;
@@ -71,8 +73,18 @@ function loadFromDisk(): PredictorData {
 function getData(): PredictorData {
   if (!memoryCache) {
     memoryCache = loadFromDisk();
+    rebuildIndex(memoryCache);
   }
   return memoryCache;
+}
+
+function rebuildIndex(data: PredictorData): void {
+  patternIndex = new Map();
+  for (const r of data.records) {
+    const list = patternIndex.get(r.pattern);
+    if (list) list.push(r);
+    else patternIndex.set(r.pattern, [r]);
+  }
 }
 
 function saveToDisk(data: PredictorData): void {
@@ -91,16 +103,24 @@ export function recordDepth(task: string, depth: PipelineDepth): void {
   const pattern = extractPattern(task);
   const data = getData();
 
-  const existing = data.records.find((r) => r.pattern === pattern && r.depth === depth);
+  const indexList = patternIndex?.get(pattern);
+  const existing = indexList?.find((r) => r.depth === depth);
   if (existing) {
     existing.count++;
   } else {
-    data.records.push({ pattern, depth, count: 1 });
+    const record = { pattern, depth, count: 1 };
+    data.records.push(record);
+    if (patternIndex) {
+      const list = patternIndex.get(pattern);
+      if (list) list.push(record);
+      else patternIndex.set(pattern, [record]);
+    }
   }
 
   if (data.records.length > 500) {
     data.records.sort((a, b) => b.count - a.count);
     data.records = data.records.slice(0, 300);
+    rebuildIndex(data);
   }
 
   dirty = true;
@@ -129,9 +149,9 @@ export function predictDepth(task: string): { depth: PipelineDepth; confidence: 
   if (data.records.length === 0) return null;
 
   const pattern = extractPattern(task);
-  const matches = data.records.filter((r) => r.pattern === pattern);
+  const matches = patternIndex?.get(pattern);
 
-  if (matches.length === 0) {
+  if (!matches || matches.length === 0) {
     const words = pattern.split(' ');
     const partials = data.records.filter((r) => words.some((w) => w.length > 2 && r.pattern.includes(w)));
 
