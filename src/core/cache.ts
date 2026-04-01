@@ -2,11 +2,9 @@
  * Response Cache — Memoize pipeline results for identical tasks.
  *
  * When the same task is submitted again, return cached result
- * with zero token cost. Uses content hash for matching.
+ * with zero token cost. Uses FNV-1a hash for matching.
  * LRU eviction: accessed entries are bumped to most-recent position.
  */
-
-import { createHash } from 'node:crypto';
 
 interface CacheEntry {
   result: string;
@@ -33,7 +31,13 @@ export class ResponseCache {
 
   private hash(task: string, depth?: string): string {
     const normalized = `${depth ?? 'auto'}:${task.trim().toLowerCase()}`;
-    return createHash('sha256').update(normalized).digest('hex').slice(0, 16);
+    // FNV-1a hash — fast, sufficient collision resistance for 100-entry cache
+    let h = 0x811c9dc5;
+    for (let i = 0; i < normalized.length; i++) {
+      h ^= normalized.charCodeAt(i);
+      h = (h * 0x01000193) >>> 0;
+    }
+    return h.toString(36);
   }
 
   get(task: string, depth?: string): CacheEntry | null {

@@ -36,13 +36,16 @@ export interface Endpoint {
   baseUrl: string;
 }
 
-const CJK_RANGE = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g;
-
 /** Estimate token count accounting for CJK characters (~1.5 tokens each vs ASCII ~0.25) */
 export function estimateTokens(text: string): number {
-  const cjkCount = (text.match(CJK_RANGE) || []).length;
-  const asciiCount = text.length - cjkCount;
-  return Math.ceil(cjkCount * 1.5 + asciiCount / 4);
+  let cjkCount = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if ((c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF) || (c >= 0xF900 && c <= 0xFAFF)) {
+      cjkCount++;
+    }
+  }
+  return Math.ceil(cjkCount * 1.5 + (text.length - cjkCount) / 4);
 }
 
 /**
