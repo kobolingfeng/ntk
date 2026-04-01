@@ -3,7 +3,7 @@
  */
 
 import type { LLMClient } from '../core/llm.js';
-import { CLASSIFIER_PROMPT, type Locale } from '../core/prompts.js';
+import { CLASSIFIER_PROMPT, PASSTHROUGH_TASK_PATTERN, type Locale } from '../core/prompts.js';
 import type { PipelineDepth } from './types.js';
 
 /**
@@ -39,6 +39,9 @@ export async function classifyDepth(
  * Exported for testing.
  */
 export function classifyDepthFastPath(userRequest: string): PipelineDepth | null {
+  // Passthrough tasks (translations, conversions, summaries) are always direct
+  if (PASSTHROUGH_TASK_PATTERN.test(userRequest)) return 'direct';
+
   const codeUnitPattern = /^(写|实现|编写|创建|用\w+写|帮我写|请写).{0,30}(函数|function|算法|方法|脚本|工具|类|class)/;
   const simplePattern =
     /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为)|分析以下|以下是|帮我|请|给出)/;
