@@ -49,15 +49,42 @@ export function detectOutputType(text: string): OutputType {
   // Short inputs are almost always general user prompts
   if (text.length < 200) return 'general';
 
-  const lines = text.split('\n').slice(0, 30);
-  const sample = lines.join('\n');
+  // Use first ~30 lines without allocating full split array
+  let sample: string;
+  let nlCount = 0;
+  let sampleEnd = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) {
+      nlCount++;
+      if (nlCount >= 30) { sampleEnd = i; break; }
+    }
+  }
+  sample = sampleEnd > 0 ? text.slice(0, sampleEnd) : text;
 
   const testIndicators = /[✓✔✗✘×]|^PASS\s|^FAIL\s|Tests?:\s+\d+\s+(passed|failed)|^\s*(ok|not ok)\s+\d/im;
   if (testIndicators.test(sample)) return 'test';
 
   const jsonIndicators = /^\s*[{[]/m;
-  const jsonLineCount = lines.filter((l) => /^\s*["{}[\],:]/.test(l)).length;
-  if (jsonIndicators.test(sample) && jsonLineCount > lines.length * 0.4) return 'json';
+  if (jsonIndicators.test(sample)) {
+    // Count JSON-like lines without filter+length
+    let jsonLines = 0;
+    let totalLines = 0;
+    let lineStart = 0;
+    for (let i = 0; i <= sample.length; i++) {
+      if (i === sample.length || sample.charCodeAt(i) === 10) {
+        totalLines++;
+        // Check if line starts with JSON-like chars
+        let j = lineStart;
+        while (j < i && (sample.charCodeAt(j) === 32 || sample.charCodeAt(j) === 9)) j++;
+        if (j < i) {
+          const c = sample.charCodeAt(j);
+          if (c === 34 || c === 123 || c === 125 || c === 91 || c === 93 || c === 44 || c === 58) jsonLines++;
+        }
+        lineStart = i + 1;
+      }
+    }
+    if (jsonLines > totalLines * 0.4) return 'json';
+  }
 
   const logIndicators = /\[\d{4}-\d{2}-\d{2}|^\d{4}-\d{2}-\d{2}T|\b(INFO|WARN|ERROR|DEBUG)\b/;
   if (logIndicators.test(sample)) return 'log';
@@ -76,7 +103,7 @@ export function preFilter(text: string): PreFilterResult {
   const originalLength = text.length;
 
   // Fast path: short, clean text — skip all strategies
-  if (originalLength < 500 && !text.includes('\x1b') && text.split('\n').length < 5) {
+  if (originalLength < 500 && !text.includes('\x1b') && newlineCount(text) < 4) {
     return {
       filtered: text,
       originalLength,
@@ -124,6 +151,14 @@ export function preFilter(text: string): PreFilterResult {
   };
 }
 
+/** Count newlines without allocating an array */
+function newlineCount(text: string): number {
+  let n = 0;
+  let i = -1;
+  while ((i = text.indexOf('\n', i + 1)) !== -1) n++;
+  return n;
+}
+
 // ─── Strategies ────────────────────────────────────────
 
 function stripAnsiCodes(text: string): { result: string; name: string } {
@@ -132,15 +167,11 @@ function stripAnsiCodes(text: string): { result: string; name: string } {
   return { result, name: 'ansi-strip' };
 }
 
+const PROGRESS_BAR = /^[▓░█▒■□●○◆◇\-=>#\s|]*\d{1,3}%|^\s*[|/\-\\]\s*$|^\s*\[=+>?\s*\]\s*\d+%|^\s*(?:Downloading|Uploading|Installing|Progress).*\.\.\.\s*\d+%/i;
+
 function stripProgressBars(text: string): { result: string; name: string } {
   const lines = text.split('\n');
-  const filtered = lines.filter((line) => {
-    if (/^[▓░█▒■□●○◆◇\-=>#\s|]*\d{1,3}%/.test(line.trim())) return false;
-    if (/^\s*[|/\-\\]\s*$/.test(line)) return false;
-    if (/^\s*\[=+>?\s*\]\s*\d+%/.test(line)) return false;
-    if (/^(Downloading|Uploading|Installing|Progress).*\.\.\.\s*\d+%/i.test(line.trim())) return false;
-    return true;
-  });
+  const filtered = lines.filter((line) => !PROGRESS_BAR.test(line.trimStart()));
   return { result: filtered.join('\n'), name: 'progress-bar-strip' };
 }
 
@@ -150,10 +181,7 @@ function collapseBlankLines(text: string): { result: string; name: string } {
 }
 
 function trimTrailingWhitespace(text: string): { result: string; name: string } {
-  const result = text
-    .split('\n')
-    .map((line) => line.trimEnd())
-    .join('\n');
+  const result = text.replace(/[ \t]+$/gm, '');
   return { result, name: 'trailing-ws-trim' };
 }
 
@@ -221,7 +249,13 @@ function compactCodeBlockJson(text: string): string {
 }
 
 function countBraceDepth(line: string): number {
-  return (line.match(/[{[]/g) || []).length - (line.match(/[}\]]/g) || []).length;
+  let d = 0;
+  for (let i = 0; i < line.length; i++) {
+    const c = line.charCodeAt(i);
+    if (c === 123 || c === 91) d++;      // { or [
+    else if (c === 125 || c === 93) d--; // } or ]
+  }
+  return d;
 }
 
 function compactStandaloneJson(text: string): string {
@@ -287,23 +321,12 @@ function stripPassedTests(text: string): { result: string; name: string } {
   let hasTestOutput = false;
   let strippedCount = 0;
 
-  const passPatterns = [
-    /^\s*✓\s/,
-    /^\s*✔\s/,
-    /^\s*PASS\s/,
-    /^\s*√\s/,
-    /^\s*ok\s+\d/,
-    /^\s*\.\.\.\s*$/,
-    /^test\s+.*\s+\.\.\.\s+ok\s*$/,
-    /^\s*测试通过/,
-    /^\s*Tests?:\s+\d+\s+passed,\s+\d+\s+total/i,
-  ];
-
-  const failPatterns = [/^\s*✗\s/, /^\s*✘\s/, /^\s*FAIL\s/, /^\s*×\s/, /^\s*not ok\s/, /^\s*❌/];
+  const PASS = /^\s*(?:[✓✔√]\s|PASS\s|ok\s+\d|\.\.\.\s*$|测试通过|Tests?:\s+\d+\s+passed,\s+\d+\s+total)|^test\s+.*\s+\.\.\.\s+ok\s*$/i;
+  const FAIL = /^\s*(?:[✗✘×❌]\s|FAIL\s|not ok\s)/;
 
   const filtered = lines.filter((line) => {
-    const isPass = passPatterns.some((p) => p.test(line));
-    const isFail = failPatterns.some((p) => p.test(line));
+    const isPass = PASS.test(line);
+    const isFail = FAIL.test(line);
 
     if (isPass || isFail) hasTestOutput = true;
 
@@ -315,7 +338,7 @@ function stripPassedTests(text: string): { result: string; name: string } {
   });
 
   if (hasTestOutput && strippedCount > 0) {
-    const insertIdx = filtered.findIndex((l) => failPatterns.some((p) => p.test(l)));
+    const insertIdx = filtered.findIndex((l) => FAIL.test(l));
     const summary = `  [${strippedCount} passed tests hidden]`;
     if (insertIdx >= 0) {
       filtered.splice(insertIdx, 0, summary);
