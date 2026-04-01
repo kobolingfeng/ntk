@@ -494,7 +494,7 @@ export class LLMClient {
               if (maxOutputTokens) {
                 for (let k = 0; k < delta.length; k++) {
                   const c = delta.charCodeAt(k);
-                  runningTokenEstimate += (c >= 0x4E00 && c <= 0x9FFF) ? 1.5 : 0.25;
+                  runningTokenEstimate += (c >= 0x4E00 && c <= 0x9FFF) ? 1.5 : 0.4;
                 }
                 if (runningTokenEstimate >= maxOutputTokens) {
                   abortedByLimit = true;
@@ -532,7 +532,7 @@ export class LLMClient {
       let tokens = 0;
       for (let i = 0; i < fullContent.length; i++) {
         const ch = fullContent.charCodeAt(i);
-        tokens += (ch >= 0x4E00 && ch <= 0x9FFF) ? 1.5 : 0.25;
+        tokens += (ch >= 0x4E00 && ch <= 0x9FFF) ? 1.5 : 0.4;
         if (tokens >= maxOutputTokens) {
           fullContent = fullContent.slice(0, i + 1);
           break;

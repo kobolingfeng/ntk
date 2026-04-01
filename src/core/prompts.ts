@@ -130,8 +130,8 @@ const BAND_PROMPTS: Record<TaskBand, Record<Locale, string>> = {
 };
 
 const MICRO_PROMPT: Record<Locale, string> = {
-  zh: '只输出结果。不解释不续问。',
-  en: 'Output only. No explanations, no follow-ups.',
+  zh: '只输出结果，不解释。',
+  en: 'Output only. No explanations.',
 };
 
 export function getBandPrompt(task: string, locale: Locale, micro = false): string {
