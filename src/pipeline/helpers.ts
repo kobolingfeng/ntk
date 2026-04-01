@@ -25,24 +25,10 @@ export function parseVerificationResult(payload: string): boolean {
   const hasPassKeyword = passKeywords.some((kw) => lower.includes(kw));
 
   // Strip negation-pass patterns before checking fail keywords
-  let lowerForFailCheck = lower;
-  const negationPassPatterns = [
-    '没有问题',
-    '无问题',
-    '没有错误',
-    '无错误',
-    'no issues',
-    'no errors',
-    'no error',
-    '0 errors',
-    '0 error',
-    'without error',
-    'error-free',
-    'error free',
-  ];
-  for (const np of negationPassPatterns) {
-    lowerForFailCheck = lowerForFailCheck.replaceAll(np, '');
-  }
+  let lowerForFailCheck = lower.replace(
+    /没有问题|无问题|没有错误|无错误|no issues|no errors?|0 errors?|without error|error[- ]free/g,
+    '',
+  );
   const hasFailKeyword = failKeywords.some((kw) => lowerForFailCheck.includes(kw));
 
   if (hasPassKeyword && !hasFailKeyword) return true;

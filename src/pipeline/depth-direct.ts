@@ -95,8 +95,7 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
   const success = rawContent.length > 0;
   let report = rawContent || emptyOutputMessage(ctx.locale);
   report = report
-    .replace(/\n*\[完成\]\s*$/g, '')
-    .replace(/\n*\[done\]\s*$/gi, '')
+    .replace(/\n*\[(?:完成|done)\]\s*$/gi, '')
     .trimEnd();
 
   ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (direct)' });

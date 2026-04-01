@@ -561,8 +561,6 @@ export class LLMClient {
     messageContent?: string,
   ): Promise<{ content: string; inputTokens: number; outputTokens: number } | null> {
     const url = `${ep.baseUrl}/chat/completions`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 120000);
 
     let response: Response;
     try {
@@ -573,14 +571,12 @@ export class LLMClient {
           Authorization: `Bearer ${ep.apiKey}`,
         },
         body,
-        signal: controller.signal,
+        signal: AbortSignal.timeout(120000),
       });
     } catch {
-      clearTimeout(timer);
       return null;
     }
 
-    clearTimeout(timer);
     if (!response.ok || !response.body) return null;
 
     let fullContent = '';
@@ -770,8 +766,6 @@ export class LLMClient {
     const maxRetries = 2;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 120000);
       try {
         const response = await fetch(url, {
           method: 'POST',
@@ -780,7 +774,7 @@ export class LLMClient {
             Authorization: `Bearer ${ep.apiKey}`,
           },
           body,
-          signal: controller.signal,
+          signal: AbortSignal.timeout(120000),
         });
 
         if ([429, 502, 503, 504].includes(response.status) && attempt < maxRetries) {
@@ -814,8 +808,6 @@ export class LLMClient {
         }
         const msg = error instanceof Error ? error.message : String(error);
         return { success: false, error: msg.slice(0, 150) };
-      } finally {
-        clearTimeout(timer);
       }
     }
 
