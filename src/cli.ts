@@ -459,12 +459,14 @@ async function main(): Promise<void> {
         try {
           const p = new Pipeline(config, () => {}, { endpointManager });
           const taskTimeout = 300_000; // 5 min per task
+          let batchTimer: ReturnType<typeof setTimeout> | undefined;
           const r = await Promise.race([
             p.run(t),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('Task timeout (5min)')), taskTimeout),
-            ),
+            new Promise<never>((_, reject) => {
+              batchTimer = setTimeout(() => reject(new Error('Task timeout (5min)')), taskTimeout);
+            }),
           ]);
+          clearTimeout(batchTimer);
           const elapsed = (Date.now() - start) / 1000;
           const tok = r.tokenReport.totalInput + r.tokenReport.totalOutput;
           totalTokens += tok;

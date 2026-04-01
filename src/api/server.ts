@@ -164,26 +164,31 @@ export class NTKServer {
     );
 
     const startTime = Date.now();
-    const result = await Promise.race([
-      pipeline.run(task),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Request timeout: pipeline exceeded 5 minute limit')), this.requestTimeoutMs),
-      ),
-    ]);
-    const durationMs = Date.now() - startTime;
+    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        pipeline.run(task),
+        new Promise<never>((_, reject) => {
+          timeoutTimer = setTimeout(() => reject(new Error('Request timeout: pipeline exceeded 5 minute limit')), this.requestTimeoutMs);
+        }),
+      ]);
+      const durationMs = Date.now() - startTime;
 
-    this.lastResult = result;
-    this.addToHistory(task, result, startTime, durationMs);
+      this.lastResult = result;
+      this.addToHistory(task, result, startTime, durationMs);
 
-    this.sendJson(res, 200, {
-      success: result.success,
-      report: result.report,
-      tokenUsage: result.tokenReport,
-      routerStats: result.routerStats,
-      blockedCount: result.blockedMessages.length,
-      events: events.map((e) => ({ type: e.type, phase: e.phase, detail: e.detail })),
-      durationMs,
-    });
+      this.sendJson(res, 200, {
+        success: result.success,
+        report: result.report,
+        tokenUsage: result.tokenReport,
+        routerStats: result.routerStats,
+        blockedCount: result.blockedMessages.length,
+        events: events.map((e) => ({ type: e.type, phase: e.phase, detail: e.detail })),
+        durationMs,
+      });
+    } finally {
+      clearTimeout(timeoutTimer);
+    }
   }
 
   private async handleRunStream(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -224,20 +229,25 @@ export class NTKServer {
     const pipeline = new Pipeline(
       config,
       (event) => {
-        if (!res.destroyed) {
-          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        try {
+          if (!res.destroyed) {
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+          }
+        } catch {
+          // Response destroyed mid-write, safe to ignore
         }
       },
       { endpointManager: this.endpointManager },
     );
 
     const startTime = Date.now();
+    let streamTimeoutTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       const result = await Promise.race([
         pipeline.run(task),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Stream timeout: pipeline exceeded 5 minute limit')), this.requestTimeoutMs),
-        ),
+        new Promise<never>((_, reject) => {
+          streamTimeoutTimer = setTimeout(() => reject(new Error('Stream timeout: pipeline exceeded 5 minute limit')), this.requestTimeoutMs);
+        }),
       ]);
       const durationMs = Date.now() - startTime;
 
@@ -265,6 +275,7 @@ export class NTKServer {
         res.write(`data: ${JSON.stringify({ type: 'error', phase: 'report', detail: message })}\n\n`);
       }
     } finally {
+      clearTimeout(streamTimeoutTimer);
       res.end();
     }
   }
@@ -388,18 +399,23 @@ export class NTKServer {
           fn(value);
         }
       };
+      const bodyTimeout = setTimeout(() => {
+        req.destroy();
+        settle(reject, new Error('Request body read timeout'));
+      }, 30_000);
       req.on('data', (chunk: Buffer) => {
         size += chunk.length;
         if (size > maxBytes) {
+          clearTimeout(bodyTimeout);
           req.destroy();
           settle(reject, new Error('Request body too large'));
           return;
         }
         chunks.push(chunk);
       });
-      req.on('end', () => settle(resolve, Buffer.concat(chunks).toString('utf-8')));
-      req.on('error', (err) => settle(reject, err));
-      req.on('close', () => settle(reject, new Error('Connection closed before request completed')));
+      req.on('end', () => { clearTimeout(bodyTimeout); settle(resolve, Buffer.concat(chunks).toString('utf-8')); });
+      req.on('error', (err) => { clearTimeout(bodyTimeout); settle(reject, err); });
+      req.on('close', () => { clearTimeout(bodyTimeout); settle(reject, new Error('Connection closed before request completed')); });
     });
   }
 }

@@ -284,6 +284,7 @@ export class LLMClient {
   private maxTokens: number;
   private temperature: number;
   private tokenLog: TokenUsage[] = [];
+  private static readonly MAX_TOKEN_LOG = 200;
   private endpointManager: EndpointManager;
 
   constructor(config: LLMConfig, endpointManager?: EndpointManager) {
@@ -349,7 +350,7 @@ export class LLMClient {
       phase,
     };
 
-    this.tokenLog.push(usage);
+    this.pushTokenLog(usage);
     return { content, usage };
   }
 
@@ -370,8 +371,15 @@ export class LLMClient {
       phase,
     };
 
-    this.tokenLog.push(usage);
+    this.pushTokenLog(usage);
     return { content, usage };
+  }
+
+  private pushTokenLog(usage: TokenUsage): void {
+    this.tokenLog.push(usage);
+    if (this.tokenLog.length > LLMClient.MAX_TOKEN_LOG) {
+      this.tokenLog = this.tokenLog.slice(-LLMClient.MAX_TOKEN_LOG);
+    }
   }
 
   getTokenLog(): TokenUsage[] {
@@ -420,7 +428,7 @@ export class LLMClient {
       if (result) {
         this.endpointManager.recordSuccess(epIndex);
         const usage: TokenUsage = { agent, ...result, timestamp: Date.now(), phase };
-        this.tokenLog.push(usage);
+        this.pushTokenLog(usage);
         return { content: result.content, usage };
       }
       this.endpointManager.recordFailure(epIndex);
@@ -467,6 +475,7 @@ export class LLMClient {
     let abortedByLimit = false;
     let chunkCount = 0;
     let runningTokenEstimate = 0;
+    const MAX_BUFFER = 1_048_576; // 1MB safety limit for SSE buffer
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -482,6 +491,9 @@ export class LLMClient {
         }
 
         buffer += decoder.decode(value, { stream: true });
+        if (buffer.length > MAX_BUFFER) {
+          buffer = buffer.slice(-MAX_BUFFER / 2);
+        }
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
