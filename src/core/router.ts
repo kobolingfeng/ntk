@@ -135,6 +135,22 @@ export class Router {
    */
   canRoute(message: Message, currentPhase: Phase): RouteDecision {
     const routeKey = `${message.from}->${message.to}`;
+
+    // Check wildcard phase first (blocks from wildcard take priority)
+    const wildcardMap = this.routeLookup.get('*');
+    if (wildcardMap) {
+      const entry = wildcardMap.get(routeKey);
+      if (entry && !entry.allowed) {
+        const decision: RouteDecision = {
+          allowed: false,
+          reason: `Blocked by rule "${entry.ruleName}": ${message.from} → ${message.to} not allowed (wildcard phase)`,
+          needsCompression: false,
+        };
+        this.blockedLog.push({ message, reason: decision.reason });
+        return decision;
+      }
+    }
+
     const phaseMap = this.routeLookup.get(currentPhase);
 
     if (phaseMap) {

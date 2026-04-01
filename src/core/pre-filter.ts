@@ -102,8 +102,9 @@ export function detectOutputType(text: string): OutputType {
 export function preFilter(text: string): PreFilterResult {
   const originalLength = text.length;
 
-  // Fast path: short, clean text — skip all strategies
-  if (originalLength < 500 && !text.includes('\x1b') && newlineCount(text) < 4) {
+  // Fast path: short, single-line, clean text — skip all strategies
+  // Multi-line text always goes through strategies (may contain progress bars, test output, etc.)
+  if (originalLength < 200 && !text.includes('\n') && !text.includes('\x1b')) {
     return {
       filtered: text,
       originalLength,
