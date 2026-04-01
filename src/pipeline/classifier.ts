@@ -25,7 +25,7 @@ export async function classifyDepth(
   // Truncate long inputs for classifier — it only needs the task description, not the full payload
   const classifierInput = userRequest.length > 200 ? `${userRequest.slice(0, 200)}...` : userRequest;
 
-  const { content } = await compressorLLM.chat(system, classifierInput, 'classifier', 'gather', 10);
+  const { content } = await compressorLLM.chat(system, classifierInput, 'classifier', 'gather', 10, 0);
 
   const word = content.trim().toLowerCase();
   if (word.includes('direct')) return 'direct';
