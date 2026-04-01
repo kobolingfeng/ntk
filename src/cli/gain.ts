@@ -45,9 +45,24 @@ function saveGainData(data: GainData): void {
   writeFileSync(GAIN_FILE, JSON.stringify(data, null, 2));
 }
 
+let pendingEntries: GainEntry[] = [];
+let gainDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+const GAIN_DEBOUNCE_MS = 2000;
+
 export function recordGain(entry: GainEntry): void {
+  pendingEntries.push(entry);
+  if (gainDebounceTimer) clearTimeout(gainDebounceTimer);
+  gainDebounceTimer = setTimeout(flushGain, GAIN_DEBOUNCE_MS);
+  if (gainDebounceTimer && typeof gainDebounceTimer === 'object' && 'unref' in gainDebounceTimer) {
+    gainDebounceTimer.unref();
+  }
+}
+
+function flushGain(): void {
+  if (pendingEntries.length === 0) return;
   const data = loadGainData();
-  data.entries.push(entry);
+  data.entries.push(...pendingEntries);
+  pendingEntries = [];
   saveGainData(data);
 }
 

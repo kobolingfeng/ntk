@@ -462,11 +462,11 @@ export class LLMClient {
         signal: controller.signal,
       });
     } catch {
-      return null;
-    } finally {
       clearTimeout(timer);
+      return null;
     }
 
+    clearTimeout(timer);
     if (!response.ok || !response.body) return null;
 
     let fullContent = '';
@@ -476,14 +476,22 @@ export class LLMClient {
     let chunkCount = 0;
     let runningTokenEstimate = 0;
     const MAX_BUFFER = 1_048_576; // 1MB safety limit for SSE buffer
+    const STREAM_INACTIVITY_TIMEOUT = 30_000; // 30s inactivity timeout for stream reading
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let streamTimer: ReturnType<typeof setTimeout> | undefined;
+    const resetStreamTimer = () => {
+      if (streamTimer) clearTimeout(streamTimer);
+      streamTimer = setTimeout(() => reader.cancel().catch(() => {}), STREAM_INACTIVITY_TIMEOUT);
+    };
 
     try {
+      resetStreamTimer();
       while (true) {
         const { done, value } = await reader.read();
+        resetStreamTimer();
         if (done) {
           // Final read may still contain data (e.g., usage event)
           if (value) buffer += decoder.decode(value);
@@ -558,6 +566,7 @@ export class LLMClient {
       // Stream read error — only unexpected if we didn't intentionally abort
       if (!abortedByLimit) return null;
     } finally {
+      if (streamTimer) clearTimeout(streamTimer);
       reader.cancel().catch(() => {});
     }
 
@@ -657,9 +666,10 @@ export class LLMClient {
         });
 
         if ([429, 502, 503, 504].includes(response.status) && attempt < maxRetries) {
-          const delay = (attempt + 1) * 2000;
+          const baseDelay = response.status === 429 ? 1000 : 500;
+          const delay = baseDelay * 2 ** attempt + Math.random() * 200;
           console.error(
-            `[LLM] ${ep.name}: ${response.status}, retry ${attempt + 1}/${maxRetries} in ${delay / 1000}s...`,
+            `[LLM] ${ep.name}: ${response.status}, retry ${attempt + 1}/${maxRetries} in ${(delay / 1000).toFixed(1)}s...`,
           );
           await new Promise((r) => setTimeout(r, delay));
           continue;
@@ -680,7 +690,7 @@ export class LLMClient {
         return { success: true, data };
       } catch (error) {
         if (attempt < maxRetries) {
-          const delay = (attempt + 1) * 2000;
+          const delay = 500 * 2 ** attempt + Math.random() * 200;
           await new Promise((r) => setTimeout(r, delay));
           continue;
         }

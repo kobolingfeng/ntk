@@ -46,6 +46,9 @@ const typeSpecificStrategies: Record<OutputType, FilterStrategy[]> = {
  * Enables targeted strategy selection.
  */
 export function detectOutputType(text: string): OutputType {
+  // Short inputs are almost always general user prompts
+  if (text.length < 200) return 'general';
+
   const lines = text.split('\n').slice(0, 30);
   const sample = lines.join('\n');
 
@@ -185,6 +188,10 @@ function deduplicateLines(text: string): { result: string; name: string } {
 }
 
 function tryCompactJsonString(raw: string, threshold: number): string | null {
+  // Quick heuristic: skip JSON.parse attempt if input doesn't look like JSON
+  const trimmed = raw.trimStart();
+  if (trimmed.charCodeAt(0) !== 123 /* { */ && trimmed.charCodeAt(0) !== 91 /* [ */) return null;
+
   try {
     const parsed = JSON.parse(raw);
     const compact = JSON.stringify(parsed);

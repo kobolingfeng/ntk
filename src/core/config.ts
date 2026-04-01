@@ -16,7 +16,7 @@ import type { NTKConfig } from './protocol.js';
 export function discoverEndpoints(): Endpoint[] {
   const endpoints: Endpoint[] = [];
 
-  for (let i = 1; i <= 10; i++) {
+  for (let i = 1; i <= 20; i++) {
     const key = process.env[`API_ENDPOINT_${i}_KEY`];
     const url = process.env[`API_ENDPOINT_${i}_URL`];
     const name = process.env[`API_ENDPOINT_${i}_NAME`] || `endpoint-${i}`;

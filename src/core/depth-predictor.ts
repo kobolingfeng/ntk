@@ -29,6 +29,8 @@ const VALID_DEPTHS = new Set(['direct', 'light', 'standard', 'full']);
 
 let memoryCache: PredictorData | null = null;
 let dirty = false;
+let saveDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+const SAVE_DEBOUNCE_MS = 2000;
 
 function extractPattern(task: string): string {
   const first50 = task.slice(0, 50).toLowerCase();
@@ -102,7 +104,24 @@ export function recordDepth(task: string, depth: PipelineDepth): void {
   }
 
   dirty = true;
-  saveToDisk(data);
+  scheduleSave();
+}
+
+function scheduleSave(): void {
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(() => {
+    if (dirty && memoryCache) saveToDisk(memoryCache);
+  }, SAVE_DEBOUNCE_MS);
+  // Don't prevent process exit for a debounced save
+  if (saveDebounceTimer && typeof saveDebounceTimer === 'object' && 'unref' in saveDebounceTimer) {
+    saveDebounceTimer.unref();
+  }
+}
+
+/** Flush pending depth records to disk immediately (call before process exit) */
+export function flushDepthPredictor(): void {
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+  if (dirty && memoryCache) saveToDisk(memoryCache);
 }
 
 export function predictDepth(task: string): { depth: PipelineDepth; confidence: number } | null {

@@ -10,9 +10,35 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { LLMClient } from '../../core/llm.js';
+import { discoverEndpoints } from '../../core/config.js';
+import { EndpointManager, LLMClient } from '../../core/llm.js';
+import type { Endpoint } from '../../core/llm.js';
 import type { NTKConfig } from '../../core/protocol.js';
 import { Pipeline } from '../../pipeline/pipeline.js';
+
+// ─── Concurrency pool ─────────────────────────────────
+
+/**
+ * Run async tasks with a concurrency limit using a work-stealing pattern.
+ * Each worker grabs the next available item when idle.
+ */
+async function promisePool<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, workerIdx: number) => Promise<void>,
+): Promise<void> {
+  let nextIdx = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, (_, workerIdx) =>
+    (async () => {
+      while (true) {
+        const idx = nextIdx++;
+        if (idx >= items.length) break;
+        await fn(items[idx], workerIdx);
+      }
+    })(),
+  );
+  await Promise.all(workers);
+}
 
 export interface BenchmarkTask {
   name: string;
@@ -77,10 +103,24 @@ function stats(arr: number[]) {
   };
 }
 
-async function runSingleNTK(config: NTKConfig, task: string): Promise<SingleRunResult> {
+async function runSingleNTK(config: NTKConfig, task: string, endpoint?: Endpoint): Promise<SingleRunResult> {
   Pipeline.clearCache();
   const start = Date.now();
-  const pipeline = new Pipeline(config, () => {});
+
+  // Create an isolated EndpointManager for this endpoint if provided
+  let em: EndpointManager | undefined;
+  let workerConfig = config;
+  if (endpoint) {
+    em = new EndpointManager();
+    em.setEndpoints([endpoint]);
+    workerConfig = {
+      ...config,
+      planner: { ...config.planner, apiKey: endpoint.apiKey, baseUrl: endpoint.baseUrl },
+      compressor: { ...config.compressor, apiKey: endpoint.apiKey, baseUrl: endpoint.baseUrl },
+    };
+  }
+
+  const pipeline = new Pipeline(workerConfig, () => {}, { endpointManager: em });
   const result = await pipeline.run(task);
   const durationMs = Date.now() - start;
   const totalTok = result.tokenReport.totalInput + result.tokenReport.totalOutput;
@@ -99,8 +139,18 @@ async function runSingleNTK(config: NTKConfig, task: string): Promise<SingleRunR
   };
 }
 
-async function runSingleDirect(llm: LLMClient, task: string, model: string): Promise<SingleRunResult> {
+async function runSingleDirect(config: NTKConfig, task: string, model: string, modelKey: 'compressor' | 'planner', endpoint?: Endpoint): Promise<SingleRunResult> {
   const start = Date.now();
+
+  let llmConfig = config[modelKey];
+  let em: EndpointManager | undefined;
+  if (endpoint) {
+    em = new EndpointManager();
+    em.setEndpoints([endpoint]);
+    llmConfig = { ...llmConfig, apiKey: endpoint.apiKey, baseUrl: endpoint.baseUrl };
+  }
+
+  const llm = new LLMClient(llmConfig, em);
   const result = await llm.chat('You are a helpful assistant. Output concisely.', task, 'executor', 'execute');
   const durationMs = Date.now() - start;
   const tokens = result.usage.inputTokens + result.usage.outputTokens;
@@ -160,54 +210,137 @@ export async function runBenchmarkSuite(
   console.log(chalk.dim(`  Output: ${outputDir}\n`));
 
   for (const configName of runConfigs) {
-    console.log(chalk.yellow.bold(`\n  ═══ Config: ${configName} ═══\n`));
+    // Discover endpoints and probe to find working ones
+    const allEndpoints = discoverEndpoints();
+    console.log(chalk.yellow.bold(`\n  ═══ Config: ${configName} ═══`));
+    console.log(chalk.dim(`  Probing ${allEndpoints.length} endpoints...`));
 
-    const configResults: AggregatedResult[] = [];
+    const model = configName === 'strong' ? config.planner.model : config.compressor.model;
+    const workingEndpoints: Endpoint[] = [];
 
-    for (const task of tasks) {
-      console.log(chalk.dim(`  [${task.category}] ${task.name}`));
-      const taskRuns: SingleRunResult[] = [];
+    // Quick probe: try a minimal request on each endpoint in parallel
+    const probeResults = await Promise.all(
+      allEndpoints.map(async (ep) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        try {
+          const url = `${ep.baseUrl}/chat/completions`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
+            body: JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
+            signal: controller.signal,
+          });
+          if (res.ok) {
+            const data = (await res.json()) as { choices?: unknown[] };
+            if (data.choices && data.choices.length > 0) return true;
+          }
+          return false;
+        } catch {
+          return false;
+        } finally {
+          clearTimeout(timer);
+        }
+      }),
+    );
 
-      for (let i = 0; i < runs; i++) {
-        process.stdout.write(chalk.dim(`    run ${i + 1}/${runs}... `));
+    for (let i = 0; i < allEndpoints.length; i++) {
+      if (probeResults[i]) {
+        workingEndpoints.push(allEndpoints[i]);
+        console.log(chalk.dim(`    ✅ ${allEndpoints[i].name}`));
+      } else {
+        console.log(chalk.dim(`    ❌ ${allEndpoints[i].name} — skipped`));
+      }
+    }
 
+    const endpoints = workingEndpoints.length > 0 ? workingEndpoints : allEndpoints.slice(0, 1);
+    const concurrency = Math.max(1, endpoints.length);
+    console.log(chalk.dim(`  Concurrency: ${concurrency} (${endpoints.map((e) => e.name).join(', ')})\n`));
+
+    // Build work items: each is a (taskIdx, runIdx) pair
+    interface WorkItem {
+      taskIdx: number;
+      runIdx: number;
+    }
+    const workItems: WorkItem[] = [];
+    for (let t = 0; t < tasks.length; t++) {
+      for (let r = 0; r < runs; r++) {
+        workItems.push({ taskIdx: t, runIdx: r });
+      }
+    }
+
+    // Results matrix: [taskIdx][runIdx]
+    const taskRunResults: SingleRunResult[][] = tasks.map(() => new Array(runs));
+    let completedCount = 0;
+    const totalWork = workItems.length;
+
+    await promisePool(workItems, concurrency, async (item, workerIdx) => {
+      const primaryEp = endpoints[workerIdx % endpoints.length];
+      const task = tasks[item.taskIdx];
+
+      // Try primary endpoint first, then rotate through others on failure
+      const epOrder = [primaryEp, ...endpoints.filter((e) => e !== primaryEp)];
+      let lastErr = '';
+
+      for (const ep of epOrder) {
         try {
           let result: SingleRunResult;
           switch (configName) {
             case 'ntk':
-              result = await runSingleNTK(config, task.task);
+              result = await runSingleNTK(config, task.task, ep);
               break;
             case 'cheap':
-              result = await runSingleDirect(new LLMClient(config.compressor), task.task, config.compressor.model);
+              result = await runSingleDirect(config, task.task, config.compressor.model, 'compressor', ep);
               break;
             case 'strong':
-              result = await runSingleDirect(new LLMClient(config.planner), task.task, config.planner.model);
+              result = await runSingleDirect(config, task.task, config.planner.model, 'planner', ep);
               break;
             default:
               throw new Error(`Unknown config: ${configName}`);
           }
-          taskRuns.push(result);
-          console.log(chalk.green(`${result.tokens} tok, ${(result.durationMs / 1000).toFixed(1)}s`));
+          taskRunResults[item.taskIdx][item.runIdx] = result;
+          completedCount++;
+          console.log(
+            chalk.dim(`  [${completedCount}/${totalWork}]`) +
+              ` ${task.name} r${item.runIdx + 1} ` +
+              chalk.green(`${result.tokens}tok ${(result.durationMs / 1000).toFixed(1)}s`) +
+              chalk.dim(` via ${ep.name}`),
+          );
+          return; // success — exit retry loop
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.log(chalk.red(`error: ${msg.slice(0, 80)}`));
-          taskRuns.push({
-            tokens: 0,
-            durationMs: 0,
-            depth: 'error',
-            strongTokens: 0,
-            cheapTokens: 0,
-            success: false,
-            outputLength: 0,
-          });
+          lastErr = err instanceof Error ? err.message : String(err);
+          if (ep !== epOrder[epOrder.length - 1]) {
+            console.log(chalk.dim(`    ↻ ${task.name} r${item.runIdx + 1} failed on ${ep.name}, trying next...`));
+          }
         }
       }
 
+      // All endpoints failed for this task
+      completedCount++;
+      console.log(
+        chalk.dim(`  [${completedCount}/${totalWork}]`) +
+          ` ${task.name} r${item.runIdx + 1} ` +
+          chalk.red(`error: ${lastErr.slice(0, 80)}`),
+      );
+      taskRunResults[item.taskIdx][item.runIdx] = {
+        tokens: 0,
+        durationMs: 0,
+        depth: 'error',
+        strongTokens: 0,
+        cheapTokens: 0,
+        success: false,
+        outputLength: 0,
+      };
+    });
+
+    // Aggregate results
+    const configResults: AggregatedResult[] = tasks.map((task, i) => {
+      const taskRuns = taskRunResults[i];
       const successRuns = taskRuns.filter((r) => r.success);
       const tokenValues = successRuns.map((r) => r.tokens);
       const durationValues = successRuns.map((r) => r.durationMs);
 
-      configResults.push({
+      return {
         task: task.name,
         category: task.category,
         runs: taskRuns,
@@ -215,8 +348,8 @@ export async function runBenchmarkSuite(
           tokens: tokenValues.length > 0 ? stats(tokenValues) : { mean: 0, stddev: 0, min: 0, max: 0 },
           durationMs: durationValues.length > 0 ? stats(durationValues) : { mean: 0, stddev: 0, min: 0, max: 0 },
         },
-      });
-    }
+      };
+    });
 
     const successfulResults = configResults.filter((r) => r.runs.some((run) => run.success));
     const report: BenchmarkReport = {
