@@ -682,8 +682,8 @@ describe('isStructurallyComplete', () => {
   describe('task band consistency with detectTaskBand', () => {
     const codeBlockOutput = 'a'.repeat(180) + '```js\n' + 'x'.repeat(30) + '\n```';
 
-    it('"重构" recognized as code task (aligns with detectTaskBand)', () => {
-      expect(detectTaskBand('重构这段代码')).toBe('code');
+    it('"重构" recognized as passthrough task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('重构这段代码')).toBe('passthrough');
       expect(isStructurallyComplete(codeBlockOutput, '重构这段代码')).toBe(true);
     });
 
@@ -697,8 +697,8 @@ describe('isStructurallyComplete', () => {
       expect(isStructurallyComplete(codeBlockOutput, '生成一个工具函数')).toBe(true);
     });
 
-    it('"refactor" recognized as code task (aligns with detectTaskBand)', () => {
-      expect(detectTaskBand('refactor this module')).toBe('code');
+    it('"refactor" recognized as passthrough task (aligns with detectTaskBand)', () => {
+      expect(detectTaskBand('refactor this module')).toBe('passthrough');
       expect(isStructurallyComplete(codeBlockOutput, 'refactor this module')).toBe(true);
     });
 
@@ -743,16 +743,16 @@ describe('isStructurallyComplete', () => {
       expect(detectTaskBand('debug this issue')).toBe('general');
     });
 
-    it('analysis with embedded code → general (not analysis)', () => {
-      expect(detectTaskBand('分析这段代码的bug：function sum(arr) { let total; }')).toBe('general');
+    it('analysis with embedded code in tail → analysis (headHasCode checks head only)', () => {
+      expect(detectTaskBand('分析这段代码的bug：function sum(arr) { let total; }')).toBe('analysis');
     });
 
     it('analysis without code → analysis', () => {
       expect(detectTaskBand('分析微服务架构的优缺点')).toBe('analysis');
     });
 
-    it('analysis with import statement → general', () => {
-      expect(detectTaskBand('review this: import { foo } from bar;')).toBe('general');
+    it('analysis with import statement in tail → analysis', () => {
+      expect(detectTaskBand('review this: import { foo } from bar;')).toBe('analysis');
     });
   });
 });
