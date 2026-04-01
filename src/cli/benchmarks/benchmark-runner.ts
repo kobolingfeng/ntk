@@ -113,6 +113,9 @@ async function runSingleNTK(config: NTKConfig, task: string, endpoint?: Endpoint
   if (endpoint) {
     em = new EndpointManager();
     em.setEndpoints([endpoint]);
+    // Pre-warm probe cache — endpoint was already verified by benchmark probe
+    em.prewarmProbeCache(workerConfig.planner.model);
+    em.prewarmProbeCache(workerConfig.compressor.model);
     workerConfig = {
       ...config,
       planner: { ...config.planner, apiKey: endpoint.apiKey, baseUrl: endpoint.baseUrl },
@@ -147,6 +150,7 @@ async function runSingleDirect(config: NTKConfig, task: string, model: string, m
   if (endpoint) {
     em = new EndpointManager();
     em.setEndpoints([endpoint]);
+    em.prewarmProbeCache(model);
     llmConfig = { ...llmConfig, apiKey: endpoint.apiKey, baseUrl: endpoint.baseUrl };
   }
 

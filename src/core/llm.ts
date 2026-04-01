@@ -178,6 +178,14 @@ export class EndpointManager {
     return null;
   }
 
+  /** Pre-warm the probe cache to skip probing for known-working endpoints */
+  prewarmProbeCache(model: string): void {
+    if (this.endpoints.length === 0) return;
+    this.probeCache.set(model, { name: this.endpoints[0].name, timestamp: Date.now() });
+    this.modelEndpointMap.set(model, new Set([0]));
+    this.activeEndpointIndex = 0;
+  }
+
   /** Get endpoint indices ordered by priority, with demoted endpoints at the end */
   getEndpointOrder(model: string): number[] {
     const compatible = this.modelEndpointMap.get(model);
