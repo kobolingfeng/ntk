@@ -458,7 +458,13 @@ async function main(): Promise<void> {
         const start = Date.now();
         try {
           const p = new Pipeline(config, () => {}, { endpointManager });
-          const r = await p.run(t);
+          const taskTimeout = 300_000; // 5 min per task
+          const r = await Promise.race([
+            p.run(t),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Task timeout (5min)')), taskTimeout),
+            ),
+          ]);
           const elapsed = (Date.now() - start) / 1000;
           const tok = r.tokenReport.totalInput + r.tokenReport.totalOutput;
           totalTokens += tok;

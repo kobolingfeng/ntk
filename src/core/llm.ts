@@ -454,11 +454,11 @@ export class LLMClient {
         signal: controller.signal,
       });
     } catch {
-      clearTimeout(timer);
       return null;
+    } finally {
+      clearTimeout(timer);
     }
 
-    clearTimeout(timer);
     if (!response.ok || !response.body) return null;
 
     let fullContent = '';
@@ -535,6 +535,8 @@ export class LLMClient {
     } catch {
       // AbortError from controller.abort() — expected when limit reached
       if (!abortedByLimit) return null;
+    } finally {
+      try { reader.cancel(); } catch { /* ignore */ }
     }
 
     // Safety net: use API-reported token count (most accurate) for truncation
