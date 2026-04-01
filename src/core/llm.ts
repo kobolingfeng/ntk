@@ -57,11 +57,11 @@ export class EndpointManager {
   private negativeProbeCache = new Map<number, number>(); // endpointIndex -> failTimestamp
   private diskCacheLoaded = false;
 
-  private readonly probeCacheTTL = 300_000; // 5 minutes
+  private readonly probeCacheTTL = 300_000; // 5 minutes (in-memory, same process)
   private readonly negativeProbeTTL = 120_000; // 2 minutes — skip recently-failed endpoints
   private readonly diskCacheDir = join(homedir(), '.ntk');
   private readonly diskCacheFile: string;
-  private readonly diskCacheTTL = 600_000; // 10 minutes
+  private readonly diskCacheTTL = 1_800_000; // 30 minutes — longer for cross-process reuse
 
   // Health tracking for auto-priority adjustment
   private healthStats = new Map<number, { failures: number; successes: number; lastFailure: number; demoted: boolean }>();
