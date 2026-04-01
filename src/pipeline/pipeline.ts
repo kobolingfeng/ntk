@@ -102,6 +102,7 @@ export class Pipeline {
   private traceCompressionFallbacks = 0;
   private traceTeeRecoveryAttempts = 0;
   private traceTeeRecoverySuccesses = 0;
+  private traceRetryCount = 0;
 
   constructor(
     config: NTKConfig,
@@ -165,6 +166,7 @@ export class Pipeline {
     this.state.userRequest = userRequest;
     this.traceStartedAt = Date.now();
     this.traceEvents = [];
+    this.traceRetryCount = 0;
 
     // Early return for empty / whitespace-only input
     if (!userRequest.trim()) {
@@ -414,6 +416,7 @@ export class Pipeline {
 
   private emit(event: PipelineEvent): void {
     this.traceEvents.push(event);
+    if (event.type === 'retry') this.traceRetryCount++;
     if (this.onEvent) {
       this.onEvent(event);
     }
@@ -474,10 +477,10 @@ export class Pipeline {
         compressionFallbacks: this.traceCompressionFallbacks,
         teeRecoveryAttempts: this.traceTeeRecoveryAttempts,
         teeRecoverySuccesses: this.traceTeeRecoverySuccesses,
-        apiRetries: this.traceEvents.filter((e) => e.type === 'retry').length,
+        apiRetries: this.traceRetryCount,
       },
       cached: result.cached ?? false,
-      events: [...this.traceEvents],
+      events: this.traceEvents,
     };
   }
 

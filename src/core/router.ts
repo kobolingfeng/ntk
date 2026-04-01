@@ -118,6 +118,8 @@ export class Router {
   private routeLookup: RouteLookup = DEFAULT_LOOKUP;
   private messageLog: Message[] = [];
   private blockedLog: Array<{ message: Message; reason: string }> = [];
+  /** Per-agent message index: agent → messages where agent is sender or receiver */
+  private agentIndex: Map<AgentType, Message[]> = new Map();
 
   constructor() {
     // Rules and lookup initialized from module-level constants
@@ -168,6 +170,15 @@ export class Router {
     const decision = this.canRoute(message, currentPhase);
     if (decision.allowed) {
       this.messageLog.push(message);
+      // Maintain per-agent index
+      const fromList = this.agentIndex.get(message.from);
+      if (fromList) fromList.push(message);
+      else this.agentIndex.set(message.from, [message]);
+      if (message.to !== message.from) {
+        const toList = this.agentIndex.get(message.to);
+        if (toList) toList.push(message);
+        else this.agentIndex.set(message.to, [message]);
+      }
     }
     return decision;
   }
@@ -178,7 +189,7 @@ export class Router {
    * Each agent only sees messages addressed to them.
    */
   getVisibleMessages(agent: AgentType): Message[] {
-    return this.messageLog.filter((m) => m.to === agent || m.from === agent);
+    return this.agentIndex.get(agent) ?? [];
   }
 
   /** Add a custom routing rule (creates a mutable copy and rebuilds lookup) */
@@ -191,13 +202,13 @@ export class Router {
   }
 
   /** Get blocked message log (useful for debugging) */
-  getBlockedLog(): Array<{ message: Message; reason: string }> {
-    return [...this.blockedLog];
+  getBlockedLog(): readonly { message: Message; reason: string }[] {
+    return this.blockedLog;
   }
 
   /** Get all routed messages */
-  getAllMessages(): Message[] {
-    return [...this.messageLog];
+  getAllMessages(): readonly Message[] {
+    return this.messageLog;
   }
 
   /** Get stats */

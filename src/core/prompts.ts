@@ -97,7 +97,8 @@ export const PASSTHROUGH_TASK_PATTERN =
 export function detectTaskBand(task: string): TaskBand {
   if (PASSTHROUGH_TASK_PATTERN.test(task)) return 'passthrough';
 
-  const taskHead = task.split(/[:：\n]/)[0] || task;
+  const splitIdx = task.search(/[:：\n]/);
+  const taskHead = splitIdx >= 0 ? task.slice(0, splitIdx) : task;
 
   if (CODE_TASK_PATTERN.test(taskHead)) return 'code';
   if (ANALYSIS_TASK_PATTERN.test(taskHead)) {

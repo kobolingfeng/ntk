@@ -64,7 +64,7 @@ export interface PipelineResult {
   report: string;
   tokenReport: TokenReport;
   routerStats: RouterStats;
-  blockedMessages: Array<{ message: Message; reason: string }>;
+  blockedMessages: readonly { message: Message; reason: string }[];
   depth?: PipelineDepth;
   preFilterSavings?: PreFilterSavings;
   cached?: boolean;
