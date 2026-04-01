@@ -42,7 +42,7 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
   const isMicroTask = effectiveRequest.length < 90;
   const isMicroCode = isMicroTask && CODE_TASK_PATTERN.test(effectiveRequest);
   const adaptiveMaxTokens = isMicroTask
-    ? (isMicroCode ? 512 : 256)
+    ? (isMicroCode ? 768 : 256)
     : effectiveRequest.length < 150
       ? 512
       : effectiveRequest.length < 300
