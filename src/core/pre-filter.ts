@@ -157,12 +157,10 @@ function trimTrailingWhitespace(text: string): { result: string; name: string } 
   return { result, name: 'trailing-ws-trim' };
 }
 
+const DEDUP_NORMALIZE = /\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\dZ]*|\b\d{10,13}\b|\b[0-9a-f]{12,}\b/gi;
+
 function normalizeForDedup(line: string): string {
-  return line
-    .trim()
-    .replace(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\dZ]*/g, '<TS>')
-    .replace(/\b\d{10,13}\b/g, '<EPOCH>')
-    .replace(/\b[0-9a-f]{12,}\b/gi, '<HEX>');
+  return line.trim().replace(DEDUP_NORMALIZE, '<N>');
 }
 
 function deduplicateLines(text: string): { result: string; name: string } {

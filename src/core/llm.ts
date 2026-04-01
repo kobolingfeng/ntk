@@ -15,6 +15,9 @@ import { join } from 'node:path';
 import { AllEndpointsFailedError } from './errors.js';
 import type { AgentType, LLMConfig, Phase, TokenUsage } from './protocol.js';
 
+/** Shared TextDecoder instance for SSE stream parsing */
+const sseDecoder = new TextDecoder();
+
 interface ChatCompletionResponse {
   id: string;
   choices: Array<{
@@ -108,6 +111,7 @@ export class EndpointManager {
 
     const TIMEOUT = 4000; // 4s is enough; working endpoints respond in <2s
     const now = Date.now();
+    const probeBody = JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 });
 
     // Track which probes are still in flight
     const probePromises: Promise<number>[] = [];
@@ -134,11 +138,7 @@ export class EndpointManager {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${ep.apiKey}`,
               },
-              body: JSON.stringify({
-                model,
-                messages: [{ role: 'user', content: 'hi' }],
-                max_tokens: 1,
-              }),
+              body: probeBody,
               signal: controller.signal,
             });
 
@@ -189,6 +189,7 @@ export class EndpointManager {
     this.loadDiskProbeCache();
     const TIMEOUT = 8000;
     const now = Date.now();
+    const probeBody = JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 });
 
     const probePromises = this.endpoints.map(async (ep, i) => {
       const lastFail = this.negativeProbeCache.get(i);
@@ -200,7 +201,7 @@ export class EndpointManager {
         const res = await fetch(`${ep.baseUrl}/chat/completions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
-          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
+          body: probeBody,
           signal: controller.signal,
         });
         if (res.ok) {
@@ -592,7 +593,6 @@ export class LLMClient {
     const STREAM_INACTIVITY_TIMEOUT = 30_000; // 30s inactivity timeout for stream reading
 
     const reader = response.body.getReader();
-    const decoder = new TextDecoder();
     let buffer = '';
     let streamTimer: ReturnType<typeof setTimeout> | undefined;
     const resetStreamTimer = () => {
@@ -607,18 +607,21 @@ export class LLMClient {
         resetStreamTimer();
         if (done) {
           // Final read may still contain data (e.g., usage event)
-          if (value) buffer += decoder.decode(value);
+          if (value) buffer += sseDecoder.decode(value);
           break;
         }
 
-        buffer += decoder.decode(value, { stream: true });
+        buffer += sseDecoder.decode(value, { stream: true });
         if (buffer.length > MAX_BUFFER) {
           buffer = buffer.slice(-MAX_BUFFER / 2);
         }
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
 
-        for (const line of lines) {
+        // Index-based line parsing: avoid split('\n') array allocation
+        let nlIdx: number;
+        let searchFrom = 0;
+        while ((nlIdx = buffer.indexOf('\n', searchFrom)) !== -1) {
+          const line = buffer.substring(searchFrom, nlIdx);
+          searchFrom = nlIdx + 1;
           if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
           try {
             const json = JSON.parse(line.slice(6));
@@ -658,6 +661,7 @@ export class LLMClient {
             // Skip malformed SSE lines
           }
         }
+        buffer = buffer.substring(searchFrom);
         if (abortedByLimit) break;
       }
       // Flush remaining buffer — usage event may arrive in the final chunk
