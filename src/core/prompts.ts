@@ -94,7 +94,7 @@ export const CODE_TASK_PATTERN =
 export const ANALYSIS_TASK_PATTERN =
   /分析|检查|比较|对比|解释|评估|总结|compare|analyze|explain|review|evaluate|summarize/i;
 export const PASSTHROUGH_TASK_PATTERN =
-  /^(翻译|转换|转成|改为|改成|换成|修复|translate|convert|transform|rewrite as|change to|fix)/i;
+  /^(翻译|转换|转成|改为|改成|换成|修复|将.{0,20}(翻译|转换|改为|转成)|translate|convert|transform|rewrite as|change to|fix)/i;
 
 export function detectTaskBand(task: string): TaskBand {
   if (PASSTHROUGH_TASK_PATTERN.test(task)) return 'passthrough';
@@ -135,6 +135,7 @@ const MICRO_PROMPT: Record<Locale, string> = {
 };
 
 export function getBandPrompt(task: string, locale: Locale, micro = false): string {
+  if (PASSTHROUGH_TASK_PATTERN.test(task)) return '';
   if (micro) return MICRO_PROMPT[locale];
   const band = detectTaskBand(task);
   return BAND_PROMPTS[band][locale];

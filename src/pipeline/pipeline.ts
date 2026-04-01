@@ -41,11 +41,12 @@ export type {
   PipelineDepth,
   PipelineEvent,
   PipelineResult,
+  PipelineTrace,
   PreFilterSavings,
   VerificationResult,
 } from './types.js';
 
-import type { PipelineDepth, PipelineEvent, PipelineResult, PreFilterSavings } from './types.js';
+import type { PipelineDepth, PipelineEvent, PipelineResult, PipelineTrace, PreFilterSavings } from './types.js';
 
 /** Shared cache across Pipeline instances within the same process */
 const sharedCache = new ResponseCache();
@@ -89,6 +90,18 @@ export class Pipeline {
 
   private speculative: boolean;
   private onToken?: (token: string) => void;
+
+  // Trace collection
+  private traceEvents: PipelineEvent[] = [];
+  private traceStartedAt = 0;
+  private traceFastPathResult: PipelineDepth | null = null;
+  private traceClassifierResult: PipelineDepth | null = null;
+  private traceSpeculativeHit: boolean | null = null;
+  private tracePredictionConfidence: number | null = null;
+  private traceTeeRetrieved = 0;
+  private traceCompressionFallbacks = 0;
+  private traceTeeRecoveryAttempts = 0;
+  private traceTeeRecoverySuccesses = 0;
 
   constructor(
     config: NTKConfig,
@@ -150,6 +163,8 @@ export class Pipeline {
    */
   async run(userRequest: string): Promise<PipelineResult> {
     this.state.userRequest = userRequest;
+    this.traceStartedAt = Date.now();
+    this.traceEvents = [];
 
     // Early return for empty / whitespace-only input
     if (!userRequest.trim()) {
@@ -206,6 +221,7 @@ export class Pipeline {
       // If fast path already returns "direct", skip classifier entirely
       let result: PipelineResult;
       const fastPathDepth = this.forceDepth ?? classifyDepthFastPath(cleanRequest);
+      this.traceFastPathResult = fastPathDepth;
 
       if (fastPathDepth === 'direct') {
         // Fast path hit — skip classifier LLM call, execute directly
@@ -240,6 +256,8 @@ export class Pipeline {
         }
 
         const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
+        this.traceClassifierResult = depth;
+        this.tracePredictionConfidence = prediction?.confidence ?? null;
         const predictionInfo = prediction ? ` pred=${speculateDepth}@${(prediction.confidence * 100).toFixed(0)}%` : '';
         this.emit({
           type: 'start',
@@ -248,6 +266,7 @@ export class Pipeline {
         });
 
         if (depth === speculateDepth && speculativePromise) {
+          this.traceSpeculativeHit = true;
           this.setPhase('execute');
           try {
             result = await speculativePromise;
@@ -256,6 +275,7 @@ export class Pipeline {
           }
           this.emit({ type: 'complete', phase: 'report', detail: `Done (${depth}/speculative-hit)` });
         } else {
+          this.traceSpeculativeHit = speculativePromise ? false : null;
           // Speculation missed — await and discard the speculative result to prevent leaked promises
           if (speculativePromise) {
             speculativePromise.catch(() => {});
@@ -273,6 +293,7 @@ export class Pipeline {
       } else {
         // Sequential: classify first, then execute
         const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
+        this.traceClassifierResult = depth;
         this.emit({ type: 'start', phase: 'gather', detail: `[${depth}] ${cleanRequest}` });
 
         if (depth === 'direct') {
@@ -286,6 +307,7 @@ export class Pipeline {
       }
 
       result.preFilterSavings = this.getPreFilterSavings();
+      result.trace = this.buildTrace(result);
 
       // Cache successful results (keyed by cleanRequest for noise-invariant matching)
       if (result.success) {
@@ -297,7 +319,7 @@ export class Pipeline {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.emit({ type: 'error', phase: this.state.phase, detail: errorMessage });
-      return {
+      const errorResult: PipelineResult = {
         success: false,
         report: `Pipeline failed: ${errorMessage}`,
         tokenReport: this.getTokenReport(),
@@ -306,6 +328,8 @@ export class Pipeline {
         depth: 'full',
         preFilterSavings: this.getPreFilterSavings(),
       };
+      errorResult.trace = this.buildTrace(errorResult);
+      return errorResult;
     }
   }
 
@@ -380,6 +404,7 @@ export class Pipeline {
   }
 
   private emit(event: PipelineEvent): void {
+    this.traceEvents.push(event);
     if (this.onEvent) {
       this.onEvent(event);
     }
@@ -391,6 +416,55 @@ export class Pipeline {
   private getTokenReport() {
     const allUsage = [...this.plannerLLM.getTokenLog(), ...this.compressorLLM.getTokenLog()];
     return generateTokenReport(allUsage);
+  }
+
+  private buildTrace(result: PipelineResult): PipelineTrace {
+    const now = Date.now();
+    const tokenReport = result.tokenReport;
+    const totalTokens = tokenReport.totalInput + tokenReport.totalOutput;
+    const strongTokens =
+      (tokenReport.byAgent.planner?.input ?? 0) + (tokenReport.byAgent.planner?.output ?? 0);
+    const cheapTokens = totalTokens - strongTokens;
+    const preFilter = result.preFilterSavings;
+
+    return {
+      startedAt: this.traceStartedAt,
+      finishedAt: now,
+      durationMs: now - this.traceStartedAt,
+      routing: {
+        fastPathResult: this.traceFastPathResult,
+        classifierResult: this.traceClassifierResult,
+        finalDepth: (result.depth ?? 'direct') as PipelineDepth,
+        speculativeHit: this.traceSpeculativeHit,
+        predictionConfidence: this.tracePredictionConfidence,
+      },
+      compression: {
+        preFilterCharsRemoved: preFilter?.totalCharsRemoved ?? 0,
+        preFilterOriginalChars: preFilter?.totalOriginal ?? 0,
+        preFilterReductionPercent: preFilter?.reductionPercent ?? 0,
+        llmCompressionCalls: this.compressor.getPreFilterStats().length,
+        teeEntriesStored: this.compressor.teeSize,
+        teeRetrieved: this.traceTeeRetrieved,
+      },
+      tokens: {
+        totalInput: tokenReport.totalInput,
+        totalOutput: tokenReport.totalOutput,
+        total: totalTokens,
+        strongModelTokens: strongTokens,
+        cheapModelTokens: cheapTokens,
+        strongModelPercent: totalTokens > 0 ? (strongTokens / totalTokens) * 100 : 0,
+        estimatedCostSavingsPercent: tokenReport.estimatedSavingsVsTraditional,
+        byAgent: tokenReport.byAgent as Record<string, { input: number; output: number }>,
+      },
+      errors: {
+        compressionFallbacks: this.traceCompressionFallbacks,
+        teeRecoveryAttempts: this.traceTeeRecoveryAttempts,
+        teeRecoverySuccesses: this.traceTeeRecoverySuccesses,
+        apiRetries: this.traceEvents.filter((e) => e.type === 'retry').length,
+      },
+      cached: result.cached ?? false,
+      events: [...this.traceEvents],
+    };
   }
 
   private directCtx(

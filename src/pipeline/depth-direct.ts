@@ -37,40 +37,33 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
     });
   }
 
-  const isMicroTask = effectiveRequest.length < 30;
+  const isMicroTask = effectiveRequest.length < 90;
   const adaptiveMaxTokens = isMicroTask
     ? 256
-    : effectiveRequest.length < 50
+    : effectiveRequest.length < 150
       ? 512
-      : effectiveRequest.length < 200
+      : effectiveRequest.length < 500
         ? 1024
         : effectiveRequest.length > 2000
-          ? 1024
+          ? 16384
           : undefined;
   const adaptiveTemp = isMicroTask ? 0 : effectiveRequest.length > 200 ? 0.4 : 0.1;
 
   const bandPrompt = getBandPrompt(effectiveRequest, ctx.locale, isMicroTask);
 
   let rawContent = '';
-  if (ctx.llm && ctx.onToken) {
+  if (ctx.llm) {
+    // Always use streaming for reliable output token limit enforcement
+    const onToken = ctx.onToken ?? (() => {});
     const { content } = await ctx.llm.chatStream(
       bandPrompt,
       effectiveRequest,
       'executor',
       'execute',
-      ctx.onToken,
+      onToken,
       adaptiveMaxTokens,
       adaptiveTemp,
-    );
-    rawContent = content.trim();
-  } else if (ctx.llm) {
-    const { content } = await ctx.llm.chat(
-      bandPrompt,
-      effectiveRequest,
-      'executor',
-      'execute',
-      adaptiveMaxTokens,
-      adaptiveTemp,
+      isMicroTask ? adaptiveMaxTokens : undefined,
     );
     rawContent = content.trim();
   } else {

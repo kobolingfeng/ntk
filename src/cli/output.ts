@@ -3,7 +3,7 @@
  */
 
 import chalk from 'chalk';
-import type { PipelineEvent, PipelineResult } from '../pipeline/pipeline.js';
+import type { PipelineEvent, PipelineResult, PipelineTrace } from '../pipeline/pipeline.js';
 
 export function handleEvent(event: PipelineEvent): void {
   const phaseIcons: Record<string, string> = {
@@ -110,4 +110,59 @@ export function printTokenReport(result: PipelineResult): void {
   const savingsBar = renderBar(savingsPct);
   console.log(chalk.green.bold(`  │ 💰 Savings vs traditional: ${savingsBar} ~${savingsPct.toFixed(0)}%`));
   console.log(chalk.cyan.bold('  └────────────────────────────────────────────────┘\n'));
+}
+
+export function printTrace(trace: PipelineTrace): void {
+  console.log(chalk.magenta.bold('\n  ┌─── Pipeline Trace ──────────────────────────────┐'));
+
+  // Routing
+  const r = trace.routing;
+  const routeMethod = r.fastPathResult ? 'regex fast path' : 'LLM classifier';
+  console.log(chalk.white(`  │ Route: ${routeMethod} → ${chalk.bold(r.finalDepth)}`));
+  if (r.speculativeHit !== null) {
+    const hitLabel = r.speculativeHit ? chalk.green('hit') : chalk.yellow('miss');
+    const conf = r.predictionConfidence !== null ? ` (${(r.predictionConfidence * 100).toFixed(0)}% conf)` : '';
+    console.log(chalk.white(`  │ Speculative: ${hitLabel}${chalk.dim(conf)}`));
+  }
+
+  // Compression
+  const c = trace.compression;
+  if (c.preFilterOriginalChars > 0 && c.preFilterCharsRemoved > 0) {
+    console.log(chalk.magenta(`  │ Pre-filter: −${c.preFilterCharsRemoved} chars (${c.preFilterReductionPercent.toFixed(1)}%)`));
+  }
+  if (c.llmCompressionCalls > 0) {
+    console.log(chalk.magenta(`  │ LLM compressions: ${c.llmCompressionCalls}`));
+  }
+  if (c.teeEntriesStored > 0 || c.teeRetrieved > 0) {
+    console.log(chalk.magenta(`  │ Tee: ${c.teeEntriesStored} stored, ${c.teeRetrieved} retrieved`));
+  }
+
+  // Token breakdown
+  const t = trace.tokens;
+  console.log(chalk.cyan(`  │`));
+  console.log(chalk.white(`  │ Tokens: ${chalk.bold(String(t.total))} (${t.totalInput} in + ${t.totalOutput} out)`));
+  console.log(chalk.white(`  │ Model:  ${t.cheapModelTokens} cheap + ${t.strongModelTokens} strong (${t.strongModelPercent.toFixed(1)}% strong)`));
+  const agents = Object.entries(t.byAgent);
+  if (agents.length > 0) {
+    console.log(chalk.dim(`  │ Agents: ${agents.map(([a, v]) => `${a}=${v.input + v.output}`).join('  ')}`));
+  }
+
+  // Error recovery
+  const e = trace.errors;
+  if (e.compressionFallbacks > 0 || e.teeRecoveryAttempts > 0 || e.apiRetries > 0) {
+    console.log(chalk.cyan(`  │`));
+    console.log(chalk.yellow(`  │ Recovery:`));
+    if (e.apiRetries > 0) console.log(chalk.yellow(`  │   API retries: ${e.apiRetries}`));
+    if (e.compressionFallbacks > 0) console.log(chalk.yellow(`  │   Compression fallbacks: ${e.compressionFallbacks}`));
+    if (e.teeRecoveryAttempts > 0) {
+      console.log(chalk.yellow(`  │   Tee recovery: ${e.teeRecoverySuccesses}/${e.teeRecoveryAttempts} succeeded`));
+    }
+  }
+
+  // Timing & cache
+  console.log(chalk.cyan(`  │`));
+  console.log(chalk.white(`  │ Duration: ${chalk.bold(trace.durationMs + 'ms')}`));
+  if (trace.cached) console.log(chalk.green.bold(`  │ Cache: HIT`));
+
+  console.log(chalk.magenta.bold('  └──────────────────────────────────────────────────┘'));
 }

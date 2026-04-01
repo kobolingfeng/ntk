@@ -37,7 +37,7 @@ This isn't a limitation — it's an advantage. Cognitive science tells us that *
 
 - **Adaptive Complexity Routing** — Automatically evaluates task complexity via regex fast path + lightweight LLM classifier. Complex tasks go through multi-stage pipelines; simple tasks get single-step execution.
 - **Selective Forgetting** — Agents don't pass raw context to each other. Instead, information is density-compressed and delivered on a need-to-know basis.
-- **Zero-Overhead Classification** — 63% of tasks are classified via regex fast path in microseconds, completely bypassing the LLM classifier with zero additional token cost.
+- **Zero-Overhead Classification** — In our test set, ~63% of tasks are classified via regex fast path in microseconds, completely bypassing the LLM classifier with zero additional token cost.
 - **Progressive Pipeline Depth** — Four-level adaptive depth: direct → light → standard → full. Like TCP slow start, complexity only escalates when necessary.
 - **Dual-Model Cost Isolation** — 95%+ tokens go through the cheap model. Only 2-5% of high-density reasoning decisions use the strong model — a cost structure similar to mixed-precision training.
 
@@ -47,7 +47,7 @@ This isn't a limitation — it's an advantage. Cognitive science tells us that *
 
 Most "smart" frameworks run every task through the same complex pipeline. Writing a Fibonacci function? Still goes through plan → research → execute → verify.
 
-NTK doesn't do that. It first uses a **zero-overhead regex classifier** (handles 63% of common tasks) to judge complexity, only activating deeper pipelines when necessary:
+NTK doesn't do that. It first uses a **zero-overhead regex classifier** (handles ~63% of tasks in our test set) to judge complexity, only activating deeper pipelines when necessary:
 
 | Your Task | NTK's Approach | Cost |
 |-----------|---------------|------|
@@ -55,31 +55,51 @@ NTK doesn't do that. It first uses a **zero-overhead regex classifier** (handles
 | "Design a REST API" | Research → Execute | ~2500 tok, 19s |
 | "Microservice architecture" | Full pipeline | ~3000 tok, 20s |
 
-Writing Fibonacci and designing microservice architecture **shouldn't cost the same**. NTK ensures they don't.
+Writing Fibonacci and designing microservice architecture **shouldn't cost the same**. NTK is designed to prevent that.
 
-### 💰 95%+ Cost Savings, Zero Quality Loss
+### 💰 Benchmarked on 9 Task Categories: 90%+ Cost Savings vs All-Strong-Model
 
-NTK's secret weapon is the **dual-model strategy**: 95% of work goes to the cheap model. Only planning steps that require deep reasoning (~2-5% of tokens) use the strong model.
+NTK's core strategy is **dual-model cost isolation**: most work goes to the cheap model. Only planning steps that require deep reasoning use the strong model.
 
-Benchmark data (9 task categories, 9/9 passed, 0 bugs):
+Benchmark data (9 task categories, 3 runs per config, mean values):
 
-| | Traditional (All Strong) | NTK |
-|---|---|---|
-| Avg tokens | ~2000 | **1098** |
-| Strong model token % | 100% | **< 5%** |
-| Avg execution time | ~37s | **10.5s** |
-| Code quality (bugs) | — | **0** |
+| | All Strong Model | All Cheap Model | NTK (Cheap-Dominant) |
+|---|---|---|---|
+| Avg tokens | ~689 | ~662 | **~256** |
+| Strong model token % | 100% | 0% | **< 5%** |
+| Avg execution time | ~13.5s | ~7.1s | **~5.4s** |
+| Code quality | — | — | **0 (manual review)** |
+
+> ⚠️ The cost gap between NTK and all-strong-model mainly comes from model unit price difference (cheap models are ~1/10–1/20 the price). vs bare cheap model calls, NTK's token savings are ~7–80% (varies by task complexity).
 
 ### 🧪 Battle-Tested, Not a Demo
 
-This isn't a proof of concept. NTK has been through 50+ systematic experiments including:
+NTK has been through 50+ internal systematic experiments (limited sample size, continuously expanding), including:
 
 - **6 configurations × multi-complexity tasks** optimization matrix
 - **Manual code review** quality validation (line-by-line bug and requirement checks)
 - **Ablation studies** proving each module's necessity
 - **Discovery**: complex pipelines actually introduce bugs on simple tasks (over-decomposition)
 
-The most compelling dataset — the same function (mergeIntervals, 6 requirements), three depths:
+#### Real-World Scenario Tests (v0.1.2)
+
+6 production-grade tasks, 6/6 passed (gpt-5.4-mini primary, single run):
+
+| Scenario | Type | Depth | Tokens | Time | Strong Model % |
+|----------|------|-------|--------|------|---------------|
+| Multi-file soft delete across services | multi-file | direct | 1,156 | 16.8s | 0% |
+| CI failure log analysis + fix | comprehension | light | 2,775 | 30.9s | 0% |
+| Vague performance optimization request | ambiguous | standard | 3,998 | 35.1s | 0% |
+| Noisy production log root cause analysis | noisy-context | direct | 1,278 | 26.4s | 0% |
+| RateLimiter design + implement + test | multi-part | full | 10,749 | 320.4s | 13.9% |
+| Express.js refactor + security review | refactor | light | 4,412 | 35.1s | 0% |
+
+> Average 4,061 tok/task. 5/6 tasks ran entirely on cheap model; only the most complex full-depth task used 13.9% strong model tokens.
+> Reproduce with `npx tsx src/cli.ts test:real`.
+
+#### Textbook Task Benchmark
+
+The same function (mergeIntervals, 6 requirements), three depths:
 
 | Depth | Tokens | Time | Bugs | Requirements |
 |-------|--------|------|------|-------------|
@@ -89,23 +109,30 @@ The most compelling dataset — the same function (mergeIntervals, 6 requirement
 Direct used **1/20th of Full's tokens** with zero bugs. Full introduced 1 bug due to over-decomposition. **Simpler tasks shouldn't use complex pipelines** — that's exactly why adaptive routing exists.
 
 <details>
-<summary><b>📊 v0.1.2 Benchmark (click to expand)</b></summary>
+<summary><b>📊 v0.1.2 Benchmark (click to expand) — 3 runs, mean±stddev</b></summary>
 
-NTK **outperforms** strong model direct calls across all tasks, using **100% cheap model**:
+9 task types, 3 runs each, NTK vs cheap direct vs strong direct:
 
-| Task | Strong Direct | Cheap Direct | **NTK** | **vs Strong** | Strong Usage |
-|------|-------------|-------------|---------|-----------|-------------|
-| Simple code gen | 229 tok | 287 tok | **207 tok** | **-10%** | 0 |
-| Tech comparison (medium) | 1,010 tok | 831 tok | **690 tok** | **-32%** | 0 |
-| API design (medium) | 2,299 tok | 1,652 tok | **1,245 tok** | **-46%** | 0 |
-| Debug analysis | 401 tok | 371 tok | **366 tok** | **-9%** | 0 |
+| Task | NTK (tok) | Cheap Direct (tok) | Strong Direct (tok) | vs Cheap | vs Strong |
+|------|-----------|-------------------|--------------------|---------:|----------:|
+| Fibonacci | 153±24 | 320±36 | 173±1 | **-52%** | **-12%** |
+| Deep Copy | 299±28 | 731±71 | 578±96 | **-59%** | **-48%** |
+| Translation | 82±1 | 97±1 | 82±0 | **-15%** | 0% |
+| React vs Vue | 314±4 | 779±26 | 1208±317 | **-60%** | **-74%** |
+| REST API Design | 325±1 | 1646±116 | 2246±4 | **-80%** | **-86%** |
+| Code Refactor | 149±19 | 189±9 | 146±4 | **-21%** | +2% |
+| Bug Analysis | 337±49 | 361±45 | 414±65 | **-7%** | **-19%** |
+| Quick Sort | 333±5 | 676±12 | 849±30 | **-51%** | **-61%** |
+| Debounce | 310±1 | 1163±361 | 500±82 | **-73%** | **-38%** |
 
-> Test conditions: cheap model gpt-5.4-mini, strong model gpt-5.4, single run, direct/light depth.
+> Test conditions: cheap model gpt-5.4-mini, strong model gpt-5.4, 3 runs per config.
+> NTK saves tokens vs cheap direct on 9/9 tasks (up to -80%).
+> Raw data: `benchmarks/results/`. Reproduce with `npx tsx src/cli.ts benchmark`.
 
 </details>
 
-> **NTK uses fewer tokens + all-cheap model = 90%+ total cost savings**.
-> Smart verification skip reduces light depth tokens by 76%, latency by 65%.
+> **NTK uses fewer tokens + all-cheap model = 90%+ total cost savings vs all-strong-model** (mainly from unit price difference).
+> vs bare cheap model, token savings are 7–80%. Smart verification skip reduces light depth tokens by 76%, latency by 65%.
 
 ## Quick Start
 
@@ -253,7 +280,7 @@ ntk_compress({ text: "Long text...", level: "aggressive" })
 
 ### 🐾 OpenClaw Token Savings
 
-NTK is a token-saver for OpenClaw users. After MCP integration, your daily task token consumption drops 30-50%:
+NTK can help OpenClaw users reduce token consumption. After MCP integration, token usage can drop 20-50% on some tasks (varies by task type):
 
 | Scenario | Direct LLM | **NTK** | Savings | Depth |
 |----------|-----------|---------|---------|-------|
@@ -267,7 +294,7 @@ NTK is a token-saver for OpenClaw users. After MCP integration, your daily task 
 | Debug code analysis | 390 tok | **386 tok** | **1%** | direct |
 | REST API design | 1575 tok | **1519 tok** | **4%** | light |
 
-> Data from actual benchmarks (gpt-5.4-mini, 2026.3.31). NTK uses 100% cheap model, weighted cost savings 90%+.
+> Data from actual benchmarks (gpt-5.4-mini, 2026.3.31, single run). NTK uses 100% cheap model. vs all-strong-model: weighted cost savings 90%+; vs bare cheap model: token savings vary by task (-7% to 52%).
 > 9/9 tasks routed to direct/light depth — no strong model needed.
 
 **One-line setup:**
@@ -325,7 +352,7 @@ PLANNER_MODEL=gpt-5.4          # Strong model — only used for full-depth plann
 COMPRESSOR_MODEL=gpt-5.4-mini  # Cheap model — Scout/Executor/Verifier all use this
 ```
 
-63% of tasks take the Direct path and never trigger the Planner, so most requests run on the cheap model.
+In our test set, ~63% of tasks take the Direct path without triggering the Planner, so most requests run on the cheap model.
 
 <details>
 <summary><b>Multi-Endpoint Failover + Compatible API Providers + Configuration in MCP Clients</b></summary>
@@ -386,11 +413,25 @@ When connecting via MCP, you can pass API config directly in the `env` field —
 
 </details>
 
-### Debug
+### Debug & Observability
 
 ```env
 DEBUG=true  # Enable verbose logging — shows routing decisions and agent call chains
 ```
+
+Use the `--verbose` (or `-v`) flag to see a full pipeline trace including routing path, compression stats, token breakdown, and timing:
+
+```bash
+npx tsx src/cli.ts run "your task" --verbose
+```
+
+Trace output includes:
+- **Routing path**: regex fast path vs LLM classifier, speculative execution hit/miss
+- **Compression stats**: pre-filter chars removed, LLM compression calls, tee store/retrieve counts
+- **Token breakdown**: per-agent and per-model-tier (cheap/strong) token usage
+- **Timing**: end-to-end execution duration
+
+For programmatic use, the `PipelineResult.trace` field provides a structured `PipelineTrace` object for custom monitoring and analytics.
 
 ## Architecture
 
@@ -460,6 +501,8 @@ NTK includes a complete benchmarking toolkit:
 
 ```bash
 npx tsx src/cli.ts test       # 9-task regression test
+npx tsx src/cli.ts test:real  # 6 real-world scenario tests
+npx tsx src/cli.ts benchmark  # Multi-run benchmark (3×, mean±stddev)
 npx tsx src/cli.ts baseline   # NTK vs direct LLM comparison
 npx tsx src/cli.ts compare    # Three-way comparison (11 test cases)
 npx tsx src/cli.ts gain       # Cumulative savings statistics

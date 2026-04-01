@@ -326,19 +326,71 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
     retries++;
   }
 
-  // On failure, check if tee has original data that might help diagnosis
-  if (!allPassed && ctx.compressor.teeSize > 0) {
+  // On failure, attempt tee recovery: restore original context and re-execute
+  if (!allPassed && ctx.compressor.teeSize > 0 && retries >= ctx.config.maxLocalRetries) {
     ctx.emit({
       type: 'message',
       phase: 'verify',
-      detail: `Tee store has ${ctx.compressor.teeSize} original(s) available for recovery`,
+      detail: `Attempting tee recovery: ${ctx.compressor.teeSize} original(s) available`,
     });
+
+    // Re-execute the last failed result with original (uncompressed) context
+    const lastResult = results[results.length - 1];
+    if (lastResult) {
+      try {
+        const teeKeys: string[] = [];
+        for (let i = 1; i <= ctx.compressor.teeSize; i++) {
+          const key = `tee-${i}`;
+          const original = ctx.compressor.teeRetrieve(key);
+          if (original) teeKeys.push(key);
+        }
+
+        if (teeKeys.length > 0) {
+          const originals = teeKeys
+            .map((k) => ctx.compressor.teeRetrieve(k))
+            .filter((v): v is string => v !== undefined);
+          const recoveredContext = originals.join('\n');
+
+          const fixMsg = createMessage(
+            'verifier',
+            'executor',
+            ctx.strings.fixIssues,
+            `${lastVerification.slice(0, 300)}\n\n${ctx.strings.originalRequest}: ${ctx.userRequest.slice(0, 300)}\n\n[Recovered context]:\n${recoveredContext.slice(0, 2000)}`,
+          );
+          const fixDecision = ctx.router.route(fixMsg, 'execute');
+          if (fixDecision.allowed) {
+            const execContext: AgentContext = { visibleMessages: [] };
+            const fixResponse = await ctx.executor.process(fixMsg, execContext);
+            ctx.router.route(fixResponse, 'execute');
+            lastResult.output += `\n\n--- ${ctx.strings.fixSupplement} (tee recovery) ---\n${fixResponse.payload}`;
+
+            // Re-verify after tee recovery
+            const reVerifyInput = `[${ctx.strings.taskLabel}: ${lastResult.instruction}]\n${lastResult.output.slice(0, 2000)}`;
+            const reVerifyMsg = createMessage('executor', 'verifier', ctx.strings.verifyResults, reVerifyInput);
+            const reDecision = ctx.router.route(reVerifyMsg, 'verify');
+            if (reDecision.allowed) {
+              const reContext: AgentContext = { visibleMessages: [] };
+              const reResponse = await ctx.verifier.process(reVerifyMsg, reContext);
+              ctx.router.route(reResponse, 'verify');
+              allPassed = parseVerificationResult(reResponse.payload);
+              lastVerification = reResponse.payload;
+              ctx.emit({
+                type: allPassed ? 'verified' : 'verification-failed',
+                phase: 'verify',
+                detail: `Tee recovery ${allPassed ? 'succeeded' : 'failed'}: ${reResponse.payload.slice(0, 100)}`,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        ctx.emit({ type: 'error', phase: 'verify', detail: `Tee recovery error: ${msg}` });
+      }
+    }
   }
 
-  // Clean up tee store on success — no longer needed
-  if (allPassed) {
-    ctx.compressor.teeClear();
-  }
+  // Clean up tee store
+  ctx.compressor.teeClear();
 
   const plannerReport = allPassed
     ? ctx.locale === 'zh'

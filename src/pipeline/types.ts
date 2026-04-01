@@ -20,6 +20,45 @@ export interface PreFilterSavings {
   reductionPercent: number;
 }
 
+export interface PipelineTrace {
+  startedAt: number;
+  finishedAt: number;
+  durationMs: number;
+  routing: {
+    fastPathResult: PipelineDepth | null;
+    classifierResult: PipelineDepth | null;
+    finalDepth: PipelineDepth;
+    speculativeHit: boolean | null;
+    predictionConfidence: number | null;
+  };
+  compression: {
+    preFilterCharsRemoved: number;
+    preFilterOriginalChars: number;
+    preFilterReductionPercent: number;
+    llmCompressionCalls: number;
+    teeEntriesStored: number;
+    teeRetrieved: number;
+  };
+  tokens: {
+    totalInput: number;
+    totalOutput: number;
+    total: number;
+    strongModelTokens: number;
+    cheapModelTokens: number;
+    strongModelPercent: number;
+    estimatedCostSavingsPercent: number;
+    byAgent: Record<string, { input: number; output: number }>;
+  };
+  errors: {
+    compressionFallbacks: number;
+    teeRecoveryAttempts: number;
+    teeRecoverySuccesses: number;
+    apiRetries: number;
+  };
+  cached: boolean;
+  events: PipelineEvent[];
+}
+
 export interface PipelineResult {
   success: boolean;
   report: string;
@@ -29,6 +68,7 @@ export interface PipelineResult {
   depth?: PipelineDepth;
   preFilterSavings?: PreFilterSavings;
   cached?: boolean;
+  trace?: PipelineTrace;
 }
 
 export interface ExecutionResult {

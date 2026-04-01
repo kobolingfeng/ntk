@@ -47,7 +47,7 @@ export function estimateTokens(text: string): number {
 
 /**
  * Manages API endpoint registration, probing, failover ordering, and probe caching.
- * Encapsulates all mutable endpoint state that was previously module-global.
+ * Tracks endpoint health and auto-demotes consistently failing endpoints.
  */
 export class EndpointManager {
   private activeEndpointIndex = 0;
@@ -60,6 +60,11 @@ export class EndpointManager {
   private readonly diskCacheDir = join(homedir(), '.ntk');
   private readonly diskCacheFile: string;
   private readonly diskCacheTTL = 600_000; // 10 minutes
+
+  // Health tracking for auto-priority adjustment
+  private healthStats = new Map<number, { failures: number; successes: number; lastFailure: number; demoted: boolean }>();
+  private readonly demoteThreshold = 3; // consecutive failures before demotion
+  private readonly recoveryCheckInterval = 120_000; // re-check demoted endpoints every 2 min
 
   constructor() {
     this.diskCacheFile = join(this.diskCacheDir, 'probe-cache.json');
@@ -154,22 +159,75 @@ export class EndpointManager {
     return null;
   }
 
-  /** Get endpoint indices ordered by priority for a given model */
+  /** Get endpoint indices ordered by priority, with demoted endpoints at the end */
   getEndpointOrder(model: string): number[] {
     const compatible = this.modelEndpointMap.get(model);
-    const order: number[] = [];
+    const healthy: number[] = [];
+    const demoted: number[] = [];
 
+    // Active endpoint first if healthy
     if (!compatible || compatible.has(this.activeEndpointIndex)) {
-      order.push(this.activeEndpointIndex);
+      const stats = this.healthStats.get(this.activeEndpointIndex);
+      if (stats?.demoted) {
+        demoted.push(this.activeEndpointIndex);
+      } else {
+        healthy.push(this.activeEndpointIndex);
+      }
     }
 
     for (let i = 0; i < this.endpoints.length; i++) {
       if (i === this.activeEndpointIndex) continue;
       if (compatible && !compatible.has(i)) continue;
-      order.push(i);
+
+      const stats = this.healthStats.get(i);
+      if (stats?.demoted) {
+        // Only include demoted endpoints if recovery check interval has passed
+        if (Date.now() - stats.lastFailure > this.recoveryCheckInterval) {
+          demoted.push(i);
+        }
+      } else {
+        healthy.push(i);
+      }
     }
 
-    return order;
+    return [...healthy, ...demoted];
+  }
+
+  /** Record a successful API call for an endpoint */
+  recordSuccess(endpointIndex: number): void {
+    const stats = this.healthStats.get(endpointIndex) ?? { failures: 0, successes: 0, lastFailure: 0, demoted: false };
+    stats.successes++;
+    stats.failures = 0;
+    if (stats.demoted) {
+      stats.demoted = false;
+      console.log(`[LLM] ♻️ ${this.endpoints[endpointIndex]?.name} recovered, promoting back`);
+    }
+    this.healthStats.set(endpointIndex, stats);
+  }
+
+  /** Record a failed API call for an endpoint */
+  recordFailure(endpointIndex: number): void {
+    const stats = this.healthStats.get(endpointIndex) ?? { failures: 0, successes: 0, lastFailure: 0, demoted: false };
+    stats.failures++;
+    stats.lastFailure = Date.now();
+    if (stats.failures >= this.demoteThreshold && !stats.demoted) {
+      stats.demoted = true;
+      console.log(`[LLM] ⬇️ ${this.endpoints[endpointIndex]?.name} demoted after ${stats.failures} consecutive failures`);
+    }
+    this.healthStats.set(endpointIndex, stats);
+  }
+
+  /** Get health status for all endpoints */
+  getHealthStats(): Array<{ name: string; failures: number; successes: number; demoted: boolean }> {
+    return this.endpoints.map((ep, i) => {
+      const stats = this.healthStats.get(i);
+      return {
+        name: ep.name,
+        failures: stats?.failures ?? 0,
+        successes: stats?.successes ?? 0,
+        demoted: stats?.demoted ?? false,
+      };
+    });
   }
 
   /** Remove probe cache entries matching a given endpoint name */
@@ -328,19 +386,22 @@ export class LLMClient {
     onToken: (token: string) => void,
     maxTokensOverride?: number,
     temperatureOverride?: number,
+    maxOutputTokens?: number,
   ): Promise<{ content: string; usage: TokenUsage }> {
     const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
     const allEndpoints = this.endpointManager.getEndpoints();
 
     if (endpointsToTry.length === 0) throw new AllEndpointsFailedError(0);
 
+    const effectiveMax = maxTokensOverride ?? this.maxTokens;
     const payload = JSON.stringify({
       model: this.model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
       ],
-      max_tokens: maxTokensOverride ?? this.maxTokens,
+      max_tokens: effectiveMax,
+      max_completion_tokens: effectiveMax,
       temperature: temperatureOverride ?? this.temperature,
       stream: true,
       stream_options: { include_usage: true },
@@ -348,12 +409,15 @@ export class LLMClient {
 
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
-      const result = await this.tryStreamEndpoint(ep, payload, onToken);
+      const messageContent = systemPrompt + ' ' + userMessage;
+      const result = await this.tryStreamEndpoint(ep, payload, onToken, maxOutputTokens, messageContent);
       if (result) {
+        this.endpointManager.recordSuccess(epIndex);
         const usage: TokenUsage = { agent, ...result, timestamp: Date.now(), phase };
         this.tokenLog.push(usage);
         return { content: result.content, usage };
       }
+      this.endpointManager.recordFailure(epIndex);
       this.endpointManager.invalidateProbeCacheFor(ep.name);
     }
 
@@ -365,6 +429,8 @@ export class LLMClient {
     ep: Endpoint,
     body: string,
     onToken: (token: string) => void,
+    maxOutputTokens?: number,
+    messageContent?: string,
   ): Promise<{ content: string; inputTokens: number; outputTokens: number } | null> {
     const url = `${ep.baseUrl}/chat/completions`;
     const controller = new AbortController();
@@ -392,43 +458,58 @@ export class LLMClient {
     let fullContent = '';
     let inputTokens = 0;
     let outputTokens = 0;
+    let abortedByLimit = false;
+    let chunkCount = 0;
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
-        try {
-          const json = JSON.parse(line.slice(6));
-          const delta = json.choices?.[0]?.delta?.content;
-          if (delta) {
-            fullContent += delta;
-            onToken(delta);
+        for (const line of lines) {
+          if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+          try {
+            const json = JSON.parse(line.slice(6));
+            const delta = json.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullContent += delta;
+              onToken(delta);
+              chunkCount++;
+            }
+            if (json.usage) {
+              inputTokens = json.usage.prompt_tokens || 0;
+              outputTokens = json.usage.completion_tokens || 0;
+            }
+          } catch {
+            // Skip malformed SSE lines
           }
-          if (json.usage) {
-            inputTokens = json.usage.prompt_tokens || 0;
-            outputTokens = json.usage.completion_tokens || 0;
-          }
-        } catch {
-          // Skip malformed SSE lines
+        }
+
+        // Enforce output token limit by aborting stream early (chunk count ≈ actual tokens)
+        if (maxOutputTokens && chunkCount >= maxOutputTokens) {
+          abortedByLimit = true;
+          controller.abort();
+          break;
         }
       }
+    } catch {
+      // AbortError from controller.abort() — expected when limit reached
+      if (!abortedByLimit) return null;
     }
 
     if (inputTokens === 0) {
-      inputTokens = estimateTokens(body);
+      inputTokens = estimateTokens(messageContent || body);
     }
-    if (outputTokens === 0) {
-      outputTokens = estimateTokens(fullContent);
+    if (outputTokens === 0 || abortedByLimit) {
+      outputTokens = abortedByLimit ? chunkCount : estimateTokens(fullContent);
     }
 
     return { content: fullContent, inputTokens, outputTokens };
@@ -441,10 +522,12 @@ export class LLMClient {
     maxTokensOverride?: number,
     temperatureOverride?: number,
   ): Promise<ChatCompletionResponse> {
+    const effectiveMax = maxTokensOverride ?? this.maxTokens;
     const payload = {
       model: this.model,
       messages,
-      max_tokens: maxTokensOverride ?? this.maxTokens,
+      max_tokens: effectiveMax,
+      max_completion_tokens: effectiveMax,
       temperature: temperatureOverride ?? this.temperature,
     };
     const body = JSON.stringify(payload);
@@ -457,10 +540,12 @@ export class LLMClient {
       const result = await this.tryEndpoint(ep, body);
 
       if (result.success) {
+        this.endpointManager.recordSuccess(epIndex);
         return result.data!;
       }
 
       console.error(`[LLM] ${ep.name} failed: ${result.error}`);
+      this.endpointManager.recordFailure(epIndex);
       this.endpointManager.invalidateProbeCacheFor(ep.name);
     }
 

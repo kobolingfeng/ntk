@@ -4,7 +4,7 @@
 
 import { ANALYSIS_TASK_PATTERN, CODE_TASK_PATTERN, type Locale } from '../core/prompts.js';
 import type { TokenReport, TokenUsage } from '../core/protocol.js';
-import type { ExecutionResult } from './types.js';
+import type { ExecutionResult, PipelineTrace } from './types.js';
 
 /**
  * Parse verifier output to determine pass/fail.
@@ -179,4 +179,64 @@ export function predictTokenUsage(
   const rangeHigh = Math.round(clamped * 1.5);
 
   return { estimated: clamped, range: [rangeLow, rangeHigh] };
+}
+
+/**
+ * Format a PipelineTrace into a human-readable summary.
+ * Shows routing path, compression stats, token breakdown, and timing.
+ */
+export function formatTrace(trace: PipelineTrace): string {
+  const lines: string[] = [];
+
+  lines.push('── Pipeline Trace ──────────────────────────');
+
+  // Routing
+  const r = trace.routing;
+  const routePath = r.fastPathResult
+    ? `regex → ${r.finalDepth}`
+    : `LLM classifier → ${r.classifierResult ?? r.finalDepth}`;
+  lines.push(`  Routing:    ${routePath}`);
+  lines.push(`  Depth:      ${r.finalDepth}`);
+  if (r.speculativeHit !== null) {
+    lines.push(`  Speculative: ${r.speculativeHit ? 'hit' : 'miss'}${r.predictionConfidence !== null ? ` (confidence: ${(r.predictionConfidence * 100).toFixed(0)}%)` : ''}`);
+  }
+
+  // Compression
+  const c = trace.compression;
+  if (c.preFilterOriginalChars > 0) {
+    lines.push(`  Pre-filter: ${c.preFilterCharsRemoved} chars removed (${c.preFilterReductionPercent.toFixed(1)}%)`);
+  }
+  if (c.llmCompressionCalls > 0) {
+    lines.push(`  LLM compression calls: ${c.llmCompressionCalls}`);
+  }
+  if (c.teeEntriesStored > 0 || c.teeRetrieved > 0) {
+    lines.push(`  Tee: ${c.teeEntriesStored} stored, ${c.teeRetrieved} retrieved`);
+  }
+
+  // Tokens
+  const t = trace.tokens;
+  lines.push(`  Tokens:     ${t.total} total (${t.totalInput} in / ${t.totalOutput} out)`);
+  lines.push(`  Model split: ${t.cheapModelTokens} cheap + ${t.strongModelTokens} strong (${t.strongModelPercent.toFixed(1)}% strong)`);
+  lines.push(`  Est. savings vs all-strong: ${t.estimatedCostSavingsPercent.toFixed(0)}%`);
+  const agents = Object.entries(t.byAgent);
+  if (agents.length > 0) {
+    lines.push(`  By agent:   ${agents.map(([a, v]) => `${a}=${v.input + v.output}`).join(', ')}`);
+  }
+
+  // Error recovery
+  const e = trace.errors;
+  if (e.compressionFallbacks > 0 || e.teeRecoveryAttempts > 0 || e.apiRetries > 0) {
+    const parts: string[] = [];
+    if (e.apiRetries > 0) parts.push(`api-retries=${e.apiRetries}`);
+    if (e.compressionFallbacks > 0) parts.push(`compression-fallbacks=${e.compressionFallbacks}`);
+    if (e.teeRecoveryAttempts > 0) parts.push(`tee-recovery=${e.teeRecoverySuccesses}/${e.teeRecoveryAttempts}`);
+    lines.push(`  Recovery:   ${parts.join(', ')}`);
+  }
+
+  // Timing
+  lines.push(`  Duration:   ${trace.durationMs}ms`);
+  if (trace.cached) lines.push('  Cache:      HIT');
+
+  lines.push('────────────────────────────────────────────');
+  return lines.join('\n');
 }

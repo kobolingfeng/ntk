@@ -33,14 +33,14 @@ export function getConfig(): NTKConfig {
     planner: {
       apiKey: ep.apiKey,
       baseUrl: ep.baseUrl,
-      model: process.env.PLANNER_MODEL || 'gpt-4o',
+      model: process.env.PLANNER_MODEL || 'gpt-5.4',
       maxTokens: 4096,
       temperature: 0.3,
     },
     compressor: {
       apiKey: ep.apiKey,
       baseUrl: ep.baseUrl,
-      model: process.env.COMPRESSOR_MODEL || 'gpt-4o-mini',
+      model: process.env.COMPRESSOR_MODEL || 'gpt-5.4-mini',
       maxTokens: 2048,
       temperature: 0.2,
     },

@@ -56,12 +56,13 @@ export { Router } from './core/router.js';
 export { startMcpServer } from './mcp/server.js';
 export { classifyDepthFastPath } from './pipeline/classifier.js';
 export type { DirectDepthContext } from './pipeline/depth-direct.js';
-export { assembleReport, generateTokenReport, parseVerificationResult } from './pipeline/helpers.js';
+export { assembleReport, formatTrace, generateTokenReport, parseVerificationResult } from './pipeline/helpers.js';
 export { Pipeline } from './pipeline/pipeline.js';
 export type {
   ExecutionResult,
   PipelineDepth,
   PipelineEvent,
   PipelineResult,
+  PipelineTrace,
   VerificationResult,
 } from './pipeline/types.js';

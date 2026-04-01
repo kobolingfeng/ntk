@@ -119,18 +119,31 @@ export class Compressor {
     }
 
     // Stage 2: LLM semantic compression on pre-filtered text
-    const { content, usage } = await this.llm.chat(COMPRESSION_PROMPTS[level][this.locale], preFiltered, agent, phase);
+    try {
+      const { content, usage } = await this.llm.chat(COMPRESSION_PROMPTS[level][this.locale], preFiltered, agent, phase);
 
-    return {
-      compressed: content,
-      originalLength,
-      compressedLength: content.length,
-      ratio: originalLength / Math.max(content.length, 1),
-      wasCompressed: true,
-      tokensUsed: usage.inputTokens + usage.outputTokens,
-      preFilterResult: pfResult,
-      teeId,
-    };
+      return {
+        compressed: content,
+        originalLength,
+        compressedLength: content.length,
+        ratio: originalLength / Math.max(content.length, 1),
+        wasCompressed: true,
+        tokensUsed: usage.inputTokens + usage.outputTokens,
+        preFilterResult: pfResult,
+        teeId,
+      };
+    } catch {
+      return {
+        compressed: preFiltered,
+        originalLength,
+        compressedLength: preFiltered.length,
+        ratio: originalLength / Math.max(preFiltered.length, 1),
+        wasCompressed: pfResult.charsRemoved > 0,
+        preFilterResult: pfResult,
+        teeId,
+        compressionFailed: true,
+      };
+    }
   }
 
   /**
@@ -158,4 +171,6 @@ export interface CompressResult {
   preFilterResult?: PreFilterResult;
   /** If tee was enabled, use this ID with `compressor.teeRetrieve(teeId)` to get the original */
   teeId?: string;
+  /** True if LLM compression failed and result fell back to pre-filtered text */
+  compressionFailed?: boolean;
 }

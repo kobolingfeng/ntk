@@ -14,7 +14,7 @@ import dotenv from 'dotenv';
 import { NTKServer } from './api/server.js';
 import { DiffContext } from './cli/diff-context.js';
 import { cmdGain, recordGain } from './cli/gain.js';
-import { handleEvent, printTokenReport } from './cli/output.js';
+import { handleEvent, printTokenReport, printTrace } from './cli/output.js';
 import { buildConfig, discoverEndpoints } from './core/config.js';
 import { defaultEndpointManager, EndpointManager } from './core/llm.js';
 import type { NTKConfig } from './index.js';
@@ -49,7 +49,7 @@ function loadConfig(): NTKConfig {
 async function cmdRun(
   task: string,
   config: NTKConfig,
-  opts?: { forceDepth?: string; skipScout?: boolean; stream?: boolean },
+  opts?: { forceDepth?: string; skipScout?: boolean; stream?: boolean; verbose?: boolean },
 ): Promise<void> {
   console.log(chalk.blue.bold(`\n  ⚡ Running task: "${task}"\n`));
   if (opts?.forceDepth) console.log(chalk.dim(`  Force depth: ${opts.forceDepth}`));
@@ -85,6 +85,10 @@ async function cmdRun(
   console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
 
   printTokenReport(result);
+
+  if ((opts?.verbose || config.debug) && result.trace) {
+    printTrace(result.trace);
+  }
 
   // Record gain stats
   const tr = result.tokenReport;
@@ -306,6 +310,7 @@ async function main(): Promise<void> {
         return;
       }
       const skipScout = args.includes('--skip-scout');
+      const verbose = args.includes('--verbose') || args.includes('-v');
       const skipIndices = new Set<number>();
       if (fdIdx >= 0) {
         skipIndices.add(fdIdx);
@@ -325,7 +330,7 @@ async function main(): Promise<void> {
         );
         return;
       }
-      await cmdRun(task, config, { forceDepth, skipScout: skipScout || undefined });
+      await cmdRun(task, config, { forceDepth, skipScout: skipScout || undefined, verbose });
       break;
     }
 
@@ -348,9 +353,22 @@ async function main(): Promise<void> {
       break;
     }
 
+    case 'test:real': {
+      const { cmdRealWorldTest } = await import('./cli/benchmarks/index.js');
+      const realVerbose = args.includes('--verbose') || args.includes('-v');
+      await cmdRealWorldTest(config, realVerbose);
+      break;
+    }
+
     case 'baseline': {
       const { cmdBaseline } = await import('./cli/benchmarks/index.js');
       await cmdBaseline(config);
+      break;
+    }
+
+    case 'benchmark': {
+      const { cmdBenchmark } = await import('./cli/benchmarks/index.js');
+      await cmdBenchmark(config);
       break;
     }
 
@@ -484,6 +502,8 @@ async function main(): Promise<void> {
         console.log(chalk.dim('    gain              — Show cumulative savings statistics'));
         console.log(chalk.dim('    compare           — Three-way comparison benchmark'));
         console.log(chalk.dim('    test              — Run test suite (9 tasks)'));
+        console.log(chalk.dim('    test:real         — Run real-world scenario tests (6 tasks)'));
+        console.log(chalk.dim('    benchmark         — Multi-run benchmark with statistics (3×, mean±stddev)'));
         console.log(chalk.dim('    baseline          — Baseline comparison (NTK vs direct LLM)'));
         console.log(chalk.dim('    ablation          — Ablation study (component contribution)'));
         console.log(chalk.dim('    optimize          — Optimization matrix'));
@@ -491,6 +511,7 @@ async function main(): Promise<void> {
         console.log(chalk.dim('  Flags:'));
         console.log(chalk.dim('    --force-depth <d> — Force depth (direct|light|standard|full)'));
         console.log(chalk.dim('    --skip-scout      — Skip scout in standard depth'));
+        console.log(chalk.dim('    --verbose / -v    — Show pipeline trace (routing, compression, token details)'));
         console.log(chalk.dim('    --fast-start      — Skip compressor model probe'));
       }
     }

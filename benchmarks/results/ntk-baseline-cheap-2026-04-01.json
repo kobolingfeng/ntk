@@ -1,0 +1,440 @@
+{
+  "metadata": {
+    "timestamp": "2026-04-01T09:34:46.186Z",
+    "runs": 3,
+    "plannerModel": "gpt-5.4",
+    "compressorModel": "gpt-5.4-mini",
+    "configLabel": "cheap"
+  },
+  "results": [
+    {
+      "task": "Fibonacci",
+      "category": "code-gen",
+      "runs": [
+        {
+          "tokens": 279,
+          "durationMs": 7120,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 279,
+          "success": true,
+          "outputLength": 378
+        },
+        {
+          "tokens": 336,
+          "durationMs": 5184,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 336,
+          "success": true,
+          "outputLength": 389
+        },
+        {
+          "tokens": 345,
+          "durationMs": 3639,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 345,
+          "success": true,
+          "outputLength": 331
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 320,
+          "stddev": 35.8,
+          "min": 279,
+          "max": 345
+        },
+        "durationMs": {
+          "mean": 5314.3,
+          "stddev": 1744.2,
+          "min": 3639,
+          "max": 7120
+        }
+      }
+    },
+    {
+      "task": "Deep Copy",
+      "category": "code-gen",
+      "runs": [
+        {
+          "tokens": 773,
+          "durationMs": 7824,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 773,
+          "success": true,
+          "outputLength": 2066
+        },
+        {
+          "tokens": 649,
+          "durationMs": 7483,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 649,
+          "success": true,
+          "outputLength": 1738
+        },
+        {
+          "tokens": 771,
+          "durationMs": 5596,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 771,
+          "success": true,
+          "outputLength": 2078
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 731,
+          "stddev": 71,
+          "min": 649,
+          "max": 773
+        },
+        "durationMs": {
+          "mean": 6967.7,
+          "stddev": 1200.1,
+          "min": 5596,
+          "max": 7824
+        }
+      }
+    },
+    {
+      "task": "Translation",
+      "category": "translation",
+      "runs": [
+        {
+          "tokens": 96,
+          "durationMs": 3593,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 96,
+          "success": true,
+          "outputLength": 113
+        },
+        {
+          "tokens": 98,
+          "durationMs": 3809,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 98,
+          "success": true,
+          "outputLength": 122
+        },
+        {
+          "tokens": 96,
+          "durationMs": 4833,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 96,
+          "success": true,
+          "outputLength": 122
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 96.7,
+          "stddev": 1.2,
+          "min": 96,
+          "max": 98
+        },
+        "durationMs": {
+          "mean": 4078.3,
+          "stddev": 662.4,
+          "min": 3593,
+          "max": 4833
+        }
+      }
+    },
+    {
+      "task": "React vs Vue",
+      "category": "comparison",
+      "runs": [
+        {
+          "tokens": 807,
+          "durationMs": 7250,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 807,
+          "success": true,
+          "outputLength": 1117
+        },
+        {
+          "tokens": 773,
+          "durationMs": 11920,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 773,
+          "success": true,
+          "outputLength": 1094
+        },
+        {
+          "tokens": 757,
+          "durationMs": 5738,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 757,
+          "success": true,
+          "outputLength": 1104
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 779,
+          "stddev": 25.5,
+          "min": 757,
+          "max": 807
+        },
+        "durationMs": {
+          "mean": 8302.7,
+          "stddev": 3222.6,
+          "min": 5738,
+          "max": 11920
+        }
+      }
+    },
+    {
+      "task": "REST API Design",
+      "category": "design",
+      "runs": [
+        {
+          "tokens": 1770,
+          "durationMs": 11634,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 1770,
+          "success": true,
+          "outputLength": 3990
+        },
+        {
+          "tokens": 1539,
+          "durationMs": 10281,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 1539,
+          "success": true,
+          "outputLength": 3531
+        },
+        {
+          "tokens": 1629,
+          "durationMs": 10842,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 1629,
+          "success": true,
+          "outputLength": 3778
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 1646,
+          "stddev": 116.4,
+          "min": 1539,
+          "max": 1770
+        },
+        "durationMs": {
+          "mean": 10919,
+          "stddev": 679.8,
+          "min": 10281,
+          "max": 11634
+        }
+      }
+    },
+    {
+      "task": "Code Refactor",
+      "category": "refactor",
+      "runs": [
+        {
+          "tokens": 179,
+          "durationMs": 3565,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 179,
+          "success": true,
+          "outputLength": 209
+        },
+        {
+          "tokens": 195,
+          "durationMs": 3710,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 195,
+          "success": true,
+          "outputLength": 235
+        },
+        {
+          "tokens": 192,
+          "durationMs": 6039,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 192,
+          "success": true,
+          "outputLength": 212
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 188.7,
+          "stddev": 8.5,
+          "min": 179,
+          "max": 195
+        },
+        "durationMs": {
+          "mean": 4438,
+          "stddev": 1388.4,
+          "min": 3565,
+          "max": 6039
+        }
+      }
+    },
+    {
+      "task": "Bug Analysis",
+      "category": "debug",
+      "runs": [
+        {
+          "tokens": 358,
+          "durationMs": 6945,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 358,
+          "success": true,
+          "outputLength": 490
+        },
+        {
+          "tokens": 317,
+          "durationMs": 6865,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 317,
+          "success": true,
+          "outputLength": 422
+        },
+        {
+          "tokens": 407,
+          "durationMs": 4365,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 407,
+          "success": true,
+          "outputLength": 618
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 360.7,
+          "stddev": 45.1,
+          "min": 317,
+          "max": 407
+        },
+        "durationMs": {
+          "mean": 6058.3,
+          "stddev": 1467,
+          "min": 4365,
+          "max": 6945
+        }
+      }
+    },
+    {
+      "task": "Quick Sort",
+      "category": "reasoning",
+      "runs": [
+        {
+          "tokens": 689,
+          "durationMs": 5074,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 689,
+          "success": true,
+          "outputLength": 950
+        },
+        {
+          "tokens": 674,
+          "durationMs": 5385,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 674,
+          "success": true,
+          "outputLength": 967
+        },
+        {
+          "tokens": 666,
+          "durationMs": 5112,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 666,
+          "success": true,
+          "outputLength": 943
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 676.3,
+          "stddev": 11.7,
+          "min": 666,
+          "max": 689
+        },
+        "durationMs": {
+          "mean": 5190.3,
+          "stddev": 169.7,
+          "min": 5074,
+          "max": 5385
+        }
+      }
+    },
+    {
+      "task": "Debounce",
+      "category": "code-gen",
+      "runs": [
+        {
+          "tokens": 913,
+          "durationMs": 11776,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 913,
+          "success": true,
+          "outputLength": 1162
+        },
+        {
+          "tokens": 1577,
+          "durationMs": 14099,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 1577,
+          "success": true,
+          "outputLength": 1469
+        },
+        {
+          "tokens": 999,
+          "durationMs": 13152,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 999,
+          "success": true,
+          "outputLength": 1402
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 1163,
+          "stddev": 361.1,
+          "min": 913,
+          "max": 1577
+        },
+        "durationMs": {
+          "mean": 13009,
+          "stddev": 1168.1,
+          "min": 11776,
+          "max": 14099
+        }
+      }
+    }
+  ],
+  "summary": {
+    "totalTasks": 9,
+    "passRate": 100,
+    "avgTokens": 662.3777777777777,
+    "avgDurationMs": 7141.955555555556
+  }
+}
