@@ -67,7 +67,7 @@ export class EndpointManager {
   private readonly diskCacheTTL = 1_800_000; // 30 minutes — longer for cross-process reuse
 
   // Health tracking for auto-priority adjustment
-  private healthStats = new Map<number, { failures: number; successes: number; lastFailure: number; demoted: boolean }>();
+  private healthStats = new Map<number, { failures: number; successes: number; lastFailure: number; demoted: boolean; avgLatencyMs: number; latencyCount: number }>();
   private readonly demoteThreshold = 3; // consecutive failures before demotion
   private readonly recoveryCheckInterval = 120_000; // re-check demoted endpoints every 2 min
 
@@ -284,14 +284,32 @@ export class EndpointManager {
       }
     }
 
+    // Sort healthy endpoints by latency (fastest first), keeping active endpoint at front
+    if (healthy.length > 1) {
+      const activeIdx = healthy[0];
+      const rest = healthy.slice(1).sort((a, b) => {
+        const aLat = this.healthStats.get(a)?.avgLatencyMs || Infinity;
+        const bLat = this.healthStats.get(b)?.avgLatencyMs || Infinity;
+        return aLat - bLat;
+      });
+      healthy.length = 0;
+      healthy.push(activeIdx, ...rest);
+    }
+
     return [...healthy, ...demoted];
   }
 
   /** Record a successful API call for an endpoint */
-  recordSuccess(endpointIndex: number): void {
-    const stats = this.healthStats.get(endpointIndex) ?? { failures: 0, successes: 0, lastFailure: 0, demoted: false };
+  recordSuccess(endpointIndex: number, latencyMs?: number): void {
+    const stats = this.healthStats.get(endpointIndex) ?? { failures: 0, successes: 0, lastFailure: 0, demoted: false, avgLatencyMs: 0, latencyCount: 0 };
     stats.successes++;
     stats.failures = 0;
+    if (latencyMs !== undefined && latencyMs > 0) {
+      // Exponential moving average for latency
+      const alpha = 0.3;
+      stats.avgLatencyMs = stats.latencyCount === 0 ? latencyMs : stats.avgLatencyMs * (1 - alpha) + latencyMs * alpha;
+      stats.latencyCount++;
+    }
     if (stats.demoted) {
       stats.demoted = false;
       console.log(`[LLM] ♻️ ${this.endpoints[endpointIndex]?.name} recovered, promoting back`);
@@ -301,7 +319,7 @@ export class EndpointManager {
 
   /** Record a failed API call for an endpoint */
   recordFailure(endpointIndex: number): void {
-    const stats = this.healthStats.get(endpointIndex) ?? { failures: 0, successes: 0, lastFailure: 0, demoted: false };
+    const stats = this.healthStats.get(endpointIndex) ?? { failures: 0, successes: 0, lastFailure: 0, demoted: false, avgLatencyMs: 0, latencyCount: 0 };
     stats.failures++;
     stats.lastFailure = Date.now();
     if (stats.failures >= this.demoteThreshold && !stats.demoted) {
@@ -518,9 +536,10 @@ export class LLMClient {
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
       const messageContent = systemPrompt ? systemPrompt + ' ' + userMessage : userMessage;
+      const startMs = Date.now();
       const result = await this.tryStreamEndpoint(ep, payload, onToken, maxOutputTokens, messageContent);
       if (result) {
-        this.endpointManager.recordSuccess(epIndex);
+        this.endpointManager.recordSuccess(epIndex, Date.now() - startMs);
         const usage: TokenUsage = { agent, ...result, timestamp: Date.now(), phase };
         this.pushTokenLog(usage);
         return { content: result.content, usage };
@@ -723,10 +742,11 @@ export class LLMClient {
 
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
+      const startMs = Date.now();
       const result = await this.tryEndpoint(ep, body);
 
       if (result.success) {
-        this.endpointManager.recordSuccess(epIndex);
+        this.endpointManager.recordSuccess(epIndex, Date.now() - startMs);
         return result.data!;
       }
 
