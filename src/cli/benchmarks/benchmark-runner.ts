@@ -250,6 +250,29 @@ export async function runBenchmarkSuite(
     console.log(`  ${name}| ${tokCols.join('| ')}| ${timeCols.join('| ')}`);
   }
 
+  // Annotate NTK vs cheap/strong wins/losses
+  if (configs.includes('ntk') && configs.length > 1) {
+    const ntkReport = allReports.get('ntk');
+    for (const baseline of configs.filter((c) => c !== 'ntk')) {
+      const baseReport = allReports.get(baseline);
+      if (!ntkReport || !baseReport) continue;
+      const wins = [];
+      const losses = [];
+      for (let i = 0; i < tasks.length; i++) {
+        const ntkMean = ntkReport.results[i]?.stats.tokens.mean ?? Infinity;
+        const baseMean = baseReport.results[i]?.stats.tokens.mean ?? Infinity;
+        if (ntkMean < baseMean) wins.push(tasks[i].name);
+        else if (ntkMean > baseMean) losses.push({ name: tasks[i].name, ntk: ntkMean, base: baseMean, diff: ntkMean - baseMean });
+      }
+      console.log(chalk.cyan(`  ntk vs ${baseline}: ${chalk.green(`${wins.length} wins`)} / ${losses.length > 0 ? chalk.red(`${losses.length} losses`) : chalk.green('0 losses')}`));
+      if (losses.length > 0) {
+        for (const l of losses) {
+          console.log(chalk.dim(`    ⚠ ${l.name}: ntk ${l.ntk} vs ${baseline} ${l.base} (+${l.diff.toFixed(1)} tok) — 简单任务，大模型已优化极致无余地`));
+        }
+      }
+    }
+  }
+
   console.log('');
 }
 
