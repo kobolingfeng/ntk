@@ -528,17 +528,21 @@ export class LLMClient {
     }
 
     // Fallback safety net: character-based estimate when API doesn't report usage
-    if (maxOutputTokens && outputTokens === 0 && estimateTokens(fullContent) > maxOutputTokens) {
+    // Use same 0.4 rate as streaming estimate to ensure consistent trigger threshold
+    if (maxOutputTokens && outputTokens === 0) {
       let tokens = 0;
+      let truncateAt = -1;
       for (let i = 0; i < fullContent.length; i++) {
         const ch = fullContent.charCodeAt(i);
         tokens += (ch >= 0x4E00 && ch <= 0x9FFF) ? 1.5 : 0.4;
-        if (tokens >= maxOutputTokens) {
-          fullContent = fullContent.slice(0, i + 1);
-          break;
+        if (truncateAt < 0 && tokens >= maxOutputTokens) {
+          truncateAt = i + 1;
         }
       }
-      abortedByLimit = true;
+      if (truncateAt >= 0) {
+        fullContent = fullContent.slice(0, truncateAt);
+        abortedByLimit = true;
+      }
     }
 
     if (inputTokens === 0) {
