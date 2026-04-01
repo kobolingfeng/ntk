@@ -12,6 +12,7 @@ import type { Verifier } from '../agents/verifier.js';
 import type { Compressor } from '../core/compressor.js';
 import type { LLMClient } from '../core/llm.js';
 import type { Locale, PIPELINE_STRINGS } from '../core/prompts.js';
+import { getBandPrompt } from '../core/prompts.js';
 import type { AgentContext, NTKConfig, TokenReport } from '../core/protocol.js';
 import { createMessage } from '../core/protocol.js';
 import type { Router, RouterStats } from '../core/router.js';
@@ -98,10 +99,10 @@ async function gatherPhase(ctx: FullDepthContext): Promise<void> {
 
   const gatherResults = await Promise.all(gatherTasks);
 
-  for (const result of gatherResults) {
-    if (!result) continue;
+  // Compress gather results in parallel (all use independent compressor calls)
+  const validResults = gatherResults.filter((r): r is NonNullable<typeof r> => r !== null);
+  const compressionTasks = validResults.map(async (result) => {
     const { inst, decision, response } = result;
-
     if (decision.needsCompression) {
       const compressed = await ctx.compressor.compress(response.payload, 'standard', inst.target, 'gather', {
         tee: true,
@@ -118,7 +119,11 @@ async function gatherPhase(ctx: FullDepthContext): Promise<void> {
         detail: `Compressed ${compressed.originalLength}→${compressed.compressedLength} chars (${compressed.ratio.toFixed(1)}x)${pfInfo}`,
       });
     }
+  });
+  await Promise.all(compressionTasks);
 
+  for (const result of validResults) {
+    const { inst, response } = result;
     ctx.router.route(response, 'gather');
     ctx.emit({ type: 'message', phase: 'gather', detail: `${inst.target}: ${response.payload.slice(0, 100)}...` });
   }
@@ -179,7 +184,6 @@ async function executeSerial(ctx: FullDepthContext, instructions: PlannerInstruc
 
     let output: string;
     if (ctx.onToken && ctx.compressorLLM) {
-      const { getBandPrompt } = await import('../core/prompts.js');
       const prompt = getBandPrompt(inst.instruction, ctx.locale);
       const fullInput = `${ctx.strings.originalRequest}: ${ctx.userRequest}\n\n${inst.instruction}`;
       const { content } = await ctx.compressorLLM.chatStream(prompt, fullInput, 'executor', 'execute', ctx.onToken);
