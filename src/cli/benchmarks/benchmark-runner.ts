@@ -255,6 +255,7 @@ export async function runBenchmarkSuite(
 
 export async function cmdBenchmark(config: NTKConfig): Promise<void> {
   const defaultTasks: BenchmarkTask[] = [
+    // --- 原始 9 任务 ---
     { name: 'Fibonacci', task: '用Python写一个计算斐波那契数列第n项的函数', category: 'code-gen' },
     { name: 'Deep Copy', task: '用TypeScript写一个深拷贝函数，支持循环引用检测', category: 'code-gen' },
     { name: 'Translation', task: '将以下技术文档翻译成英文：Redis是一个开源的内存数据结构存储系统，可用作数据库、缓存和消息代理。', category: 'translation' },
@@ -264,6 +265,14 @@ export async function cmdBenchmark(config: NTKConfig): Promise<void> {
     { name: 'Bug Analysis', task: '分析这段代码的bug并给出修复：function sum(arr) { let total; for(let i=0; i<=arr.length; i++) { total += arr[i]; } return total; }', category: 'debug' },
     { name: 'Quick Sort', task: '解释快速排序算法的时间复杂度分析，包括最好、最坏和平均情况', category: 'reasoning' },
     { name: 'Debounce', task: '写一个防抖函数，支持 leading 和 trailing 选项', category: 'code-gen' },
+    // --- 扩展任务 ---
+    { name: 'Math Series', task: '计算 1+2+3+...+100 的和，给出推导过程和公式', category: 'math' },
+    { name: 'SQL Top-N', task: '写一个SQL查询，找出每个部门薪资最高的前3名员工，包含部门名称、员工姓名和薪资', category: 'sql' },
+    { name: 'LRU Cache', task: '用Python实现一个LRU缓存类，支持O(1)的get和put操作', category: 'code-gen' },
+    { name: 'IPv4 Regex', task: '写一个正则表达式匹配合法的IPv4地址，需要检查每段在0-255范围内', category: 'regex' },
+    { name: 'Unit Test', task: '为以下函数编写Jest单元测试：function binarySearch(arr: number[], target: number): number { let lo = 0, hi = arr.length - 1; while (lo <= hi) { const mid = (lo + hi) >> 1; if (arr[mid] === target) return mid; if (arr[mid] < target) lo = mid + 1; else hi = mid - 1; } return -1; }', category: 'test-gen' },
+    { name: 'JSON to Table', task: '将以下JSON数组转换为Markdown表格：[{"name":"Alice","age":30,"role":"Engineer"},{"name":"Bob","age":25,"role":"Designer"},{"name":"Charlie","age":35,"role":"Manager"}]', category: 'data-transform' },
+    { name: 'SQL Injection Fix', task: '审查以下Node.js代码的安全漏洞并给出修复方案：app.get("/user", (req, res) => { const id = req.query.id; db.query("SELECT * FROM users WHERE id = " + id, (err, rows) => { res.json(rows); }); });', category: 'security' },
   ];
 
   await runBenchmarkSuite(config, defaultTasks, {

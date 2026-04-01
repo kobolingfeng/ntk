@@ -6,6 +6,7 @@
 import type { Executor } from '../agents/executor.js';
 import type { LLMClient } from '../core/llm.js';
 import { getBandPrompt, type Locale } from '../core/prompts.js';
+import { estimateTokens } from '../core/llm.js';
 import type { TokenReport } from '../core/protocol.js';
 import type { RouterStats } from '../core/router.js';
 import { emptyOutputMessage } from './helpers.js';
@@ -42,14 +43,22 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
     ? 256
     : effectiveRequest.length < 150
       ? 512
-      : effectiveRequest.length < 500
-        ? 1024
-        : effectiveRequest.length > 2000
-          ? 16384
-          : undefined;
+      : effectiveRequest.length < 300
+        ? 640
+        : effectiveRequest.length < 500
+          ? 1024
+          : effectiveRequest.length > 2000
+            ? 16384
+            : 2048;
   const adaptiveTemp = isMicroTask ? 0 : effectiveRequest.length > 200 ? 0.4 : 0.1;
 
   const bandPrompt = getBandPrompt(effectiveRequest, ctx.locale, isMicroTask);
+
+  // For passthrough tasks (no system prompt), use tight output budget
+  // since output should be proportional to input size
+  const maxOutputTokens = !bandPrompt
+    ? Math.max(80, estimateTokens(effectiveRequest))
+    : adaptiveMaxTokens;
 
   let rawContent = '';
   if (ctx.llm) {
@@ -63,7 +72,7 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
       onToken,
       adaptiveMaxTokens,
       adaptiveTemp,
-      isMicroTask ? adaptiveMaxTokens : undefined,
+      maxOutputTokens,
     );
     rawContent = content.trim();
   } else {

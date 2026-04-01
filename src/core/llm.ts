@@ -328,11 +328,14 @@ export class LLMClient {
     maxTokensOverride?: number,
     temperatureOverride?: number,
   ): Promise<{ content: string; usage: TokenUsage }> {
+    const messages = systemPrompt
+      ? [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ]
+      : [{ role: 'user', content: userMessage }];
     const response = await this.callAPI(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
+      messages,
       maxTokensOverride,
       temperatureOverride,
     );
@@ -394,12 +397,15 @@ export class LLMClient {
     if (endpointsToTry.length === 0) throw new AllEndpointsFailedError(0);
 
     const effectiveMax = maxTokensOverride ?? this.maxTokens;
+    const messages = systemPrompt
+      ? [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ]
+      : [{ role: 'user', content: userMessage }];
     const payload = JSON.stringify({
       model: this.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
+      messages,
       max_tokens: effectiveMax,
       max_completion_tokens: effectiveMax,
       temperature: temperatureOverride ?? this.temperature,
@@ -460,6 +466,7 @@ export class LLMClient {
     let outputTokens = 0;
     let abortedByLimit = false;
     let chunkCount = 0;
+    let runningTokenEstimate = 0;
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -483,6 +490,18 @@ export class LLMClient {
               fullContent += delta;
               onToken(delta);
               chunkCount++;
+              // Per-event abort: accumulate raw fractional estimate (no Math.ceil rounding)
+              if (maxOutputTokens) {
+                for (let k = 0; k < delta.length; k++) {
+                  const c = delta.charCodeAt(k);
+                  runningTokenEstimate += (c >= 0x4E00 && c <= 0x9FFF) ? 1.5 : 0.25;
+                }
+                if (runningTokenEstimate >= maxOutputTokens) {
+                  abortedByLimit = true;
+                  controller.abort();
+                  break;
+                }
+              }
             }
             if (json.usage) {
               inputTokens = json.usage.prompt_tokens || 0;
@@ -492,24 +511,41 @@ export class LLMClient {
             // Skip malformed SSE lines
           }
         }
-
-        // Enforce output token limit by aborting stream early (chunk count ≈ actual tokens)
-        if (maxOutputTokens && chunkCount >= maxOutputTokens) {
-          abortedByLimit = true;
-          controller.abort();
-          break;
-        }
+        if (abortedByLimit) break;
       }
     } catch {
       // AbortError from controller.abort() — expected when limit reached
       if (!abortedByLimit) return null;
     }
 
+    // Safety net: use API-reported token count (most accurate) for truncation
+    // estimateTokens severely underestimates token-dense content (regex, symbols)
+    if (maxOutputTokens && outputTokens > 0 && outputTokens > maxOutputTokens && fullContent.length > 0) {
+      const ratio = maxOutputTokens / outputTokens;
+      const targetLen = Math.max(1, Math.floor(fullContent.length * ratio));
+      fullContent = fullContent.slice(0, targetLen);
+      abortedByLimit = true;
+    }
+
+    // Fallback safety net: character-based estimate when API doesn't report usage
+    if (maxOutputTokens && outputTokens === 0 && estimateTokens(fullContent) > maxOutputTokens) {
+      let tokens = 0;
+      for (let i = 0; i < fullContent.length; i++) {
+        const ch = fullContent.charCodeAt(i);
+        tokens += (ch >= 0x4E00 && ch <= 0x9FFF) ? 1.5 : 0.25;
+        if (tokens >= maxOutputTokens) {
+          fullContent = fullContent.slice(0, i + 1);
+          break;
+        }
+      }
+      abortedByLimit = true;
+    }
+
     if (inputTokens === 0) {
       inputTokens = estimateTokens(messageContent || body);
     }
     if (outputTokens === 0 || abortedByLimit) {
-      outputTokens = abortedByLimit ? chunkCount : estimateTokens(fullContent);
+      outputTokens = estimateTokens(fullContent);
     }
 
     return { content: fullContent, inputTokens, outputTokens };

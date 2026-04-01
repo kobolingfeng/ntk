@@ -92,7 +92,7 @@ export type TaskBand = 'code' | 'analysis' | 'passthrough' | 'general';
 export const CODE_TASK_PATTERN =
   /写|实现|编写|创建|模块|重构|生成|write|implement|create|function|class|module|refactor|generate/i;
 export const ANALYSIS_TASK_PATTERN =
-  /分析|检查|比较|对比|解释|评估|总结|compare|analyze|explain|review|evaluate|summarize/i;
+  /分析|检查|审查|比较|对比|解释|评估|总结|compare|analyze|explain|review|evaluate|summarize/i;
 export const PASSTHROUGH_TASK_PATTERN =
   /^(翻译|转换|转成|改为|改成|换成|修复|将.{0,20}(翻译|转换|改为|转成)|translate|convert|transform|rewrite as|change to|fix)/i;
 
@@ -103,8 +103,8 @@ export function detectTaskBand(task: string): TaskBand {
 
   if (CODE_TASK_PATTERN.test(taskHead)) return 'code';
   if (ANALYSIS_TASK_PATTERN.test(taskHead)) {
-    const hasEmbeddedCode = /[{}\[\]();].*[{}\[\]();]/.test(task);
-    if (hasEmbeddedCode) return 'general';
+    const headHasCode = /[{}\[\]();].*[{}\[\]();]/.test(taskHead);
+    if (headHasCode) return 'general';
     return 'analysis';
   }
   return 'general';
@@ -130,8 +130,8 @@ const BAND_PROMPTS: Record<TaskBand, Record<Locale, string>> = {
 };
 
 const MICRO_PROMPT: Record<Locale, string> = {
-  zh: '只输出结果。代码用```包裹。不解释不引导不续问。',
-  en: 'Output result only. Code in ```. No explanations, no follow-ups.',
+  zh: '只输出结果。不解释不续问。',
+  en: 'Output only. No explanations, no follow-ups.',
 };
 
 export function getBandPrompt(task: string, locale: Locale, micro = false): string {

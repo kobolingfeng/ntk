@@ -49,7 +49,7 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
 
   // Tasks with embedded data (log/code/test output) — direct regardless of length
   const embeddedDataPattern =
-    /^(分析以下|以下是|分析这|分析下面|请分析|帮我分析|看看以下|检查以下|review the|analyze the|check the|look at|debug this|fix this)/;
+    /^(分析以下|以下是|分析这|分析下面|请分析|帮我分析|看看以下|检查以下|为以下|审查以下|审查这|对以下|给以下|review the|analyze the|check the|look at|debug this|fix this|write .{0,20}tests? for)/;
   if (embeddedDataPattern.test(userRequest)) {
     return 'direct';
   }
