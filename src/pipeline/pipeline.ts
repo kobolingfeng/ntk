@@ -479,6 +479,7 @@ export class Pipeline {
       getRouterStats: () => this.router.getStats(),
       emit: overrides?.emit ?? ((e) => this.emit(e)),
       llm: this.compressorLLM,
+      plannerLLM: this.plannerLLM,
       onToken: overrides?.onToken,
     };
   }

@@ -368,7 +368,8 @@ async function main(): Promise<void> {
 
     case 'benchmark': {
       const { cmdBenchmark } = await import('./cli/benchmarks/index.js');
-      await cmdBenchmark(config);
+      const cached = process.argv.includes('--cached');
+      await cmdBenchmark(config, { cached });
       break;
     }
 

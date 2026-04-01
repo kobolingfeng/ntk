@@ -7,7 +7,7 @@
  * - Exports raw results as JSON for reproducibility
  */
 
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
 import { LLMClient } from '../../core/llm.js';
@@ -124,26 +124,42 @@ export async function runBenchmarkSuite(
     label?: string;
     outputDir?: string;
     configs?: Array<'ntk' | 'cheap' | 'strong'>;
+    cachedBaselines?: boolean;
   } = {},
 ): Promise<void> {
   const runs = options.runs ?? 3;
   const label = options.label ?? 'benchmark';
   const outputDir = options.outputDir ?? join(process.cwd(), 'benchmarks', 'results');
-  const configs = options.configs ?? ['ntk', 'cheap', 'strong'];
+  const runConfigs = options.cachedBaselines ? ['ntk'] : (options.configs ?? ['ntk', 'cheap', 'strong']);
+  const displayConfigs = options.configs ?? ['ntk', 'cheap', 'strong'];
 
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });
   }
 
+  // Load cached baselines if only running NTK
+  const allReports: Map<string, BenchmarkReport> = new Map();
+  if (options.cachedBaselines) {
+    for (const baseline of displayConfigs.filter((c) => c !== 'ntk')) {
+      const files = readdirSync(outputDir)
+        .filter((f) => f.includes(`-${baseline}-`) && f.endsWith('.json'))
+        .sort()
+        .reverse();
+      if (files.length > 0) {
+        const cached = JSON.parse(readFileSync(join(outputDir, files[0]), 'utf-8')) as BenchmarkReport;
+        allReports.set(baseline, cached);
+        console.log(chalk.dim(`  Loaded cached ${baseline}: ${files[0]}`));
+      }
+    }
+  }
+
   console.log(chalk.cyan.bold(`\n  📊 Benchmark: ${label}`));
   console.log(chalk.dim(`  Runs per config: ${runs}`));
   console.log(chalk.dim(`  Tasks: ${tasks.length}`));
-  console.log(chalk.dim(`  Configs: ${configs.join(', ')}`));
+  console.log(chalk.dim(`  Configs: ${runConfigs.join(', ')}${options.cachedBaselines ? ' (baselines cached)' : ''}`));
   console.log(chalk.dim(`  Output: ${outputDir}\n`));
 
-  const allReports: Map<string, BenchmarkReport> = new Map();
-
-  for (const configName of configs) {
+  for (const configName of runConfigs) {
     console.log(chalk.yellow.bold(`\n  ═══ Config: ${configName} ═══\n`));
 
     const configResults: AggregatedResult[] = [];
@@ -231,18 +247,18 @@ export async function runBenchmarkSuite(
   // Print comparison table
   console.log(chalk.cyan.bold('\n  ═══ Comparison Table (mean ± stddev) ═══\n'));
 
-  const header = ['Task', ...configs.map((c) => `${c} (tokens)`), ...configs.map((c) => `${c} (time)`)];
+  const header = ['Task', ...displayConfigs.map((c) => `${c} (tokens)`), ...displayConfigs.map((c) => `${c} (time)`)];
   console.log(chalk.dim(`  ${header.map((h) => h.padEnd(20)).join('| ')}`));
   console.log(chalk.dim(`  ${'─'.repeat(header.length * 22)}`));
 
   for (let i = 0; i < tasks.length; i++) {
     const name = tasks[i].name.slice(0, 18).padEnd(20);
-    const tokCols = configs.map((c) => {
+    const tokCols = displayConfigs.map((c) => {
       const r = allReports.get(c)?.results[i];
       if (!r) return '—'.padEnd(20);
       return `${r.stats.tokens.mean}±${r.stats.tokens.stddev}`.padEnd(20);
     });
-    const timeCols = configs.map((c) => {
+    const timeCols = displayConfigs.map((c) => {
       const r = allReports.get(c)?.results[i];
       if (!r) return '—'.padEnd(20);
       return `${(r.stats.durationMs.mean / 1000).toFixed(1)}±${(r.stats.durationMs.stddev / 1000).toFixed(1)}s`.padEnd(20);
@@ -251,9 +267,9 @@ export async function runBenchmarkSuite(
   }
 
   // Annotate NTK vs cheap/strong wins/losses
-  if (configs.includes('ntk') && configs.length > 1) {
+  if (displayConfigs.includes('ntk') && displayConfigs.length > 1) {
     const ntkReport = allReports.get('ntk');
-    for (const baseline of configs.filter((c) => c !== 'ntk')) {
+    for (const baseline of displayConfigs.filter((c) => c !== 'ntk')) {
       const baseReport = allReports.get(baseline);
       if (!ntkReport || !baseReport) continue;
       const wins = [];
@@ -276,7 +292,7 @@ export async function runBenchmarkSuite(
   console.log('');
 }
 
-export async function cmdBenchmark(config: NTKConfig): Promise<void> {
+export async function cmdBenchmark(config: NTKConfig, opts?: { cached?: boolean }): Promise<void> {
   const defaultTasks: BenchmarkTask[] = [
     // --- 原始 9 任务 ---
     { name: 'Fibonacci', task: '用Python写一个计算斐波那契数列第n项的函数', category: 'code-gen' },
@@ -319,5 +335,6 @@ export async function cmdBenchmark(config: NTKConfig): Promise<void> {
     runs: 3,
     label: 'ntk-baseline',
     configs: ['ntk', 'cheap', 'strong'],
+    cachedBaselines: opts?.cached,
   });
 }

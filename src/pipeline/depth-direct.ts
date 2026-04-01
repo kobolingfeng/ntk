@@ -5,7 +5,7 @@
 
 import type { Executor } from '../agents/executor.js';
 import type { LLMClient } from '../core/llm.js';
-import { getBandPrompt, type Locale } from '../core/prompts.js';
+import { getBandPrompt, PASSTHROUGH_TASK_PATTERN, type Locale } from '../core/prompts.js';
 import { estimateTokens } from '../core/llm.js';
 import type { TokenReport } from '../core/protocol.js';
 import type { RouterStats } from '../core/router.js';
@@ -20,6 +20,7 @@ export interface DirectDepthContext {
   getRouterStats: () => RouterStats;
   emit: (event: PipelineEvent) => void;
   llm?: LLMClient;
+  plannerLLM?: LLMClient;
   onToken?: (token: string) => void;
 }
 
@@ -61,10 +62,14 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
     : adaptiveMaxTokens;
 
   let rawContent = '';
-  if (ctx.llm) {
+  // Use planner model for passthrough and micro tasks — native conciseness
+  const isPassthrough = !bandPrompt && PASSTHROUGH_TASK_PATTERN.test(effectiveRequest);
+  const usePlanner = (isPassthrough || isMicroTask) && !!ctx.plannerLLM;
+  const activeLLM = usePlanner ? ctx.plannerLLM : ctx.llm;
+  if (activeLLM) {
     // Always use streaming for reliable output token limit enforcement
     const onToken = ctx.onToken ?? (() => {});
-    const { content } = await ctx.llm.chatStream(
+    const { content } = await activeLLM.chatStream(
       bandPrompt,
       effectiveRequest,
       'executor',
