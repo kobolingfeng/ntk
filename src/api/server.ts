@@ -26,7 +26,10 @@ export class NTKServer {
   private lastResult: PipelineResult | null = null;
   private runHistory: Array<{
     request: string;
-    result: PipelineResult;
+    success: boolean;
+    reportPreview: string;
+    totalTokens: number;
+    depth: string;
     timestamp: number;
     durationMs: number;
   }> = [];
@@ -323,7 +326,7 @@ export class NTKServer {
     const totalRuns = this.runHistory.length;
     const avgDuration = this.runHistory.reduce((sum, r) => sum + r.durationMs, 0) / totalRuns;
     const totalTokens = this.runHistory.reduce(
-      (sum, r) => sum + r.result.tokenReport.totalInput + r.result.tokenReport.totalOutput,
+      (sum, r) => sum + r.totalTokens,
       0,
     );
 
@@ -345,9 +348,10 @@ export class NTKServer {
       total: this.runHistory.length,
       runs: this.runHistory.map((r) => ({
         request: r.request,
-        success: r.result.success,
-        reportPreview: r.result.report.slice(0, 200),
-        totalTokens: r.result.tokenReport.totalInput + r.result.tokenReport.totalOutput,
+        success: r.success,
+        reportPreview: r.reportPreview,
+        totalTokens: r.totalTokens,
+        depth: r.depth,
         durationMs: r.durationMs,
         timestamp: new Date(r.timestamp).toISOString(),
       })),
@@ -357,7 +361,7 @@ export class NTKServer {
   // ─── Utilities ────────────────────────────────────────
 
   private sendJson(res: http.ServerResponse, status: number, data: unknown): void {
-    res.writeHead(status);
+    res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(data, null, 2));
   }
 
@@ -374,7 +378,7 @@ export class NTKServer {
   }
 
   private pruneRateLimiter(now: number): void {
-    if (this.rateLimiter.size <= 100) return;
+    if (this.rateLimiter.size <= 50) return;
     for (const [ip, entry] of this.rateLimiter) {
       if (now > entry.resetAt) this.rateLimiter.delete(ip);
     }
@@ -382,7 +386,15 @@ export class NTKServer {
 
   /** Cap history to prevent unbounded memory growth */
   private addToHistory(request: string, result: PipelineResult, timestamp: number, durationMs: number): void {
-    this.runHistory.push({ request, result, timestamp, durationMs });
+    this.runHistory.push({
+      request,
+      success: result.success,
+      reportPreview: result.report.slice(0, 200),
+      totalTokens: result.tokenReport.totalInput + result.tokenReport.totalOutput,
+      depth: result.depth ?? 'full',
+      timestamp,
+      durationMs,
+    });
     if (this.runHistory.length > 100) {
       this.runHistory = this.runHistory.slice(-100);
     }
