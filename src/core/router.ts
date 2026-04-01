@@ -86,13 +86,41 @@ const DEFAULT_RULES: readonly RoutingRule[] = Object.freeze([
   },
 ]);
 
+/** Pre-computed route lookup: phase -> "from->to" -> { allowed, compress, ruleName } */
+type RouteLookup = Map<string, Map<string, { allowed: boolean; compress: boolean; ruleName: string }>>;
+
+function buildRouteLookup(rules: readonly RoutingRule[]): RouteLookup {
+  const lookup: RouteLookup = new Map();
+  for (const rule of rules) {
+    if (!lookup.has(rule.phase)) lookup.set(rule.phase, new Map());
+    const phaseMap = lookup.get(rule.phase)!;
+    // Blocks take priority — register first
+    for (const [from, to] of rule.block) {
+      phaseMap.set(`${from}->${to}`, { allowed: false, compress: false, ruleName: rule.name });
+    }
+  }
+  for (const rule of rules) {
+    const phaseMap = lookup.get(rule.phase)!;
+    for (const [from, to] of rule.allow) {
+      const key = `${from}->${to}`;
+      if (!phaseMap.has(key)) { // Don't override blocks
+        phaseMap.set(key, { allowed: true, compress: rule.compress, ruleName: rule.name });
+      }
+    }
+  }
+  return lookup;
+}
+
+const DEFAULT_LOOKUP = buildRouteLookup(DEFAULT_RULES);
+
 export class Router {
   private rules: readonly RoutingRule[] = DEFAULT_RULES;
+  private routeLookup: RouteLookup = DEFAULT_LOOKUP;
   private messageLog: Message[] = [];
   private blockedLog: Array<{ message: Message; reason: string }> = [];
 
   constructor() {
-    // Rules initialized from module-level constant
+    // Rules and lookup initialized from module-level constants
   }
 
   /**
@@ -104,31 +132,25 @@ export class Router {
    * - If allowed but requires compression, flag it
    */
   canRoute(message: Message, currentPhase: Phase): RouteDecision {
-    // Find applicable rules
-    const applicableRules = this.rules.filter((r) => r.phase === currentPhase || r.phase === '*');
+    const routeKey = `${message.from}->${message.to}`;
+    const phaseMap = this.routeLookup.get(currentPhase);
 
-    // Check blocks first (blocks take priority)
-    for (const rule of applicableRules) {
-      const isBlocked = rule.block.some(([from, to]) => message.from === from && message.to === to);
-      if (isBlocked) {
-        const decision: RouteDecision = {
-          allowed: false,
-          reason: `Blocked by rule "${rule.name}": ${message.from} → ${message.to} not allowed in ${currentPhase} phase`,
-          needsCompression: false,
-        };
-        this.blockedLog.push({ message, reason: decision.reason });
-        return decision;
-      }
-    }
-
-    // Check allows
-    for (const rule of applicableRules) {
-      const isAllowed = rule.allow.some(([from, to]) => message.from === from && message.to === to);
-      if (isAllowed) {
+    if (phaseMap) {
+      const entry = phaseMap.get(routeKey);
+      if (entry) {
+        if (!entry.allowed) {
+          const decision: RouteDecision = {
+            allowed: false,
+            reason: `Blocked by rule "${entry.ruleName}": ${message.from} → ${message.to} not allowed in ${currentPhase} phase`,
+            needsCompression: false,
+          };
+          this.blockedLog.push({ message, reason: decision.reason });
+          return decision;
+        }
         return {
           allowed: true,
-          reason: `Allowed by rule "${rule.name}"`,
-          needsCompression: rule.compress,
+          reason: `Allowed by rule "${entry.ruleName}"`,
+          needsCompression: entry.compress,
         };
       }
     }
@@ -159,12 +181,13 @@ export class Router {
     return this.messageLog.filter((m) => m.to === agent || m.from === agent);
   }
 
-  /** Add a custom routing rule (creates a mutable copy on first call) */
+  /** Add a custom routing rule (creates a mutable copy and rebuilds lookup) */
   addRule(rule: RoutingRule): void {
     if (this.rules === DEFAULT_RULES) {
       this.rules = [...DEFAULT_RULES];
     }
     (this.rules as RoutingRule[]).push(rule);
+    this.routeLookup = buildRouteLookup(this.rules);
   }
 
   /** Get blocked message log (useful for debugging) */

@@ -178,12 +178,10 @@ export class Pipeline {
       };
     }
 
-    // Detect language from user input and propagate to all agents
+    // Detect language from user input and propagate
     this.locale = detectLocale(userRequest);
-    const agents = [this.planner, this.scout, this.summarizer, this.executor, this.verifier];
-    for (const agent of agents) {
-      agent.setLocale(this.locale);
-    }
+    // Defer full agent locale propagation — only executor is guaranteed to be used
+    this.executor.setLocale(this.locale);
     this.compressor.setLocale(this.locale);
 
     // Step 0a: Pipeline-level pre-filter (zero token cost, before cache to normalize keys)
@@ -334,6 +332,12 @@ export class Pipeline {
   }
 
   private async runNonDirectDepth(depth: PipelineDepth, cleanRequest: string): Promise<PipelineResult> {
+    // Propagate locale to remaining agents on first non-direct execution
+    this.planner.setLocale(this.locale);
+    this.scout.setLocale(this.locale);
+    this.summarizer.setLocale(this.locale);
+    this.verifier.setLocale(this.locale);
+
     switch (depth) {
       case 'light':
         this.setPhase('execute');
