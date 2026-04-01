@@ -475,7 +475,11 @@ export class LLMClient {
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          // Final read may still contain data (e.g., usage event)
+          if (value) buffer += decoder.decode(value);
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
@@ -512,6 +516,21 @@ export class LLMClient {
           }
         }
         if (abortedByLimit) break;
+      }
+      // Flush remaining buffer — usage event may arrive in the final chunk
+      if (buffer.trim()) {
+        for (const line of buffer.split('\n')) {
+          if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+          try {
+            const json = JSON.parse(line.slice(6));
+            if (json.usage) {
+              inputTokens = json.usage.prompt_tokens || 0;
+              outputTokens = json.usage.completion_tokens || 0;
+            }
+          } catch {
+            // Skip malformed SSE lines
+          }
+        }
       }
     } catch {
       // AbortError from controller.abort() — expected when limit reached
