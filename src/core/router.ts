@@ -10,100 +10,89 @@
 
 import type { AgentType, Message, Phase, RoutingRule } from './protocol.js';
 
+/** Module-level immutable default rules — avoids re-creating the array per Pipeline */
+const DEFAULT_RULES: readonly RoutingRule[] = Object.freeze([
+  {
+    name: 'gather-to-planner',
+    phase: 'gather',
+    allow: [
+      ['scout', 'planner'],
+      ['summarizer', 'planner'],
+      ['planner', 'scout'],
+      ['planner', 'summarizer'],
+    ],
+    block: [
+      ['scout', 'executor'],
+      ['scout', 'verifier'],
+      ['summarizer', 'executor'],
+      ['summarizer', 'verifier'],
+    ],
+    compress: true,
+  },
+  {
+    name: 'plan-dispatch',
+    phase: 'plan',
+    allow: [
+      ['planner', 'executor'],
+      ['planner', 'scout'],
+    ],
+    block: [
+      ['executor', 'scout'],
+      ['verifier', 'planner'],
+    ],
+    compress: false,
+  },
+  {
+    name: 'execute-local-loop',
+    phase: 'execute',
+    allow: [
+      ['executor', 'verifier'],
+      ['verifier', 'executor'],
+    ],
+    block: [
+      ['executor', 'planner'],
+      ['verifier', 'planner'],
+      ['executor', 'scout'],
+      ['verifier', 'scout'],
+    ],
+    compress: false,
+  },
+  {
+    name: 'verify-escalate',
+    phase: 'verify',
+    allow: [
+      ['verifier', 'planner'],
+      ['planner', 'executor'],
+    ],
+    block: [
+      ['verifier', 'scout'],
+      ['verifier', 'summarizer'],
+    ],
+    compress: true,
+  },
+  {
+    name: 'report-aggregate',
+    phase: 'report',
+    allow: [
+      ['planner', 'summarizer'],
+      ['summarizer', 'planner'],
+    ],
+    block: [
+      ['executor', 'planner'],
+      ['verifier', 'planner'],
+      ['scout', 'planner'],
+    ],
+    compress: true,
+  },
+]);
+
 export class Router {
-  private rules: RoutingRule[] = [];
+  private rules: readonly RoutingRule[] = DEFAULT_RULES;
   private messageLog: Message[] = [];
   private blockedLog: Array<{ message: Message; reason: string }> = [];
 
   constructor() {
-    this.loadDefaultRules();
-  }
-
-  /** Load the default routing rules based on NTK philosophy */
-  private loadDefaultRules(): void {
-    this.rules = [
-      // ─── Gather Phase ───────────────────────
-      {
-        name: 'gather-to-planner',
-        phase: 'gather',
-        allow: [
-          ['scout', 'planner'],
-          ['summarizer', 'planner'],
-          ['planner', 'scout'],
-          ['planner', 'summarizer'],
-        ],
-        block: [
-          ['scout', 'executor'],
-          ['scout', 'verifier'],
-          ['summarizer', 'executor'],
-          ['summarizer', 'verifier'],
-        ],
-        compress: true, // Low→High must compress
-      },
-
-      // ─── Plan Phase ─────────────────────────
-      {
-        name: 'plan-dispatch',
-        phase: 'plan',
-        allow: [
-          ['planner', 'executor'],
-          ['planner', 'scout'],
-        ],
-        block: [
-          ['executor', 'scout'],
-          ['verifier', 'planner'], // Verifier has nothing to say during planning
-        ],
-        compress: false, // Planner's instructions are already concise
-      },
-
-      // ─── Execute Phase ──────────────────────
-      {
-        name: 'execute-local-loop',
-        phase: 'execute',
-        allow: [
-          ['executor', 'verifier'],
-          ['verifier', 'executor'],
-        ],
-        block: [
-          ['executor', 'planner'], // Don't bother planner with execution details
-          ['verifier', 'planner'], // Don't bother planner with test details
-          ['executor', 'scout'],
-          ['verifier', 'scout'],
-        ],
-        compress: false, // Local loop needs full error details
-      },
-
-      // ─── Verify Phase ───────────────────────
-      {
-        name: 'verify-escalate',
-        phase: 'verify',
-        allow: [
-          ['verifier', 'planner'], // Only when escalating
-          ['planner', 'executor'], // Planner can re-assign
-        ],
-        block: [
-          ['verifier', 'scout'],
-          ['verifier', 'summarizer'],
-        ],
-        compress: true, // Verifier→Planner must compress (just pass/fail + reason)
-      },
-
-      // ─── Report Phase ───────────────────────
-      {
-        name: 'report-aggregate',
-        phase: 'report',
-        allow: [
-          ['planner', 'summarizer'],
-          ['summarizer', 'planner'],
-        ],
-        block: [
-          ['executor', 'planner'],
-          ['verifier', 'planner'],
-          ['scout', 'planner'],
-        ],
-        compress: true,
-      },
-    ];
+    // Rules initialized from module-level constant
   }
 
   /**
@@ -170,9 +159,12 @@ export class Router {
     return this.messageLog.filter((m) => m.to === agent || m.from === agent);
   }
 
-  /** Add a custom routing rule */
+  /** Add a custom routing rule (creates a mutable copy on first call) */
   addRule(rule: RoutingRule): void {
-    this.rules.push(rule);
+    if (this.rules === DEFAULT_RULES) {
+      this.rules = [...DEFAULT_RULES];
+    }
+    (this.rules as RoutingRule[]).push(rule);
   }
 
   /** Get blocked message log (useful for debugging) */

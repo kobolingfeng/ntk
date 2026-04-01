@@ -580,6 +580,7 @@ export class LLMClient {
     if (!response.ok || !response.body) return null;
 
     let fullContent = '';
+    const contentParts: string[] = [];
     let inputTokens = 0;
     let outputTokens = 0;
     let abortedByLimit = false;
@@ -590,17 +591,18 @@ export class LLMClient {
 
     const reader = response.body.getReader();
     let buffer = '';
-    let streamTimer: ReturnType<typeof setTimeout> | undefined;
-    const resetStreamTimer = () => {
-      if (streamTimer) clearTimeout(streamTimer);
-      streamTimer = setTimeout(() => reader.cancel().catch(() => {}), STREAM_INACTIVITY_TIMEOUT);
-    };
+    // Timestamp-based inactivity watchdog: avoids per-chunk clearTimeout+setTimeout pair
+    let lastActivityMs = Date.now();
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastActivityMs > STREAM_INACTIVITY_TIMEOUT) {
+        reader.cancel().catch(() => {});
+      }
+    }, 5000);
 
     try {
-      resetStreamTimer();
       while (true) {
         const { done, value } = await reader.read();
-        resetStreamTimer();
+        lastActivityMs = Date.now();
         if (done) {
           // Final read may still contain data (e.g., usage event)
           if (value) buffer += sseDecoder.decode(value);
@@ -637,15 +639,15 @@ export class LLMClient {
                 }
                 if (cutIdx >= 0) {
                   const partial = delta.slice(0, cutIdx);
-                  fullContent += partial;
+                  contentParts.push(partial);
                   onToken(partial);
                   abortedByLimit = true;
                   break;
                 }
-                fullContent += delta;
+                contentParts.push(delta);
                 onToken(delta);
               } else {
-                fullContent += delta;
+                contentParts.push(delta);
                 onToken(delta);
               }
             }
@@ -679,9 +681,12 @@ export class LLMClient {
       // Stream read error — only unexpected if we didn't intentionally abort
       if (!abortedByLimit) return null;
     } finally {
-      if (streamTimer) clearTimeout(streamTimer);
+      clearInterval(watchdog);
       reader.cancel().catch(() => {});
     }
+
+    // Join accumulated chunks into final content string
+    fullContent = contentParts.join('');
 
     // Safety net: use API-reported token count (most accurate) for truncation
     // estimateTokens severely underestimates token-dense content (regex, symbols)
