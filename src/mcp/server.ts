@@ -56,7 +56,7 @@ async function ensureInitialized(): Promise<void> {
     const compressorModel = process.env.COMPRESSOR_MODEL || process.env.MODEL || 'gpt-5.4-mini';
     await endpointManager.probeEndpoints(plannerModel);
     if (compressorModel !== plannerModel) {
-      await endpointManager.probeEndpoints(compressorModel);
+      endpointManager.shareProbeResult(plannerModel, compressorModel);
     }
     initialized = true;
   }

@@ -9,9 +9,13 @@
 
 export type Locale = 'zh' | 'en';
 
-/** Detect locale from user input text */
+/** Detect locale from user input text — charCodeAt loop avoids regex overhead */
 export function detectLocale(text: string): Locale {
-  return /[\u4e00-\u9fff\u3400-\u4dbf]/.test(text) ? 'zh' : 'en';
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if ((c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF)) return 'zh';
+  }
+  return 'en';
 }
 
 // ─── Agent System Prompts ───────────────────────────
