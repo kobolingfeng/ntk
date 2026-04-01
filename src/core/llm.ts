@@ -54,9 +54,11 @@ export class EndpointManager {
   private endpoints: Endpoint[] = [];
   private modelEndpointMap = new Map<string, Set<number>>();
   private probeCache = new Map<string, { name: string; timestamp: number }>();
+  private negativeProbeCache = new Map<number, number>(); // endpointIndex -> failTimestamp
   private diskCacheLoaded = false;
 
   private readonly probeCacheTTL = 300_000; // 5 minutes
+  private readonly negativeProbeTTL = 120_000; // 2 minutes — skip recently-failed endpoints
   private readonly diskCacheDir = join(homedir(), '.ntk');
   private readonly diskCacheFile: string;
   private readonly diskCacheTTL = 600_000; // 10 minutes
@@ -101,46 +103,63 @@ export class EndpointManager {
       return cached.name;
     }
 
-    const TIMEOUT = 8000;
+    const TIMEOUT = 4000; // 4s is enough; working endpoints respond in <2s
+    const now = Date.now();
 
-    const probes = this.endpoints.map(async (ep, i) => {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), TIMEOUT);
-      try {
-        const url = `${ep.baseUrl}/chat/completions`;
+    // Track which probes are still in flight
+    const probePromises: Promise<number>[] = [];
 
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${ep.apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: 'user', content: 'hi' }],
-            max_tokens: 1,
-          }),
-          signal: controller.signal,
-        });
-
-        if (response.ok) {
-          const data = (await response.json()) as { choices?: unknown[] };
-          if (data.choices && data.choices.length > 0) {
-            console.log(`[LLM] ✅ ${ep.name} (${ep.baseUrl}) — working`);
-            return i;
-          }
-        }
-        console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — HTTP ${response.status}`);
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — ${msg.slice(0, 80)}`);
-      } finally {
-        clearTimeout(timer);
+    for (let i = 0; i < this.endpoints.length; i++) {
+      const ep = this.endpoints[i];
+      // Skip endpoints that failed recently
+      const lastFail = this.negativeProbeCache.get(i);
+      if (lastFail && now - lastFail < this.negativeProbeTTL) {
+        probePromises.push(Promise.resolve(-1));
+        continue;
       }
-      return -1;
-    });
 
-    const results = await Promise.all(probes);
+      const epIndex = i;
+      probePromises.push(
+        (async () => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), TIMEOUT);
+          try {
+            const url = `${ep.baseUrl}/chat/completions`;
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${ep.apiKey}`,
+              },
+              body: JSON.stringify({
+                model,
+                messages: [{ role: 'user', content: 'hi' }],
+                max_tokens: 1,
+              }),
+              signal: controller.signal,
+            });
+
+            if (response.ok) {
+              const data = (await response.json()) as { choices?: unknown[] };
+              if (data.choices && data.choices.length > 0) {
+                console.log(`[LLM] ✅ ${ep.name} (${ep.baseUrl}) — working`);
+                return epIndex;
+              }
+            }
+            console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — HTTP ${response.status}`);
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — ${msg.slice(0, 80)}`);
+          } finally {
+            clearTimeout(timer);
+          }
+          this.negativeProbeCache.set(epIndex, Date.now());
+          return -1;
+        })(),
+      );
+    }
+
+    const results = await Promise.all(probePromises);
 
     const working = results
       .map((idx, originalIdx) => ({ resultIdx: idx, priority: originalIdx }))
