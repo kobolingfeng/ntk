@@ -186,6 +186,18 @@ export class EndpointManager {
     this.activeEndpointIndex = 0;
   }
 
+  /** Copy probe results from one model to another (endpoints are model-agnostic) */
+  shareProbeResult(fromModel: string, toModel: string): void {
+    const cached = this.probeCache.get(fromModel);
+    if (cached) {
+      this.probeCache.set(toModel, { ...cached });
+    }
+    const epSet = this.modelEndpointMap.get(fromModel);
+    if (epSet) {
+      this.modelEndpointMap.set(toModel, new Set(epSet));
+    }
+  }
+
   /** Get endpoint indices ordered by priority, with demoted endpoints at the end */
   getEndpointOrder(model: string): number[] {
     const compatible = this.modelEndpointMap.get(model);

@@ -288,11 +288,8 @@ async function main(): Promise<void> {
     }
 
     if (compressorModel !== plannerModel) {
-      console.log(chalk.dim(`  Verifying compressor model (${compressorModel})...`));
-      const compressorWorking = await endpointManager.probeEndpoints(compressorModel);
-      if (!compressorWorking) {
-        console.log(chalk.yellow(`  ⚠️  Compressor model probe failed, falling back to planner endpoint`));
-      }
+      endpointManager.shareProbeResult(plannerModel, compressorModel);
+      console.log(chalk.dim(`  Compressor model (${compressorModel}): shared probe from planner`));
     }
 
     console.log(chalk.green(`  Using: ${working}\n`));
