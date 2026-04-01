@@ -57,6 +57,12 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
     return 'direct';
   }
 
+  // Tasks starting with tech names (e.g. "Node.js的事件循环", "Redis缓存策略") — direct
+  const techNamePattern = /^[A-Za-z][A-Za-z0-9.+\-#/]*[\s的和与\u4e00-\u9fff]/;
+  if (techNamePattern.test(userRequest) && userRequest.length <= 200) {
+    return 'direct';
+  }
+
   if (
     codeUnitPattern.test(userRequest) ||
     simplePattern.test(userRequest) ||
