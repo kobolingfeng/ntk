@@ -35,12 +35,25 @@ let saveDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 const SAVE_DEBOUNCE_MS = 2000;
 
 function extractPattern(task: string): string {
-  const first50 = task.slice(0, 50).toLowerCase();
-  const words = first50
-    .replace(/[^\w\u4e00-\u9fff]+/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .slice(0, 5);
+  // Single-pass: extract up to 5 lowercase words from first 50 chars
+  const limit = Math.min(task.length, 50);
+  const words: string[] = [];
+  let wordStart = -1;
+
+  for (let i = 0; i <= limit; i++) {
+    const c = i < limit ? task.charCodeAt(i) : 32;
+    // a-z, A-Z, 0-9, _, CJK Unified Ideographs
+    const isWord = (c >= 0x61 && c <= 0x7a) || (c >= 0x41 && c <= 0x5a) ||
+                   (c >= 0x30 && c <= 0x39) || c === 0x5f ||
+                   (c >= 0x4E00 && c <= 0x9FFF);
+    if (isWord) {
+      if (wordStart === -1) wordStart = i;
+    } else if (wordStart !== -1) {
+      words.push(task.slice(wordStart, i).toLowerCase());
+      wordStart = -1;
+      if (words.length >= 5) break;
+    }
+  }
   return words.join(' ');
 }
 

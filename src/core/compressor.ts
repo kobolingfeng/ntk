@@ -31,8 +31,8 @@ export class Compressor {
     this.locale = locale;
   }
 
-  getPreFilterStats(): PreFilterResult[] {
-    return [...this.preFilterStats];
+  getPreFilterStats(): readonly PreFilterResult[] {
+    return this.preFilterStats;
   }
 
   getTotalPreFilterSavings(): { totalCharsRemoved: number; totalOriginal: number; callCount: number } {

@@ -19,17 +19,14 @@ export function parseVerificationResult(payload: string): boolean {
 
   // Fallback: keyword matching (case-insensitive)
   const lower = payload.toLowerCase();
-  const passKeywords = ['pass', 'passed', 'all correct', 'no issues', '通过', '正确', '没有问题', '无问题'];
-  const failKeywords = ['fail', 'failed', 'error', 'incorrect', 'wrong', '失败', '错误', '不正确', '有问题'];
-
-  const hasPassKeyword = passKeywords.some((kw) => lower.includes(kw));
+  const hasPassKeyword = /\b(?:pass(?:ed)?|all correct|no issues)\b|通过|正确|没有问题|无问题/.test(lower);
 
   // Strip negation-pass patterns before checking fail keywords
   let lowerForFailCheck = lower.replace(
     /没有问题|无问题|没有错误|无错误|no issues|no errors?|0 errors?|without error|error[- ]free/g,
     '',
   );
-  const hasFailKeyword = failKeywords.some((kw) => lowerForFailCheck.includes(kw));
+  const hasFailKeyword = /\b(?:fail(?:ed)?|errors?|incorrect|wrong)\b|失败|错误|不正确|有问题/.test(lowerForFailCheck);
 
   if (hasPassKeyword && !hasFailKeyword) return true;
   if (hasFailKeyword) return false;

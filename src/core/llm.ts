@@ -279,17 +279,23 @@ export class EndpointManager {
 
     // Sort healthy endpoints by latency (fastest first), keeping active endpoint at front
     if (healthy.length > 1) {
-      const activeIdx = healthy[0];
-      const rest = healthy.slice(1).sort((a, b) => {
-        const aLat = this.healthStats.get(a)?.avgLatencyMs || Infinity;
-        const bLat = this.healthStats.get(b)?.avgLatencyMs || Infinity;
-        return aLat - bLat;
-      });
-      healthy.length = 0;
-      healthy.push(activeIdx, ...rest);
+      // Sort in-place from index 1 (keep active at front)
+      for (let i = 2; i < healthy.length; i++) {
+        const val = healthy[i];
+        const valLat = this.healthStats.get(val)?.avgLatencyMs || Infinity;
+        let j = i - 1;
+        while (j >= 1 && (this.healthStats.get(healthy[j])?.avgLatencyMs || Infinity) > valLat) {
+          healthy[j + 1] = healthy[j];
+          j--;
+        }
+        healthy[j + 1] = val;
+      }
     }
 
-    return [...healthy, ...demoted];
+    // Concat without spread — avoid intermediate array
+    if (demoted.length === 0) return healthy;
+    for (const d of demoted) healthy.push(d);
+    return healthy;
   }
 
   /** Record a successful API call for an endpoint */
