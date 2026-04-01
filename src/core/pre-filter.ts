@@ -74,6 +74,19 @@ export function detectOutputType(text: string): OutputType {
  */
 export function preFilter(text: string): PreFilterResult {
   const originalLength = text.length;
+
+  // Fast path: short, clean text — skip all strategies
+  if (originalLength < 500 && !text.includes('\x1b') && text.split('\n').length < 5) {
+    return {
+      filtered: text,
+      originalLength,
+      filteredLength: originalLength,
+      charsRemoved: 0,
+      strategies: [],
+      detectedType: 'general',
+    };
+  }
+
   const reports: PreFilterStrategyReport[] = [];
   let current = text;
 
