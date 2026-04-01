@@ -178,6 +178,58 @@ export class EndpointManager {
     return null;
   }
 
+  /**
+   * Probe all endpoints and return working ones (for concurrent workload distribution).
+   * Unlike probeEndpoints(), returns ALL working endpoints, not just the best one.
+   */
+  async probeAllEndpoints(model: string): Promise<Endpoint[]> {
+    this.loadDiskProbeCache();
+    const TIMEOUT = 8000;
+    const now = Date.now();
+
+    const probePromises = this.endpoints.map(async (ep, i) => {
+      const lastFail = this.negativeProbeCache.get(i);
+      if (lastFail && now - lastFail < this.negativeProbeTTL) return false;
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TIMEOUT);
+      try {
+        const res = await fetch(`${ep.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { choices?: unknown[] };
+          if (data.choices && data.choices.length > 0) return true;
+        }
+      } catch {
+        // probe failed
+      } finally {
+        clearTimeout(timer);
+      }
+      this.negativeProbeCache.set(i, Date.now());
+      return false;
+    });
+
+    const results = await Promise.all(probePromises);
+    const working: Endpoint[] = [];
+    for (let i = 0; i < results.length; i++) {
+      if (results[i]) working.push(this.endpoints[i]);
+    }
+
+    // Also set probe cache for the best working endpoint
+    if (working.length > 0) {
+      const bestIdx = this.endpoints.indexOf(working[0]);
+      this.activeEndpointIndex = bestIdx;
+      this.modelEndpointMap.set(model, new Set(results.map((ok, i) => ok ? i : -1).filter(i => i >= 0)));
+      this.probeCache.set(model, { name: working[0].name, timestamp: Date.now() });
+      this.saveDiskProbeCache(model, working[0].name, bestIdx);
+    }
+    return working;
+  }
+
   /** Pre-warm the probe cache to skip probing for known-working endpoints */
   prewarmProbeCache(model: string): void {
     if (this.endpoints.length === 0) return;

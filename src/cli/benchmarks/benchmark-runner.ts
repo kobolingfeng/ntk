@@ -209,42 +209,18 @@ export async function runBenchmarkSuite(
 
   // Discover and probe endpoints once for the entire benchmark
   const allEndpoints = discoverEndpoints();
-  const probeModel = config.compressor.model; // any model works — endpoints are model-agnostic
+  const probeEM = new EndpointManager();
+  probeEM.setEndpoints(allEndpoints);
   console.log(chalk.dim(`  Probing ${allEndpoints.length} endpoints...`));
 
-  const probeResults = await Promise.all(
-    allEndpoints.map(async (ep) => {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
-      try {
-        const url = `${ep.baseUrl}/chat/completions`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
-          body: JSON.stringify({ model: probeModel, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
-          signal: controller.signal,
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { choices?: unknown[] };
-          if (data.choices && data.choices.length > 0) return true;
-        }
-        return false;
-      } catch {
-        return false;
-      } finally {
-        clearTimeout(timer);
-      }
-    }),
-  );
-
-  const sharedWorkingEndpoints: Endpoint[] = [];
-  for (let i = 0; i < allEndpoints.length; i++) {
-    if (probeResults[i]) {
-      sharedWorkingEndpoints.push(allEndpoints[i]);
-      console.log(chalk.dim(`    ✅ ${allEndpoints[i].name}`));
-    } else {
-      console.log(chalk.dim(`    ❌ ${allEndpoints[i].name} — skipped`));
-    }
+  const probeModel = config.compressor.model;
+  const sharedWorkingEndpoints = await probeEM.probeAllEndpoints(probeModel);
+  for (const ep of sharedWorkingEndpoints) {
+    console.log(chalk.dim(`    ✅ ${ep.name}`));
+  }
+  const skipped = allEndpoints.filter(ep => !sharedWorkingEndpoints.includes(ep));
+  for (const ep of skipped) {
+    console.log(chalk.dim(`    ❌ ${ep.name} — skipped`));
   }
 
   console.log(chalk.cyan.bold(`\n  📊 Benchmark: ${label}`));

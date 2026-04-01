@@ -63,6 +63,10 @@ function flushGain(): void {
   const data = loadGainData();
   data.entries.push(...pendingEntries);
   pendingEntries = [];
+  // Cap entries to prevent unbounded growth in long-running usage
+  if (data.entries.length > 1000) {
+    data.entries = data.entries.slice(-1000);
+  }
   saveGainData(data);
 }
 
