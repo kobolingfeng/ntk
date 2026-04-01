@@ -415,7 +415,7 @@ export class LLMClient {
 
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
-      const messageContent = systemPrompt + ' ' + userMessage;
+      const messageContent = systemPrompt ? systemPrompt + ' ' + userMessage : userMessage;
       const result = await this.tryStreamEndpoint(ep, payload, onToken, maxOutputTokens, messageContent);
       if (result) {
         this.endpointManager.recordSuccess(epIndex);
@@ -491,19 +491,30 @@ export class LLMClient {
             const json = JSON.parse(line.slice(6));
             const delta = json.choices?.[0]?.delta?.content;
             if (delta) {
-              fullContent += delta;
-              onToken(delta);
               chunkCount++;
-              // Per-event abort: accumulate raw fractional estimate (no Math.ceil rounding)
+              // Per-event abort: check per-character within delta for precise cutoff
               if (maxOutputTokens) {
+                let cutIdx = -1;
                 for (let k = 0; k < delta.length; k++) {
                   const c = delta.charCodeAt(k);
                   runningTokenEstimate += (c >= 0x4E00 && c <= 0x9FFF) ? 1.5 : 0.4;
+                  if (runningTokenEstimate >= maxOutputTokens) {
+                    cutIdx = k + 1;
+                    break;
+                  }
                 }
-                if (runningTokenEstimate >= maxOutputTokens) {
+                if (cutIdx >= 0) {
+                  const partial = delta.slice(0, cutIdx);
+                  fullContent += partial;
+                  onToken(partial);
                   abortedByLimit = true;
                   break;
                 }
+                fullContent += delta;
+                onToken(delta);
+              } else {
+                fullContent += delta;
+                onToken(delta);
               }
             }
             if (json.usage) {

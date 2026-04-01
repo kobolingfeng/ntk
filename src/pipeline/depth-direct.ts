@@ -29,9 +29,12 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
 
   let effectiveRequest = ctx.userRequest;
   if (ctx.userRequest.length > 3000) {
-    const head = ctx.userRequest.slice(0, 1500);
+    const head = ctx.userRequest.slice(0, 1200);
+    const midStart = Math.floor((ctx.userRequest.length - 400) / 2);
+    const mid = ctx.userRequest.slice(midStart, midStart + 400);
     const tail = ctx.userRequest.slice(-500);
-    effectiveRequest = `${head}\n\n[... ${ctx.userRequest.length - 2000} chars truncated for brevity ...]\n\n${tail}`;
+    const omitted = ctx.userRequest.length - 2100;
+    effectiveRequest = `${head}\n\n[... ${omitted} chars omitted ...]\n\n${mid}\n\n[... omitted ...]\n\n${tail}`;
     ctx.emit({
       type: 'message',
       phase: 'execute',

@@ -80,12 +80,6 @@ Rules:
 Completion: [done] or [partial: needs more space]`,
 };
 
-/** Lightweight prompt for direct depth — minimal overhead */
-export const EXECUTOR_LITE_PROMPT: Record<Locale, string> = {
-  zh: '完整输出。代码用```包裹。不解释、不引导。[完成]',
-  en: 'Complete output. Wrap code in ```. No explanations. [done]',
-};
-
 /** Band-based prompts — select only relevant rules per task type */
 export type TaskBand = 'code' | 'analysis' | 'passthrough' | 'general';
 
