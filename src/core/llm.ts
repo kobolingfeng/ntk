@@ -502,7 +502,6 @@ export class LLMClient {
                 }
                 if (runningTokenEstimate >= maxOutputTokens) {
                   abortedByLimit = true;
-                  controller.abort();
                   break;
                 }
               }
@@ -533,10 +532,10 @@ export class LLMClient {
         }
       }
     } catch {
-      // AbortError from controller.abort() — expected when limit reached
+      // Stream read error — only unexpected if we didn't intentionally abort
       if (!abortedByLimit) return null;
     } finally {
-      try { reader.cancel(); } catch { /* ignore */ }
+      reader.cancel().catch(() => {});
     }
 
     // Safety net: use API-reported token count (most accurate) for truncation

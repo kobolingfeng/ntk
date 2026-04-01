@@ -51,7 +51,7 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
   if (ctx.llm && ctx.onToken) {
     const bandPrompt = getBandPrompt(ctx.userRequest, ctx.locale);
     const fullPrompt = scoutContext ? `${scoutContext}\n\n${ctx.userRequest}` : ctx.userRequest;
-    const { content } = await ctx.llm.chatStream(bandPrompt, fullPrompt, 'executor', 'execute', ctx.onToken);
+    const { content } = await ctx.llm.chatStream(bandPrompt, fullPrompt, 'executor', 'execute', ctx.onToken, 2048, undefined, 2048);
     rawContent = content.trim();
     const streamedResponse = createMessage('executor', 'planner', ctx.userRequest, rawContent);
     ctx.router.route(streamedResponse, 'execute');
