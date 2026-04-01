@@ -90,7 +90,12 @@ server.tool(
       skipScout,
       endpointManager,
     });
-    const result = await pipeline.run(task);
+    const result = await Promise.race([
+      pipeline.run(task),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Task timeout (5min)')), 300_000),
+      ),
+    ]);
 
     const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
     const plannerTok = result.tokenReport.byAgent.planner
@@ -124,7 +129,12 @@ server.tool(
     const config = loadConfig();
     const fastConfig = { ...config, planner: { ...config.compressor } };
     const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth, endpointManager });
-    const result = await pipeline.run(task);
+    const result = await Promise.race([
+      pipeline.run(task),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Task timeout (5min)')), 300_000),
+      ),
+    ]);
 
     const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
     return {
