@@ -81,5 +81,22 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
     return 'direct';
   }
 
+  // Complex-depth fast path — skip classifier for clearly non-direct tasks
+  if (userRequest.length > 200) {
+    // Standard: multi-angle analysis patterns
+    const standardPatternZh = /比较.{2,20}(和|与|跟).{2,20}(优缺点|区别|差异|选型)|技术(方案)?选型|框架(评估|对比|选型)|从.{0,10}(方面|角度|维度)(分析|对比|评估)/;
+    const standardPatternEn = /compare .{2,30}(and|vs|versus|with)|pros (?:and )?cons|trade.?offs? (?:of|between)|evaluate .{2,30}(frameworks?|approaches|options)|from .{2,30}(perspectives?|angles?|dimensions?)/i;
+    if (standardPatternZh.test(userRequest) || standardPatternEn.test(userRequest)) {
+      return 'standard';
+    }
+
+    // Full: multi-step collaboration patterns
+    const fullPatternZh = /完整(项目|系统|方案)(设计|架构)|多模块.{0,10}(集成|协作)|系统(架构|设计).{0,15}(包含|涵盖|包括).{0,15}(模块|组件|服务)/;
+    const fullPatternEn = /complete (project|system) (design|architecture)|multi.?module .{0,20}(integration|design)|system architecture .{0,20}(including|with|containing) .{0,20}(modules?|components?|services?)/i;
+    if (fullPatternZh.test(userRequest) || fullPatternEn.test(userRequest)) {
+      return 'full';
+    }
+  }
+
   return null;
 }

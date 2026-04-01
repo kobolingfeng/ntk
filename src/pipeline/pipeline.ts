@@ -243,8 +243,13 @@ export class Pipeline {
         }
       } else if (this.speculative) {
         // Smart speculative execution: use history to predict depth
+        // Lower threshold for 'direct' (safe to speculate, common case)
         const prediction = predictDepth(cleanRequest);
-        const speculateDepth = prediction && prediction.confidence > 0.7 ? prediction.depth : 'direct';
+        const speculateDepth = prediction
+          ? (prediction.depth === 'direct' && prediction.confidence > 0.5
+              ? 'direct'
+              : prediction.confidence > 0.7 ? prediction.depth : 'direct')
+          : 'direct';
 
         // Only speculate if high confidence — launch classifier + direct execution in parallel
         // When speculation misses, the direct result is awaited and discarded to avoid leaked promises
