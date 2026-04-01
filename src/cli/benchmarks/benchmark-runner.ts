@@ -296,6 +296,23 @@ export async function cmdBenchmark(config: NTKConfig): Promise<void> {
     { name: 'Unit Test', task: '为以下函数编写Jest单元测试：function binarySearch(arr: number[], target: number): number { let lo = 0, hi = arr.length - 1; while (lo <= hi) { const mid = (lo + hi) >> 1; if (arr[mid] === target) return mid; if (arr[mid] < target) lo = mid + 1; else hi = mid - 1; } return -1; }', category: 'test-gen' },
     { name: 'JSON to Table', task: '将以下JSON数组转换为Markdown表格：[{"name":"Alice","age":30,"role":"Engineer"},{"name":"Bob","age":25,"role":"Designer"},{"name":"Charlie","age":35,"role":"Manager"}]', category: 'data-transform' },
     { name: 'SQL Injection Fix', task: '审查以下Node.js代码的安全漏洞并给出修复方案：app.get("/user", (req, res) => { const id = req.query.id; db.query("SELECT * FROM users WHERE id = " + id, (err, rows) => { res.json(rows); }); });', category: 'security' },
+    // --- 扩展任务 v2 (17-32) ---
+    { name: 'Text Summary', task: '用一句话概括以下段落的核心观点：微服务架构通过将应用拆分为小型独立服务来提高系统的可维护性和可扩展性，每个服务可以独立开发、部署和扩缩容，但也引入了分布式系统的复杂性，包括服务发现、负载均衡、熔断降级和分布式追踪等挑战。', category: 'summarization' },
+    { name: 'Explain Closure', task: '用简单的例子解释JavaScript闭包是什么以及常见用途', category: 'explanation' },
+    { name: 'Dockerfile', task: '为一个Node.js Express应用编写多阶段构建的Dockerfile，要求生产镜像尽可能小', category: 'devops' },
+    { name: 'Shell Pipeline', task: '写一条Linux命令：统计当前目录下所有.ts文件的总行数', category: 'cli' },
+    { name: 'Name Generator', task: '为一个专注于代码质量检测的开发工具起5个简短有力的英文产品名', category: 'creative' },
+    { name: 'YAML to JSON', task: '将以下YAML转换为JSON：\nserver:\n  host: localhost\n  port: 8080\ndatabase:\n  url: postgres://localhost:5432/mydb\n  pool: 10', category: 'conversion' },
+    { name: 'Code Review', task: '审查以下Go代码并给出改进建议：func getUser(id string) (*User, error) { resp, _ := http.Get("http://api/users/" + id); defer resp.Body.Close(); var u User; json.NewDecoder(resp.Body).Decode(&u); return &u, nil }', category: 'review' },
+    { name: 'Go Channel', task: '用Go写一个使用channel实现的生产者-消费者模式示例', category: 'code-gen' },
+    { name: 'Race Condition', task: '分析以下代码的并发bug：var count int; func increment() { for i := 0; i < 1000; i++ { count++ } }; 两个goroutine同时调用increment会怎样？', category: 'debug' },
+    { name: 'Window Func', task: '用SQL窗口函数计算每个用户的订单金额累计和，按下单时间排序，表结构：orders(user_id, amount, created_at)', category: 'sql' },
+    { name: 'Observer Pattern', task: '用TypeScript实现观察者模式，包含Subject和Observer接口', category: 'design' },
+    { name: 'GitHub Actions', task: '编写一个GitHub Actions workflow：在push到main分支时运行npm test和npm run build', category: 'devops' },
+    { name: 'CSV Parse', task: '用Python写一个函数解析CSV字符串为字典列表，正确处理引号内的逗号', category: 'code-gen' },
+    { name: 'Big-O Analyze', task: '分析以下算法的时间复杂度：for i in range(n): for j in range(i, n): for k in range(j, n): pass', category: 'reasoning' },
+    { name: 'Promise Chain', task: '将以下回调地狱改写为async/await：getUser(id, (user) => { getPosts(user.id, (posts) => { getComments(posts[0].id, (comments) => { console.log(comments); }); }); });', category: 'refactor' },
+    { name: 'XSS Prevention', task: '解释XSS跨站脚本攻击的三种类型（反射型、存储型、DOM型），各给一个攻击示例和防御方法', category: 'security' },
   ];
 
   await runBenchmarkSuite(config, defaultTasks, {
