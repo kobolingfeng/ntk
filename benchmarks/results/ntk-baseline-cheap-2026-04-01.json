@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-04-01T11:41:29.514Z",
+    "timestamp": "2026-04-01T12:35:03.892Z",
     "runs": 3,
     "plannerModel": "gpt-5.4",
     "compressorModel": "gpt-5.4-mini",
@@ -12,45 +12,45 @@
       "category": "code-gen",
       "runs": [
         {
-          "tokens": 288,
-          "durationMs": 4362,
+          "tokens": 292,
+          "durationMs": 7094,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 288,
+          "cheapTokens": 292,
           "success": true,
-          "outputLength": 387
+          "outputLength": 363
         },
         {
-          "tokens": 297,
-          "durationMs": 9439,
+          "tokens": 308,
+          "durationMs": 6195,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 297,
+          "cheapTokens": 308,
           "success": true,
-          "outputLength": 378
+          "outputLength": 344
         },
         {
-          "tokens": 301,
-          "durationMs": 8713,
+          "tokens": 292,
+          "durationMs": 5164,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 301,
+          "cheapTokens": 292,
           "success": true,
-          "outputLength": 351
+          "outputLength": 371
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 295.3,
-          "stddev": 6.7,
-          "min": 288,
-          "max": 301
+          "mean": 297.3,
+          "stddev": 9.2,
+          "min": 292,
+          "max": 308
         },
         "durationMs": {
-          "mean": 7504.7,
-          "stddev": 2745.7,
-          "min": 4362,
-          "max": 9439
+          "mean": 6151,
+          "stddev": 965.8,
+          "min": 5164,
+          "max": 7094
         }
       }
     },
@@ -59,45 +59,45 @@
       "category": "code-gen",
       "runs": [
         {
-          "tokens": 690,
-          "durationMs": 5001,
+          "tokens": 818,
+          "durationMs": 5758,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 690,
+          "cheapTokens": 818,
           "success": true,
-          "outputLength": 1841
+          "outputLength": 2044
         },
         {
-          "tokens": 710,
-          "durationMs": 5144,
+          "tokens": 485,
+          "durationMs": 5589,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 710,
+          "cheapTokens": 485,
           "success": true,
-          "outputLength": 1793
+          "outputLength": 1111
         },
         {
-          "tokens": 1063,
-          "durationMs": 10010,
+          "tokens": 701,
+          "durationMs": 5470,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 1063,
+          "cheapTokens": 701,
           "success": true,
-          "outputLength": 1974
+          "outputLength": 1786
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 821,
-          "stddev": 209.8,
-          "min": 690,
-          "max": 1063
+          "mean": 668,
+          "stddev": 168.9,
+          "min": 485,
+          "max": 818
         },
         "durationMs": {
-          "mean": 6718.3,
-          "stddev": 2851.6,
-          "min": 5001,
-          "max": 10010
+          "mean": 5605.7,
+          "stddev": 144.7,
+          "min": 5470,
+          "max": 5758
         }
       }
     },
@@ -106,8 +106,17 @@
       "category": "translation",
       "runs": [
         {
+          "tokens": 96,
+          "durationMs": 1495,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 96,
+          "success": true,
+          "outputLength": 122
+        },
+        {
           "tokens": 97,
-          "durationMs": 1505,
+          "durationMs": 3529,
           "depth": "direct",
           "strongTokens": 0,
           "cheapTokens": 97,
@@ -116,35 +125,26 @@
         },
         {
           "tokens": 83,
-          "durationMs": 1324,
+          "durationMs": 1295,
           "depth": "direct",
           "strongTokens": 0,
           "cheapTokens": 83,
           "success": true,
           "outputLength": 122
-        },
-        {
-          "tokens": 98,
-          "durationMs": 2774,
-          "depth": "direct",
-          "strongTokens": 0,
-          "cheapTokens": 98,
-          "success": true,
-          "outputLength": 113
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 92.7,
-          "stddev": 8.4,
+          "mean": 92,
+          "stddev": 7.8,
           "min": 83,
-          "max": 98
+          "max": 97
         },
         "durationMs": {
-          "mean": 1867.7,
-          "stddev": 790.1,
-          "min": 1324,
-          "max": 2774
+          "mean": 2106.3,
+          "stddev": 1236.1,
+          "min": 1295,
+          "max": 3529
         }
       }
     },
@@ -153,45 +153,45 @@
       "category": "comparison",
       "runs": [
         {
-          "tokens": 718,
-          "durationMs": 7122,
+          "tokens": 700,
+          "durationMs": 6875,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 718,
+          "cheapTokens": 700,
           "success": true,
-          "outputLength": 997
+          "outputLength": 991
         },
         {
-          "tokens": 843,
-          "durationMs": 8344,
+          "tokens": 856,
+          "durationMs": 6588,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 843,
+          "cheapTokens": 856,
           "success": true,
-          "outputLength": 1207
+          "outputLength": 1302
         },
         {
-          "tokens": 724,
-          "durationMs": 5795,
+          "tokens": 1008,
+          "durationMs": 7494,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 724,
+          "cheapTokens": 1008,
           "success": true,
-          "outputLength": 953
+          "outputLength": 1503
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 761.7,
-          "stddev": 70.5,
-          "min": 718,
-          "max": 843
+          "mean": 854.7,
+          "stddev": 154,
+          "min": 700,
+          "max": 1008
         },
         "durationMs": {
-          "mean": 7087,
-          "stddev": 1274.9,
-          "min": 5795,
-          "max": 8344
+          "mean": 6985.7,
+          "stddev": 463,
+          "min": 6588,
+          "max": 7494
         }
       }
     },
@@ -200,45 +200,45 @@
       "category": "design",
       "runs": [
         {
-          "tokens": 1614,
-          "durationMs": 10597,
+          "tokens": 1765,
+          "durationMs": 11482,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 1614,
+          "cheapTokens": 1765,
           "success": true,
-          "outputLength": 3635
+          "outputLength": 3730
         },
         {
-          "tokens": 1657,
-          "durationMs": 10778,
+          "tokens": 1721,
+          "durationMs": 11235,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 1657,
+          "cheapTokens": 1721,
           "success": true,
-          "outputLength": 3686
+          "outputLength": 3768
         },
         {
-          "tokens": 1613,
-          "durationMs": 10512,
+          "tokens": 1729,
+          "durationMs": 11792,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 1613,
+          "cheapTokens": 1729,
           "success": true,
-          "outputLength": 3544
+          "outputLength": 3638
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 1628,
-          "stddev": 25.1,
-          "min": 1613,
-          "max": 1657
+          "mean": 1738.3,
+          "stddev": 23.4,
+          "min": 1721,
+          "max": 1765
         },
         "durationMs": {
-          "mean": 10629,
-          "stddev": 135.9,
-          "min": 10512,
-          "max": 10778
+          "mean": 11503,
+          "stddev": 279.1,
+          "min": 11235,
+          "max": 11792
         }
       }
     },
@@ -247,45 +247,45 @@
       "category": "refactor",
       "runs": [
         {
-          "tokens": 173,
-          "durationMs": 2353,
+          "tokens": 205,
+          "durationMs": 12789,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 173,
+          "cheapTokens": 205,
           "success": true,
-          "outputLength": 201
+          "outputLength": 245
         },
         {
-          "tokens": 212,
-          "durationMs": 3870,
+          "tokens": 148,
+          "durationMs": 4488,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 212,
+          "cheapTokens": 148,
           "success": true,
-          "outputLength": 269
+          "outputLength": 98
         },
         {
-          "tokens": 202,
-          "durationMs": 3428,
+          "tokens": 223,
+          "durationMs": 5121,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 202,
+          "cheapTokens": 223,
           "success": true,
-          "outputLength": 266
+          "outputLength": 213
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 195.7,
-          "stddev": 20.3,
-          "min": 173,
-          "max": 212
+          "mean": 192,
+          "stddev": 39.2,
+          "min": 148,
+          "max": 223
         },
         "durationMs": {
-          "mean": 3217,
-          "stddev": 780.2,
-          "min": 2353,
-          "max": 3870
+          "mean": 7466,
+          "stddev": 4620.7,
+          "min": 4488,
+          "max": 12789
         }
       }
     },
@@ -294,45 +294,45 @@
       "category": "debug",
       "runs": [
         {
-          "tokens": 381,
-          "durationMs": 4557,
+          "tokens": 330,
+          "durationMs": 6244,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 381,
+          "cheapTokens": 330,
           "success": true,
-          "outputLength": 468
+          "outputLength": 446
         },
         {
-          "tokens": 372,
-          "durationMs": 4126,
+          "tokens": 408,
+          "durationMs": 5484,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 372,
+          "cheapTokens": 408,
           "success": true,
-          "outputLength": 564
+          "outputLength": 492
         },
         {
-          "tokens": 318,
-          "durationMs": 4929,
+          "tokens": 338,
+          "durationMs": 5757,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 318,
+          "cheapTokens": 338,
           "success": true,
-          "outputLength": 356
+          "outputLength": 437
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 357,
-          "stddev": 34.1,
-          "min": 318,
-          "max": 381
+          "mean": 358.7,
+          "stddev": 42.9,
+          "min": 330,
+          "max": 408
         },
         "durationMs": {
-          "mean": 4537.3,
-          "stddev": 401.9,
-          "min": 4126,
-          "max": 4929
+          "mean": 5828.3,
+          "stddev": 385,
+          "min": 5484,
+          "max": 6244
         }
       }
     },
@@ -341,45 +341,45 @@
       "category": "reasoning",
       "runs": [
         {
-          "tokens": 658,
-          "durationMs": 4919,
+          "tokens": 801,
+          "durationMs": 7110,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 658,
+          "cheapTokens": 801,
           "success": true,
-          "outputLength": 981
+          "outputLength": 1130
         },
         {
-          "tokens": 737,
-          "durationMs": 5988,
+          "tokens": 786,
+          "durationMs": 5765,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 737,
+          "cheapTokens": 786,
           "success": true,
-          "outputLength": 1033
+          "outputLength": 1025
         },
         {
-          "tokens": 559,
-          "durationMs": 4316,
+          "tokens": 602,
+          "durationMs": 5409,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 559,
+          "cheapTokens": 602,
           "success": true,
-          "outputLength": 714
+          "outputLength": 866
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 651.3,
-          "stddev": 89.2,
-          "min": 559,
-          "max": 737
+          "mean": 729.7,
+          "stddev": 110.8,
+          "min": 602,
+          "max": 801
         },
         "durationMs": {
-          "mean": 5074.3,
-          "stddev": 846.8,
-          "min": 4316,
-          "max": 5988
+          "mean": 6094.7,
+          "stddev": 897.1,
+          "min": 5409,
+          "max": 7110
         }
       }
     },
@@ -388,45 +388,45 @@
       "category": "code-gen",
       "runs": [
         {
-          "tokens": 1008,
-          "durationMs": 11005,
+          "tokens": 1480,
+          "durationMs": 28664,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 1008,
+          "cheapTokens": 1480,
           "success": true,
-          "outputLength": 1481
+          "outputLength": 1424
         },
         {
-          "tokens": 986,
-          "durationMs": 11347,
+          "tokens": 610,
+          "durationMs": 6364,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 986,
+          "cheapTokens": 610,
           "success": true,
-          "outputLength": 1447
+          "outputLength": 1345
         },
         {
-          "tokens": 1181,
-          "durationMs": 9782,
+          "tokens": 1617,
+          "durationMs": 10681,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 1181,
+          "cheapTokens": 1617,
           "success": true,
-          "outputLength": 1153
+          "outputLength": 1152
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 1058.3,
-          "stddev": 106.8,
-          "min": 986,
-          "max": 1181
+          "mean": 1235.7,
+          "stddev": 546.2,
+          "min": 610,
+          "max": 1617
         },
         "durationMs": {
-          "mean": 10711.3,
-          "stddev": 822.8,
-          "min": 9782,
-          "max": 11347
+          "mean": 15236.3,
+          "stddev": 11827.3,
+          "min": 6364,
+          "max": 28664
         }
       }
     },
@@ -435,45 +435,45 @@
       "category": "math",
       "runs": [
         {
-          "tokens": 318,
-          "durationMs": 2764,
+          "tokens": 301,
+          "durationMs": 2760,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 318,
+          "cheapTokens": 301,
           "success": true,
-          "outputLength": 412
+          "outputLength": 383
         },
         {
-          "tokens": 310,
-          "durationMs": 3885,
+          "tokens": 285,
+          "durationMs": 3179,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 310,
+          "cheapTokens": 285,
           "success": true,
-          "outputLength": 331
+          "outputLength": 361
         },
         {
-          "tokens": 337,
-          "durationMs": 3601,
+          "tokens": 274,
+          "durationMs": 2563,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 337,
+          "cheapTokens": 274,
           "success": true,
-          "outputLength": 391
+          "outputLength": 347
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 321.7,
-          "stddev": 13.9,
-          "min": 310,
-          "max": 337
+          "mean": 286.7,
+          "stddev": 13.6,
+          "min": 274,
+          "max": 301
         },
         "durationMs": {
-          "mean": 3416.7,
-          "stddev": 582.8,
-          "min": 2764,
-          "max": 3885
+          "mean": 2834,
+          "stddev": 314.6,
+          "min": 2563,
+          "max": 3179
         }
       }
     },
@@ -482,45 +482,45 @@
       "category": "sql",
       "runs": [
         {
-          "tokens": 362,
-          "durationMs": 6463,
+          "tokens": 422,
+          "durationMs": 5027,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 362,
+          "cheapTokens": 422,
           "success": true,
-          "outputLength": 464
+          "outputLength": 960
         },
         {
-          "tokens": 320,
-          "durationMs": 7091,
+          "tokens": 332,
+          "durationMs": 4788,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 320,
+          "cheapTokens": 332,
           "success": true,
-          "outputLength": 563
+          "outputLength": 566
         },
         {
-          "tokens": 391,
-          "durationMs": 7157,
+          "tokens": 280,
+          "durationMs": 3718,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 391,
+          "cheapTokens": 280,
           "success": true,
-          "outputLength": 639
+          "outputLength": 593
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 357.7,
-          "stddev": 35.7,
-          "min": 320,
-          "max": 391
+          "mean": 344.7,
+          "stddev": 71.8,
+          "min": 280,
+          "max": 422
         },
         "durationMs": {
-          "mean": 6903.7,
-          "stddev": 383.1,
-          "min": 6463,
-          "max": 7157
+          "mean": 4511,
+          "stddev": 697.1,
+          "min": 3718,
+          "max": 5027
         }
       }
     },
@@ -529,45 +529,45 @@
       "category": "code-gen",
       "runs": [
         {
-          "tokens": 640,
-          "durationMs": 4874,
+          "tokens": 740,
+          "durationMs": 5475,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 640,
+          "cheapTokens": 740,
           "success": true,
-          "outputLength": 1882
+          "outputLength": 1969
         },
         {
-          "tokens": 735,
-          "durationMs": 5400,
+          "tokens": 741,
+          "durationMs": 6216,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 735,
+          "cheapTokens": 741,
           "success": true,
-          "outputLength": 2087
+          "outputLength": 1983
         },
         {
-          "tokens": 700,
-          "durationMs": 5091,
+          "tokens": 783,
+          "durationMs": 5752,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 700,
+          "cheapTokens": 783,
           "success": true,
-          "outputLength": 1866
+          "outputLength": 2079
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 691.7,
-          "stddev": 48,
-          "min": 640,
-          "max": 735
+          "mean": 754.7,
+          "stddev": 24.5,
+          "min": 740,
+          "max": 783
         },
         "durationMs": {
-          "mean": 5121.7,
-          "stddev": 264.3,
-          "min": 4874,
-          "max": 5400
+          "mean": 5814.3,
+          "stddev": 374.4,
+          "min": 5475,
+          "max": 6216
         }
       }
     },
@@ -576,45 +576,45 @@
       "category": "regex",
       "runs": [
         {
-          "tokens": 483,
-          "durationMs": 5725,
+          "tokens": 432,
+          "durationMs": 3492,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 483,
+          "cheapTokens": 432,
           "success": true,
-          "outputLength": 346
+          "outputLength": 370
         },
         {
-          "tokens": 429,
-          "durationMs": 3597,
+          "tokens": 434,
+          "durationMs": 3948,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 429,
+          "cheapTokens": 434,
           "success": true,
-          "outputLength": 334
+          "outputLength": 314
         },
         {
-          "tokens": 435,
-          "durationMs": 4680,
+          "tokens": 494,
+          "durationMs": 7952,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 435,
+          "cheapTokens": 494,
           "success": true,
-          "outputLength": 323
+          "outputLength": 283
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 449,
-          "stddev": 29.6,
-          "min": 429,
-          "max": 483
+          "mean": 453.3,
+          "stddev": 35.2,
+          "min": 432,
+          "max": 494
         },
         "durationMs": {
-          "mean": 4667.3,
-          "stddev": 1064.1,
-          "min": 3597,
-          "max": 5725
+          "mean": 5130.7,
+          "stddev": 2454,
+          "min": 3492,
+          "max": 7952
         }
       }
     },
@@ -623,45 +623,45 @@
       "category": "test-gen",
       "runs": [
         {
-          "tokens": 1079,
-          "durationMs": 10170,
+          "tokens": 686,
+          "durationMs": 5538,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 1079,
+          "cheapTokens": 686,
           "success": true,
-          "outputLength": 1539
+          "outputLength": 1285
         },
         {
-          "tokens": 963,
-          "durationMs": 6071,
+          "tokens": 740,
+          "durationMs": 5015,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 963,
+          "cheapTokens": 740,
           "success": true,
-          "outputLength": 1964
+          "outputLength": 1698
         },
         {
-          "tokens": 882,
-          "durationMs": 6220,
+          "tokens": 857,
+          "durationMs": 6282,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 882,
+          "cheapTokens": 857,
           "success": true,
-          "outputLength": 1718
+          "outputLength": 1680
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 974.7,
-          "stddev": 99,
-          "min": 882,
-          "max": 1079
+          "mean": 761,
+          "stddev": 87.4,
+          "min": 686,
+          "max": 857
         },
         "durationMs": {
-          "mean": 7487,
-          "stddev": 2324.7,
-          "min": 6071,
-          "max": 10170
+          "mean": 5611.7,
+          "stddev": 636.7,
+          "min": 5015,
+          "max": 6282
         }
       }
     },
@@ -670,45 +670,45 @@
       "category": "data-transform",
       "runs": [
         {
-          "tokens": 131,
-          "durationMs": 3130,
+          "tokens": 136,
+          "durationMs": 1755,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 131,
+          "cheapTokens": 136,
+          "success": true,
+          "outputLength": 144
+        },
+        {
+          "tokens": 144,
+          "durationMs": 5233,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 144,
+          "success": true,
+          "outputLength": 149
+        },
+        {
+          "tokens": 134,
+          "durationMs": 3954,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 134,
           "success": true,
           "outputLength": 113
-        },
-        {
-          "tokens": 142,
-          "durationMs": 3148,
-          "depth": "direct",
-          "strongTokens": 0,
-          "cheapTokens": 142,
-          "success": true,
-          "outputLength": 149
-        },
-        {
-          "tokens": 143,
-          "durationMs": 3271,
-          "depth": "direct",
-          "strongTokens": 0,
-          "cheapTokens": 143,
-          "success": true,
-          "outputLength": 149
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 138.7,
-          "stddev": 6.7,
-          "min": 131,
-          "max": 143
+          "mean": 138,
+          "stddev": 5.3,
+          "min": 134,
+          "max": 144
         },
         "durationMs": {
-          "mean": 3183,
-          "stddev": 76.7,
-          "min": 3130,
-          "max": 3271
+          "mean": 3647.3,
+          "stddev": 1759.2,
+          "min": 1755,
+          "max": 5233
         }
       }
     },
@@ -717,53 +717,805 @@
       "category": "security",
       "runs": [
         {
-          "tokens": 754,
-          "durationMs": 5328,
+          "tokens": 835,
+          "durationMs": 5725,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 754,
+          "cheapTokens": 835,
           "success": true,
-          "outputLength": 1131
+          "outputLength": 1583
         },
         {
-          "tokens": 723,
-          "durationMs": 5265,
+          "tokens": 742,
+          "durationMs": 6772,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 723,
+          "cheapTokens": 742,
           "success": true,
-          "outputLength": 1393
+          "outputLength": 1526
         },
         {
-          "tokens": 747,
-          "durationMs": 5139,
+          "tokens": 700,
+          "durationMs": 5988,
           "depth": "direct",
           "strongTokens": 0,
-          "cheapTokens": 747,
+          "cheapTokens": 700,
           "success": true,
-          "outputLength": 1578
+          "outputLength": 1239
         }
       ],
       "stats": {
         "tokens": {
-          "mean": 741.3,
-          "stddev": 16.3,
-          "min": 723,
-          "max": 754
+          "mean": 759,
+          "stddev": 69.1,
+          "min": 700,
+          "max": 835
         },
         "durationMs": {
-          "mean": 5244,
-          "stddev": 96.2,
-          "min": 5139,
-          "max": 5328
+          "mean": 6161.7,
+          "stddev": 544.7,
+          "min": 5725,
+          "max": 6772
+        }
+      }
+    },
+    {
+      "task": "Text Summary",
+      "category": "summarization",
+      "runs": [
+        {
+          "tokens": 170,
+          "durationMs": 1853,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 170,
+          "success": true,
+          "outputLength": 50
+        },
+        {
+          "tokens": 170,
+          "durationMs": 1512,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 170,
+          "success": true,
+          "outputLength": 52
+        },
+        {
+          "tokens": 169,
+          "durationMs": 1956,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 169,
+          "success": true,
+          "outputLength": 49
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 169.7,
+          "stddev": 0.6,
+          "min": 169,
+          "max": 170
+        },
+        "durationMs": {
+          "mean": 1773.7,
+          "stddev": 232.4,
+          "min": 1512,
+          "max": 1956
+        }
+      }
+    },
+    {
+      "task": "Explain Closure",
+      "category": "explanation",
+      "runs": [
+        {
+          "tokens": 680,
+          "durationMs": 6026,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 680,
+          "success": true,
+          "outputLength": 1375
+        },
+        {
+          "tokens": 671,
+          "durationMs": 6185,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 671,
+          "success": true,
+          "outputLength": 1393
+        },
+        {
+          "tokens": 703,
+          "durationMs": 4995,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 703,
+          "success": true,
+          "outputLength": 1550
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 684.7,
+          "stddev": 16.5,
+          "min": 671,
+          "max": 703
+        },
+        "durationMs": {
+          "mean": 5735.3,
+          "stddev": 646.1,
+          "min": 4995,
+          "max": 6185
+        }
+      }
+    },
+    {
+      "task": "Dockerfile",
+      "category": "devops",
+      "runs": [
+        {
+          "tokens": 2217,
+          "durationMs": 29813,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 2217,
+          "success": true,
+          "outputLength": 988
+        },
+        {
+          "tokens": 1144,
+          "durationMs": 19039,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 1144,
+          "success": true,
+          "outputLength": 820
+        },
+        {
+          "tokens": 2008,
+          "durationMs": 16738,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 2008,
+          "success": true,
+          "outputLength": 1054
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 1789.7,
+          "stddev": 568.8,
+          "min": 1144,
+          "max": 2217
+        },
+        "durationMs": {
+          "mean": 21863.3,
+          "stddev": 6980.1,
+          "min": 16738,
+          "max": 29813
+        }
+      }
+    },
+    {
+      "task": "Shell Pipeline",
+      "category": "cli",
+      "runs": [
+        {
+          "tokens": 211,
+          "durationMs": 5313,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 211,
+          "success": true,
+          "outputLength": 109
+        },
+        {
+          "tokens": 208,
+          "durationMs": 8891,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 208,
+          "success": true,
+          "outputLength": 100
+        },
+        {
+          "tokens": 235,
+          "durationMs": 2987,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 235,
+          "success": true,
+          "outputLength": 119
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 218,
+          "stddev": 14.8,
+          "min": 208,
+          "max": 235
+        },
+        "durationMs": {
+          "mean": 5730.3,
+          "stddev": 2974,
+          "min": 2987,
+          "max": 8891
+        }
+      }
+    },
+    {
+      "task": "Name Generator",
+      "category": "creative",
+      "runs": [
+        {
+          "tokens": 236,
+          "durationMs": 2599,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 236,
+          "success": true,
+          "outputLength": 175
+        },
+        {
+          "tokens": 307,
+          "durationMs": 2696,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 307,
+          "success": true,
+          "outputLength": 216
+        },
+        {
+          "tokens": 220,
+          "durationMs": 2220,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 220,
+          "success": true,
+          "outputLength": 170
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 254.3,
+          "stddev": 46.3,
+          "min": 220,
+          "max": 307
+        },
+        "durationMs": {
+          "mean": 2505,
+          "stddev": 251.5,
+          "min": 2220,
+          "max": 2696
+        }
+      }
+    },
+    {
+      "task": "YAML to JSON",
+      "category": "conversion",
+      "runs": [
+        {
+          "tokens": 136,
+          "durationMs": 1816,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 136,
+          "success": true,
+          "outputLength": 156
+        },
+        {
+          "tokens": 137,
+          "durationMs": 4354,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 137,
+          "success": true,
+          "outputLength": 156
+        },
+        {
+          "tokens": 136,
+          "durationMs": 4351,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 136,
+          "success": true,
+          "outputLength": 156
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 136.3,
+          "stddev": 0.6,
+          "min": 136,
+          "max": 137
+        },
+        "durationMs": {
+          "mean": 3507,
+          "stddev": 1464.4,
+          "min": 1816,
+          "max": 4354
+        }
+      }
+    },
+    {
+      "task": "Code Review",
+      "category": "review",
+      "runs": [
+        {
+          "tokens": 679,
+          "durationMs": 4876,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 679,
+          "success": true,
+          "outputLength": 1228
+        },
+        {
+          "tokens": 697,
+          "durationMs": 6093,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 697,
+          "success": true,
+          "outputLength": 1244
+        },
+        {
+          "tokens": 714,
+          "durationMs": 6024,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 714,
+          "success": true,
+          "outputLength": 1348
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 696.7,
+          "stddev": 17.5,
+          "min": 679,
+          "max": 714
+        },
+        "durationMs": {
+          "mean": 5664.3,
+          "stddev": 683.6,
+          "min": 4876,
+          "max": 6093
+        }
+      }
+    },
+    {
+      "task": "Go Channel",
+      "category": "code-gen",
+      "runs": [
+        {
+          "tokens": 608,
+          "durationMs": 6904,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 608,
+          "success": true,
+          "outputLength": 1150
+        },
+        {
+          "tokens": 626,
+          "durationMs": 7534,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 626,
+          "success": true,
+          "outputLength": 1385
+        },
+        {
+          "tokens": 551,
+          "durationMs": 5035,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 551,
+          "success": true,
+          "outputLength": 1100
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 595,
+          "stddev": 39.2,
+          "min": 551,
+          "max": 626
+        },
+        "durationMs": {
+          "mean": 6491,
+          "stddev": 1299.7,
+          "min": 5035,
+          "max": 7534
+        }
+      }
+    },
+    {
+      "task": "Race Condition",
+      "category": "debug",
+      "runs": [
+        {
+          "tokens": 519,
+          "durationMs": 3797,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 519,
+          "success": true,
+          "outputLength": 632
+        },
+        {
+          "tokens": 541,
+          "durationMs": 4043,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 541,
+          "success": true,
+          "outputLength": 820
+        },
+        {
+          "tokens": 449,
+          "durationMs": 3580,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 449,
+          "success": true,
+          "outputLength": 555
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 503,
+          "stddev": 48,
+          "min": 449,
+          "max": 541
+        },
+        "durationMs": {
+          "mean": 3806.7,
+          "stddev": 231.7,
+          "min": 3580,
+          "max": 4043
+        }
+      }
+    },
+    {
+      "task": "Window Func",
+      "category": "sql",
+      "runs": [
+        {
+          "tokens": 276,
+          "durationMs": 5078,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 276,
+          "success": true,
+          "outputLength": 426
+        },
+        {
+          "tokens": 266,
+          "durationMs": 4874,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 266,
+          "success": true,
+          "outputLength": 407
+        },
+        {
+          "tokens": 288,
+          "durationMs": 4019,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 288,
+          "success": true,
+          "outputLength": 456
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 276.7,
+          "stddev": 11,
+          "min": 266,
+          "max": 288
+        },
+        "durationMs": {
+          "mean": 4657,
+          "stddev": 561.9,
+          "min": 4019,
+          "max": 5078
+        }
+      }
+    },
+    {
+      "task": "Observer Pattern",
+      "category": "design",
+      "runs": [
+        {
+          "tokens": 485,
+          "durationMs": 4863,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 485,
+          "success": true,
+          "outputLength": 1418
+        },
+        {
+          "tokens": 523,
+          "durationMs": 4133,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 523,
+          "success": true,
+          "outputLength": 1312
+        },
+        {
+          "tokens": 476,
+          "durationMs": 5048,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 476,
+          "success": true,
+          "outputLength": 1361
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 494.7,
+          "stddev": 24.9,
+          "min": 476,
+          "max": 523
+        },
+        "durationMs": {
+          "mean": 4681.3,
+          "stddev": 483.8,
+          "min": 4133,
+          "max": 5048
+        }
+      }
+    },
+    {
+      "task": "GitHub Actions",
+      "category": "devops",
+      "runs": [
+        {
+          "tokens": 242,
+          "durationMs": 2554,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 242,
+          "success": true,
+          "outputLength": 546
+        },
+        {
+          "tokens": 275,
+          "durationMs": 2732,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 275,
+          "success": true,
+          "outputLength": 653
+        },
+        {
+          "tokens": 292,
+          "durationMs": 3564,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 292,
+          "success": true,
+          "outputLength": 660
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 269.7,
+          "stddev": 25.4,
+          "min": 242,
+          "max": 292
+        },
+        "durationMs": {
+          "mean": 2950,
+          "stddev": 539.1,
+          "min": 2554,
+          "max": 3564
+        }
+      }
+    },
+    {
+      "task": "CSV Parse",
+      "category": "code-gen",
+      "runs": [
+        {
+          "tokens": 344,
+          "durationMs": 5901,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 344,
+          "success": true,
+          "outputLength": 581
+        },
+        {
+          "tokens": 354,
+          "durationMs": 9566,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 354,
+          "success": true,
+          "outputLength": 537
+        },
+        {
+          "tokens": 342,
+          "durationMs": 6309,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 342,
+          "success": true,
+          "outputLength": 575
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 346.7,
+          "stddev": 6.4,
+          "min": 342,
+          "max": 354
+        },
+        "durationMs": {
+          "mean": 7258.7,
+          "stddev": 2008.6,
+          "min": 5901,
+          "max": 9566
+        }
+      }
+    },
+    {
+      "task": "Big-O Analyze",
+      "category": "reasoning",
+      "runs": [
+        {
+          "tokens": 255,
+          "durationMs": 8652,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 255,
+          "success": true,
+          "outputLength": 227
+        },
+        {
+          "tokens": 280,
+          "durationMs": 3008,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 280,
+          "success": true,
+          "outputLength": 147
+        },
+        {
+          "tokens": 291,
+          "durationMs": 5789,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 291,
+          "success": true,
+          "outputLength": 227
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 275.3,
+          "stddev": 18.4,
+          "min": 255,
+          "max": 291
+        },
+        "durationMs": {
+          "mean": 5816.3,
+          "stddev": 2822.1,
+          "min": 3008,
+          "max": 8652
+        }
+      }
+    },
+    {
+      "task": "Promise Chain",
+      "category": "refactor",
+      "runs": [
+        {
+          "tokens": 198,
+          "durationMs": 3450,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 198,
+          "success": true,
+          "outputLength": 264
+        },
+        {
+          "tokens": 205,
+          "durationMs": 4302,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 205,
+          "success": true,
+          "outputLength": 256
+        },
+        {
+          "tokens": 221,
+          "durationMs": 3239,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 221,
+          "success": true,
+          "outputLength": 287
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 208,
+          "stddev": 11.8,
+          "min": 198,
+          "max": 221
+        },
+        "durationMs": {
+          "mean": 3663.7,
+          "stddev": 562.8,
+          "min": 3239,
+          "max": 4302
+        }
+      }
+    },
+    {
+      "task": "XSS Prevention",
+      "category": "security",
+      "runs": [
+        {
+          "tokens": 813,
+          "durationMs": 5833,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 813,
+          "success": true,
+          "outputLength": 1163
+        },
+        {
+          "tokens": 966,
+          "durationMs": 6504,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 966,
+          "success": true,
+          "outputLength": 1533
+        },
+        {
+          "tokens": 1121,
+          "durationMs": 7539,
+          "depth": "direct",
+          "strongTokens": 0,
+          "cheapTokens": 1121,
+          "success": true,
+          "outputLength": 1777
+        }
+      ],
+      "stats": {
+        "tokens": {
+          "mean": 966.7,
+          "stddev": 154,
+          "min": 813,
+          "max": 1121
+        },
+        "durationMs": {
+          "mean": 6625.3,
+          "stddev": 859.4,
+          "min": 5833,
+          "max": 7539
         }
       }
     }
   ],
   "summary": {
-    "totalTasks": 16,
+    "totalTasks": 32,
     "passRate": 100,
-    "avgTokens": 595.9875,
-    "avgDurationMs": 5835.625
+    "avgTokens": 548.4062500000001,
+    "avgDurationMs": 6044.268749999999
   }
 }
