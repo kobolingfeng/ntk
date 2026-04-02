@@ -385,18 +385,11 @@ function compressCodeBlocks(text: string): { result: string; name: string } {
   const result = text.replace(codeBlockPattern, (fullMatch, lang: string, code: string) => {
     let compressed = code;
 
-    // Strip single-line comments (// and #)
-    compressed = compressed.replace(/^\s*\/\/.*$/gm, '');
-    compressed = compressed.replace(/^\s*#(?!!).*$/gm, '');
+    // Strip comments in single pass (// single-line, # single-line, /* multi-line */)
+    compressed = compressed.replace(/(?:^\ *\/\/.*$|^\ *#(?!!).*$|\/\*[\s\S]*?\*\/)/gm, '');
 
-    // Strip multi-line comments (/* ... */)
-    compressed = compressed.replace(/\/\*[\s\S]*?\*\//g, '');
-
-    // Collapse multiple blank lines inside code
-    compressed = compressed.replace(/\n{3,}/g, '\n');
-
-    // Remove trailing whitespace in code lines
-    compressed = compressed.replace(/[ \t]+$/gm, '');
+    // Collapse blank lines + trailing whitespace in single pass
+    compressed = compressed.replace(/\n{3,}/g, '\n').replace(/[ \t]+$/gm, '');
 
     // Apply if we saved any meaningful space (>5% reduction)
     if (compressed.length < code.length * 0.95) {

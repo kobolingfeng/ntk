@@ -237,6 +237,8 @@ const RE_BLOCK_OPEN = /<(p|div|h[1-6])[\s>]/gi;
 const RE_TAGS = /<[^>]+>/g;
 const RE_SPACES = /[ \t]+/g;
 const RE_MULTILINE = /\n{3,}/g;
+const RE_ENTITY = /&(?:amp|lt|gt|quot|nbsp|#39);/g;
+const HTML_ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' };
 
 function htmlToText(html: string, maxLength: number): string {
   let text = html;
@@ -247,8 +249,8 @@ function htmlToText(html: string, maxLength: number): string {
   text = text.replace(RE_BLOCK_CLOSE, '\n');
   text = text.replace(RE_BLOCK_OPEN, '\n');
   text = text.replace(RE_TAGS, '');
-  // Decode common entities
-  text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+  // Decode common entities — single pass with Map lookup
+  text = text.replace(RE_ENTITY, m => HTML_ENTITIES[m] ?? m);
   text = text.replace(RE_SPACES, ' ');
   text = text.replace(RE_MULTILINE, '\n\n');
   text = text.trim();

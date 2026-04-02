@@ -15,6 +15,8 @@ import { runToolLoop } from '../tools/loop.js';
 import { emptyOutputMessage } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
 
+const RE_DONE_SUFFIX = /\n*\[(?:完成|done)\]\s*$/gi;
+
 export interface DirectDepthContext {
   userRequest: string;
   executor: Executor;
@@ -118,8 +120,9 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
 
   const success = rawContent.length > 0;
   let report = rawContent || emptyOutputMessage(ctx.locale);
+  RE_DONE_SUFFIX.lastIndex = 0;
   report = report
-    .replace(/\n*\[(?:完成|done)\]\s*$/gi, '')
+    .replace(RE_DONE_SUFFIX, '')
     .trimEnd();
 
   ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (direct)' });

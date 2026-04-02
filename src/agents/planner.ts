@@ -14,6 +14,11 @@ import { PLANNER_PROMPT } from '../core/prompts.js';
 import type { AgentContext } from '../core/protocol.js';
 import { createMessage } from '../core/protocol.js';
 
+// Precompiled patterns for parseInstructions
+const ARROW_INSTRUCTION = /→\s*(\w+):\s*(.+)/;
+const BRACKET_INSTRUCTION = /^\[([^\]]+)\](?:\[[^\]]*\])*[：:]\s*(.+)/;
+const NUMBERED_INSTRUCTION = /^\d+[.)、]\s*(.+)/;
+
 export class Planner extends BaseAgent {
   constructor(llm: LLMClient) {
     super('planner', llm);
@@ -38,7 +43,7 @@ export class Planner extends BaseAgent {
       if (!trimmed) continue;
 
       // Format 1: → agent: instruction
-      const arrowMatch = trimmed.match(/→\s*(\w+):\s*(.+)/);
+      const arrowMatch = trimmed.match(ARROW_INSTRUCTION);
       if (arrowMatch) {
         const target = validTargets.has(arrowMatch[1]) ? arrowMatch[1] : 'executor';
         results.push({ target: target as any, instruction: arrowMatch[2].trim() });
@@ -46,14 +51,14 @@ export class Planner extends BaseAgent {
       }
 
       // Format 2: [agent name][...]: instruction (GPT style)
-      const bracketMatch = trimmed.match(/^\[([^\]]+)\](?:\[[^\]]*\])*[：:]\s*(.+)/);
+      const bracketMatch = trimmed.match(BRACKET_INSTRUCTION);
       if (bracketMatch) {
         results.push({ target: 'executor' as const, instruction: bracketMatch[2].trim() });
         continue;
       }
 
       // Format 3: numbered list — 1. instruction or 1) instruction
-      const numberedMatch = trimmed.match(/^\d+[.)、]\s*(.+)/);
+      const numberedMatch = trimmed.match(NUMBERED_INSTRUCTION);
       if (numberedMatch && trimmed.length > 20) {
         results.push({ target: 'executor' as const, instruction: numberedMatch[1].trim() });
       }
