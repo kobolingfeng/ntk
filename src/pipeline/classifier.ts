@@ -15,7 +15,7 @@ const EMBEDDED_DATA = /^(分析以下|以下是|分析这|分析下面|请分析
 const TECH_NAME = /^[A-Za-z][A-Za-z0-9.+\-#/]*[\s的和与\u4e00-\u9fff]/;
 const HAS_CJK = /[\u4e00-\u9fff]/;
 const STANDARD_ZH = /比较.{2,20}(和|与|跟).{2,20}(优缺点|区别|差异|选型)|技术(方案)?选型|框架(评估|对比|选型)|从.{0,10}(方面|角度|维度)(分析|对比|评估)/;
-const STANDARD_EN = /compare .{2,30}(and|vs|versus|with)|pros (?:and )?cons|trade.?offs? (?:of|between)|evaluate .{2,30}(frameworks?|approaches|options)|from .{2,30}(perspectives?|angles?|dimensions?)/i;
+const STANDARD_EN = /compare .{2,30}(?:and|vs|versus|with) .{2,30}(?:pros|cons|advantages|disadvantages|differences|similarities|trade.?offs?|strengths|weaknesses)|pros (?:and )?cons|trade.?offs? (?:of|between)|evaluate .{2,30}(?:frameworks?|approaches|options)|from .{2,30}(?:perspectives?|angles?|dimensions?)/i;
 const FULL_ZH = /完整(项目|系统|方案)(设计|架构)|多模块.{0,10}(集成|协作)|系统(架构|设计).{0,15}(包含|涵盖|包括).{0,15}(模块|组件|服务)/;
 const FULL_EN = /complete (project|system) (design|architecture)|multi.?module .{0,20}(integration|design)|system architecture .{0,20}(including|with|containing) .{0,20}(modules?|components?|services?)/i;
 
@@ -58,6 +58,11 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
   // Tasks with embedded data (log/code/test output) — direct regardless of length
   if (EMBEDDED_DATA.test(userRequest)) return 'direct';
 
+  // Complex-depth fast path — check BEFORE direct patterns to avoid mis-classifying
+  // e.g. "比较React和Vue的优缺点" matches both DIRECT_ZH (比较) and STANDARD_ZH (比较...和...优缺点)
+  if (STANDARD_ZH.test(userRequest) || STANDARD_EN.test(userRequest)) return 'standard';
+  if (FULL_ZH.test(userRequest) || FULL_EN.test(userRequest)) return 'full';
+
   // Tasks starting with tech names (e.g. "Node.js的事件循环", "Redis缓存策略") — direct
   if (TECH_NAME.test(userRequest) && userRequest.length <= 200) return 'direct';
 
@@ -76,12 +81,6 @@ export function classifyDepthFastPath(userRequest: string): PipelineDepth | null
   const threshold = HAS_CJK.test(userRequest) ? 12 : 30;
   if (userRequest.length <= threshold) {
     return 'direct';
-  }
-
-  // Complex-depth fast path — skip classifier for clearly non-direct tasks
-  if (userRequest.length > 200) {
-    if (STANDARD_ZH.test(userRequest) || STANDARD_EN.test(userRequest)) return 'standard';
-    if (FULL_ZH.test(userRequest) || FULL_EN.test(userRequest)) return 'full';
   }
 
   return null;
