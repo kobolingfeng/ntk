@@ -662,7 +662,11 @@ export class LLMClient {
       }
       // Flush remaining buffer — usage event may arrive in the final chunk
       if (buffer.trim()) {
-        for (const line of buffer.split('\n')) {
+        let flushFrom = 0;
+        let flushIdx: number;
+        while ((flushIdx = buffer.indexOf('\n', flushFrom)) !== -1) {
+          const line = buffer.substring(flushFrom, flushIdx);
+          flushFrom = flushIdx + 1;
           if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
           try {
             const json = JSON.parse(line.slice(6));
@@ -672,6 +676,21 @@ export class LLMClient {
             }
           } catch {
             // Skip malformed SSE lines
+          }
+        }
+        // Handle last line without trailing newline
+        if (flushFrom < buffer.length) {
+          const lastLine = buffer.substring(flushFrom);
+          if (lastLine.startsWith('data: ') && lastLine !== 'data: [DONE]') {
+            try {
+              const json = JSON.parse(lastLine.slice(6));
+              if (json.usage) {
+                inputTokens = json.usage.prompt_tokens || 0;
+                outputTokens = json.usage.completion_tokens || 0;
+              }
+            } catch {
+              // Skip
+            }
           }
         }
       }
