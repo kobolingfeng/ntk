@@ -13,7 +13,13 @@ export type Locale = 'zh' | 'en';
 export function detectLocale(text: string): Locale {
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
-    if ((c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF)) return 'zh';
+    if (
+      (c >= 0x4E00 && c <= 0x9FFF) ||  // CJK Unified Ideographs
+      (c >= 0x3400 && c <= 0x4DBF) ||  // CJK Extension A
+      (c >= 0x3040 && c <= 0x309F) ||  // Hiragana
+      (c >= 0x30A0 && c <= 0x30FF) ||  // Katakana
+      (c >= 0xAC00 && c <= 0xD7A3)    // Hangul Syllables
+    ) return 'zh';
   }
   return 'en';
 }

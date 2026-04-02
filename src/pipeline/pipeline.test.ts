@@ -469,8 +469,8 @@ describe('detectLocale', () => {
     expect(detectLocale('𠀀')).toBe('en');
   });
 
-  it('returns en for Japanese katakana (not CJK ideograph)', () => {
-    expect(detectLocale('カタカナ')).toBe('en');
+  it('returns zh for Japanese katakana (CJK locale)', () => {
+    expect(detectLocale('カタカナ')).toBe('zh');
   });
 });
 

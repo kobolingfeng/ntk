@@ -86,12 +86,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 
   def('run_command', '执行系统终端命令', {
     command: { type: 'string', description: '要执行的命令' },
-    timeout: { type: 'integer', description: '超时秒数', default: 30 },
+    timeout: { type: 'integer', description: '超时秒数', default: 120 },
   }, ['command']),
 
-  def('fetch_webpage', '获取URL网页内容(纯文本)', {
+  def('fetch_webpage', '获取URL网页内容(纯文本,超max_length自动截断)', {
     url: { type: 'string', description: '网页URL' },
-    max_length: { type: 'integer', description: '最大返回字符数', default: 8000 },
+    max_length: { type: 'integer', description: '最大返回字符数(超出截断)', default: 8000 },
   }, ['url']),
 ];
 
