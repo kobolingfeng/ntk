@@ -29,8 +29,8 @@ const universalStrategies: FilterStrategy[] = [stripAnsiCodes, collapseBlankLine
 const typeSpecificStrategies: Record<OutputType, FilterStrategy[]> = {
   test: [stripProgressBars, deduplicateLines, stripPassedTests, compressStackTraces],
   json: [deduplicateLines, compactJson],
-  log: [stripProgressBars, deduplicateLines, compressStackTraces],
-  build: [stripProgressAndBoilerplate, deduplicateLines, compressCodeBlocks],
+  log: [stripProgressBars, deduplicateLines, compressStackTraces, collapsePrefixRuns],
+  build: [stripProgressAndBoilerplate, deduplicateLines, compressCodeBlocks, collapsePrefixRuns],
   general: [
     stripProgressAndBoilerplate,
     deduplicateLines,
@@ -470,4 +470,51 @@ function compressStackTraces(text: string): { result: string; name: string } {
   }
 
   return { result: output.join('\n'), name: 'stack-compress' };
+}
+
+// ─── Prefix-based dedup for repetitive output ──────
+const PREFIX_DEDUP_MIN_RUN = 6;
+const PREFIX_DEDUP_KEEP_HEAD = 2;
+const PREFIX_DEDUP_KEEP_TAIL = 1;
+const PREFIX_DEDUP_MIN_PREFIX = 15;
+
+function collapsePrefixRuns(text: string): { result: string; name: string } {
+  if (!hasMinNewlines(text, PREFIX_DEDUP_MIN_RUN)) return { result: text, name: 'prefix-collapse' };
+  const lines = text.split('\n');
+  const output: string[] = [];
+  let runStart = -1;
+  let runPrefix = '';
+
+  for (let i = 0; i <= lines.length; i++) {
+    const line = i < lines.length ? lines[i] : '';
+    const trimmed = line.trimStart();
+    // Compute common prefix with current run
+    if (runStart >= 0 && i < lines.length && trimmed.length >= PREFIX_DEDUP_MIN_PREFIX) {
+      let match = 0;
+      const limit = Math.min(runPrefix.length, trimmed.length);
+      while (match < limit && runPrefix.charCodeAt(match) === trimmed.charCodeAt(match)) match++;
+      if (match >= PREFIX_DEDUP_MIN_PREFIX) continue; // Still in the run
+    }
+
+    // Run ended — flush
+    const runLen = i - runStart;
+    if (runStart >= 0 && runLen >= PREFIX_DEDUP_MIN_RUN) {
+      for (let j = runStart; j < runStart + PREFIX_DEDUP_KEEP_HEAD; j++) output.push(lines[j]);
+      output.push(`  ... (${runLen - PREFIX_DEDUP_KEEP_HEAD - PREFIX_DEDUP_KEEP_TAIL} similar lines omitted)`);
+      for (let j = i - PREFIX_DEDUP_KEEP_TAIL; j < i; j++) output.push(lines[j]);
+    } else if (runStart >= 0) {
+      for (let j = runStart; j < i; j++) output.push(lines[j]);
+    }
+
+    // Start new run or push non-matching line
+    if (i < lines.length && trimmed.length >= PREFIX_DEDUP_MIN_PREFIX) {
+      runStart = i;
+      runPrefix = trimmed;
+    } else {
+      runStart = -1;
+      if (i < lines.length) output.push(line);
+    }
+  }
+
+  return { result: output.join('\n'), name: 'prefix-collapse' };
 }
