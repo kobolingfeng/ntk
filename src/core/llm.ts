@@ -475,23 +475,17 @@ export class LLMClient {
     agent: AgentType,
     phase: Phase,
     onToken?: (token: string) => void,
+    /** Pre-serialized tools JSON fragment to avoid re-serializing tools each round */
+    cachedToolsJson?: string,
   ): Promise<{ content?: string; toolCalls?: Array<{ id: string; name: string; arguments: string }>; usage: TokenUsage }> {
     const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
     const allEndpoints = this.endpointManager.getEndpoints();
 
     if (endpointsToTry.length === 0) throw new AllEndpointsFailedError(0);
 
-    const payload = JSON.stringify({
-      model: this.model,
-      messages,
-      tools,
-      tool_choice: 'auto',
-      max_tokens: this.maxTokens,
-      max_completion_tokens: this.maxTokens,
-      temperature: this.temperature,
-      stream: true,
-      stream_options: { include_usage: true },
-    });
+    // Build payload with optional pre-serialized tools to avoid redundant JSON.stringify on tools array
+    const toolsJson = cachedToolsJson ?? JSON.stringify(tools);
+    const payload = `{"model":${JSON.stringify(this.model)},"messages":${JSON.stringify(messages)},"tools":${toolsJson},"tool_choice":"auto","max_tokens":${this.maxTokens},"max_completion_tokens":${this.maxTokens},"temperature":${this.temperature},"stream":true,"stream_options":{"include_usage":true}}`;
 
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
@@ -609,6 +603,24 @@ export class LLMClient {
     } finally {
       clearInterval(watchdog);
       reader.cancel().catch(() => {});
+    }
+
+    // Flush remaining buffer — usage event may arrive in the final chunk
+    if (buffer.trim()) {
+      let flushFrom = 0;
+      let flushIdx: number;
+      while ((flushIdx = buffer.indexOf('\n', flushFrom)) !== -1) {
+        const line = buffer.substring(flushFrom, flushIdx);
+        flushFrom = flushIdx + 1;
+        if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+        try {
+          const json = JSON.parse(line.slice(6));
+          if (json.usage) {
+            inputTokens = json.usage.prompt_tokens || 0;
+            outputTokens = json.usage.completion_tokens || 0;
+          }
+        } catch { /* malformed */ }
+      }
     }
 
     const content = contentParts.join('');

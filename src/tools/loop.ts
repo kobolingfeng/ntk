@@ -12,7 +12,7 @@
 import type { LLMClient } from '../core/llm.js';
 import type { AgentType, Phase } from '../core/protocol.js';
 import type { ToolDefinition } from './definitions.js';
-import { TOOL_DEFINITIONS, parseToolCall } from './definitions.js';
+import { TOOL_DEFINITIONS } from './definitions.js';
 import { executeTools } from './executor.js';
 
 /** Configuration for the tool loop */
@@ -81,9 +81,11 @@ export async function runToolLoop(
 
   let totalToolCalls = 0;
   let round = 0;
+  // Pre-serialize tools once — avoids re-serializing the tools array on every round
+  const toolsJson = JSON.stringify(tools);
 
   for (round = 0; round < maxRounds; round++) {
-    const result = await llm.chatWithTools(messages, tools, agent, phase, onToken);
+    const result = await llm.chatWithTools(messages, tools, agent, phase, onToken, toolsJson);
 
     if (result.toolCalls && result.toolCalls.length > 0) {
       // LLM wants to call tools
