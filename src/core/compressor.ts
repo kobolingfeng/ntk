@@ -134,6 +134,20 @@ export class Compressor {
     try {
       const { content, usage } = await this.llm.chat(COMPRESSION_PROMPTS[level][this.locale], preFiltered, agent, phase);
 
+      // Guard against empty LLM response — fallback to pre-filtered text
+      if (!content?.trim()) {
+        return {
+          compressed: preFiltered,
+          originalLength,
+          compressedLength: preFiltered.length,
+          ratio: originalLength / Math.max(preFiltered.length, 1),
+          wasCompressed: pfResult.charsRemoved > 0,
+          preFilterResult: pfResult,
+          teeId,
+          compressionFailed: true,
+        };
+      }
+
       return {
         compressed: content,
         originalLength,

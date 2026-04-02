@@ -89,13 +89,16 @@ describe('Compressor', () => {
       expect(result.tokensUsed).toBe(70); // 50 + 20
     });
 
-    it('handles empty LLM response (ratio uses max(1))', async () => {
+    it('handles empty LLM response (falls back to pre-filtered text)', async () => {
       const llm = createMockLLM('');
       const compressor = new Compressor(llm);
       const longText = 'a'.repeat(300);
 
       const result = await compressor.compress(longText);
-      expect(result.ratio).toBe(300); // 300 / max(0, 1) = 300
+      // Empty LLM response triggers fallback — compressed should be pre-filtered text, not empty
+      expect(result.compressed).toBe(longText);
+      expect(result.compressionFailed).toBe(true);
+      expect(result.ratio).toBe(1);
     });
   });
 

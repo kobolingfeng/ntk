@@ -201,6 +201,14 @@ export class Pipeline {
     this.traceStartedAt = Date.now();
     this.traceEvents = [];
     this.traceRetryCount = 0;
+    this.traceFastPathResult = null;
+    this.traceClassifierResult = null;
+    this.traceSpeculativeHit = null;
+    this.tracePredictionConfidence = null;
+    this.traceTeeRetrieved = 0;
+    this.traceCompressionFallbacks = 0;
+    this.traceTeeRecoveryAttempts = 0;
+    this.traceTeeRecoverySuccesses = 0;
 
     // Early return for empty / whitespace-only input
     if (!userRequest.trim()) {
