@@ -15,7 +15,10 @@ import http from 'node:http';
 import { Compressor } from '../core/compressor.js';
 import type { EndpointManager } from '../core/llm.js';
 import { LLMClient } from '../core/llm.js';
+import { detectLocale, detectTaskBand } from '../core/prompts.js';
 import type { NTKConfig } from '../core/protocol.js';
+import { classifyDepthFastPath } from '../pipeline/classifier.js';
+import { predictTokenUsage } from '../pipeline/helpers.js';
 import type { PipelineEvent, PipelineResult } from '../pipeline/pipeline.js';
 import { Pipeline } from '../pipeline/pipeline.js';
 
@@ -24,6 +27,7 @@ export class NTKServer {
   private config: NTKConfig;
   private endpointManager?: EndpointManager;
   private lastResult: PipelineResult | null = null;
+  private cachedCompressor: Compressor | null = null;
   private runHistory: Array<{
     request: string;
     success: boolean;
@@ -346,8 +350,10 @@ export class NTKServer {
     }
 
     const llm = new LLMClient(this.config.compressor, this.endpointManager);
-    const compressor = new Compressor(llm);
-    const result = await compressor.compress(text, level || 'standard');
+    if (!this.cachedCompressor) {
+      this.cachedCompressor = new Compressor(llm);
+    }
+    const result = await this.cachedCompressor.compress(text, level || 'standard');
 
     this.sendJson(res, 200, result);
   }
@@ -377,10 +383,6 @@ export class NTKServer {
       this.sendJson(res, 400, { error: 'Task too long (max 10000 characters)' });
       return;
     }
-
-    const { classifyDepthFastPath } = await import('../pipeline/classifier.js');
-    const { predictTokenUsage } = await import('../pipeline/helpers.js');
-    const { detectLocale, detectTaskBand } = await import('../core/prompts.js');
 
     const depth = classifyDepthFastPath(task) ?? 'light';
     const locale = detectLocale(task);
