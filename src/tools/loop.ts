@@ -171,6 +171,7 @@ export async function runToolLoop(
           const msgIdx = toolResultIndices[i];
           messages[msgIdx].content = CLEARED_MSG;
         }
+        toolResultIndices.splice(0, clearCount);
       }
     } else {
       // LLM returned final text response

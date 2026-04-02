@@ -78,7 +78,7 @@ function safePath(path: string, cwd: string): string {
 }
 
 /** Blocked commands for security */
-const BLOCKED_COMMANDS = /^\s*(rm\s+-rf\s+\/|del\s+\/s\s+\/q\s+[A-Z]:\\|format\s+|mkfs|dd\s+if=|:(){ :|curl\s+.*\|\s*(?:sh|bash)|wget\s+.*\|\s*(?:sh|bash))/i;
+const BLOCKED_COMMANDS = /^\s*(rm\s+-rf\s+\/|del\s+\/s\s+\/q\s+[A-Z]:\\|format\s+[A-Z]:|mkfs|dd\s+if=|:(){ :|curl\s+.*\|\s*(?:sh|bash)|wget\s+.*\|\s*(?:sh|bash)|sudo\s|>\s*\/dev\/)/i;
 
 // ─── Tool Implementations ──────────────────────────
 
@@ -333,12 +333,24 @@ function cachedGlobToRegex(glob: string): RegExp {
 }
 
 function globToRegex(glob: string): RegExp {
-  const re = glob
+  // Handle {a,b,c} alternation before escaping — use sentinels to protect regex syntax
+  let seq = 0;
+  const alternations: string[] = [];
+  const expanded = glob.replace(/\{([^}]+)\}/g, (_m, inner: string) => {
+    const id = `§ALT${seq++}§`;
+    alternations.push(`(${inner.split(',').map(s => s.replace(/[.+^${}()|[\]\\]/g, '\\$&')).join('|')})`);
+    return id;
+  });
+  let re = expanded
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '§DOUBLESTAR§')
     .replace(/\*/g, '[^/]*')
     .replace(/§DOUBLESTAR§/g, '.*')
     .replace(/\?/g, '.');
+  // Restore alternation groups
+  for (let i = 0; i < alternations.length; i++) {
+    re = re.replace(`§ALT${i}§`, alternations[i]);
+  }
   return new RegExp(`^${re}$`, 'i');
 }
 
