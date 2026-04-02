@@ -215,7 +215,7 @@ export class Pipeline {
     this.locale = detectLocale(userRequest);
     // Defer full agent locale propagation — only executor is guaranteed to be used
     this.executor.setLocale(this.locale);
-    this.compressor.setLocale(this.locale);
+    // Compressor locale deferred to runNonDirectDepth() to avoid premature lazy init
 
     // Step 0a: Pipeline-level pre-filter (zero token cost, before cache to normalize keys)
     const pfResult = preFilter(userRequest);
@@ -371,6 +371,7 @@ export class Pipeline {
 
   private async runNonDirectDepth(depth: PipelineDepth, cleanRequest: string): Promise<PipelineResult> {
     // Propagate locale and phase to remaining agents on first non-direct execution
+    this.compressor.setLocale(this.locale);
     this.planner.setLocale(this.locale);
     this.scout.setLocale(this.locale);
     this.summarizer.setLocale(this.locale);
@@ -493,8 +494,8 @@ export class Pipeline {
         preFilterCharsRemoved: preFilter?.totalCharsRemoved ?? 0,
         preFilterOriginalChars: preFilter?.totalOriginal ?? 0,
         preFilterReductionPercent: preFilter?.reductionPercent ?? 0,
-        llmCompressionCalls: this.compressor.getPreFilterStats().length,
-        teeEntriesStored: this.compressor.teeSize,
+        llmCompressionCalls: this._compressor?.getPreFilterStats().length ?? 0,
+        teeEntriesStored: this._compressor?.teeSize ?? 0,
         teeRetrieved: this.traceTeeRetrieved,
       },
       tokens: {
@@ -538,7 +539,7 @@ export class Pipeline {
   }
 
   private getPreFilterSavings(): PreFilterSavings {
-    const stats = this.compressor.getTotalPreFilterSavings();
+    const stats = this._compressor?.getTotalPreFilterSavings() ?? { totalCharsRemoved: 0, totalOriginal: 0, callCount: 0 };
     const totalRemoved = stats.totalCharsRemoved + this.pipelinePreFilterCharsRemoved;
     const totalOrig =
       stats.totalOriginal + (this.pipelinePreFilterCharsRemoved > 0 ? this.state.userRequest.length : 0);
