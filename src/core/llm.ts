@@ -18,7 +18,7 @@ import type { AgentType, LLMConfig, Phase, TokenUsage } from './protocol.js';
 /** Shared TextDecoder instance for SSE stream parsing */
 const sseDecoder = new TextDecoder();
 /** Reusable decode options — avoids per-chunk object allocation */
-const SSE_DECODE_OPT: TextDecodeOptions = { stream: true };
+const SSE_DECODE_OPT = { stream: true } as const;
 /** 1MB safety limit for SSE buffer */
 const MAX_BUFFER = 1_048_576;
 /** 30s inactivity timeout for stream reading */
