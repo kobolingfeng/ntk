@@ -52,6 +52,9 @@ import type { PipelineDepth, PipelineEvent, PipelineResult, PipelineTrace, PreFi
 /** Shared cache across Pipeline instances within the same process */
 const sharedCache = new ResponseCache();
 
+/** Reusable empty stats object — avoids allocating a new one for each directCtx call */
+const EMPTY_ROUTER_STATS = Object.freeze({ totalRouted: 0, totalBlocked: 0, blockRate: 0, byRoute: {} }) as import('../core/router.js').RouterStats;
+
 export class Pipeline {
   /** Clear the shared response cache (useful for interactive mode / testing) */
   static clearCache(): void {
@@ -205,7 +208,7 @@ export class Pipeline {
         success: false,
         report: 'No task provided.',
         tokenReport: this.getTokenReport(),
-        routerStats: this._router?.getStats() ?? { totalRouted: 0, totalBlocked: 0, blockRate: 0, byRoute: {} },
+        routerStats: this._router?.getStats() ?? EMPTY_ROUTER_STATS,
         blockedMessages: [],
         depth: 'direct',
       };
@@ -551,7 +554,7 @@ export class Pipeline {
       executor: this.executor,
       locale: this.locale,
       getTokenReport: () => this.getTokenReport(),
-      getRouterStats: () => this._router?.getStats() ?? { totalRouted: 0, totalBlocked: 0, blockRate: 0, byRoute: {} },
+      getRouterStats: () => this._router?.getStats() ?? EMPTY_ROUTER_STATS,
       emit: overrides?.emit ?? ((e) => this.emit(e)),
       llm: this.compressorLLM,
       plannerLLM: this.plannerLLM,
