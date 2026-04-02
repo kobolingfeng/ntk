@@ -59,7 +59,7 @@ export class Planner extends BaseAgent {
 
       // Format 3: numbered list — 1. instruction or 1) instruction
       const numberedMatch = trimmed.match(NUMBERED_INSTRUCTION);
-      if (numberedMatch && trimmed.length > 20) {
+      if (numberedMatch && numberedMatch[1].trim().length >= 2) {
         results.push({ target: 'executor' as const, instruction: numberedMatch[1].trim() });
       }
     }

@@ -49,6 +49,7 @@ function loadConfig(): NTKConfig {
 
 let initialized = false;
 let cachedConfig: NTKConfig | null = null;
+let cachedCompressor: Compressor | null = null;
 
 async function ensureInitialized(): Promise<NTKConfig> {
   if (!initialized) {
@@ -187,8 +188,10 @@ server.tool(
     try {
       const config = await ensureInitialized();
 
-      const compressor = new Compressor(new LLMClient(config.compressor, endpointManager));
-      const result = await compressor.compress(text, level || 'standard', 'summarizer', 'gather');
+      if (!cachedCompressor) {
+        cachedCompressor = new Compressor(new LLMClient(config.compressor, endpointManager));
+      }
+      const result = await cachedCompressor.compress(text, level || 'standard', 'summarizer', 'gather');
 
       return {
         content: [

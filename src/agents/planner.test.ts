@@ -110,15 +110,19 @@ describe('Planner.parseInstructions()', () => {
       expect(result).toHaveLength(1);
     });
 
-    it('ignores short numbered lines (≤20 chars)', () => {
-      const result = planner.parseInstructions('1. short');
+    it('ignores numbered lines with empty instruction', () => {
+      const result = planner.parseInstructions('1. ');
       expect(result).toHaveLength(0);
     });
 
-    it('ignores numbered line with exactly 20 chars', () => {
-      // "1. " + 17 chars = 20 total
-      const result = planner.parseInstructions('1. 12345678901234567');
+    it('ignores numbered line with single-char instruction', () => {
+      const result = planner.parseInstructions('1. x');
       expect(result).toHaveLength(0);
+    });
+
+    it('accepts numbered line with short instruction', () => {
+      const result = planner.parseInstructions('1. 12345678901234567');
+      expect(result).toHaveLength(1);
     });
 
     it('accepts numbered line with 21 chars', () => {
