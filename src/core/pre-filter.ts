@@ -389,16 +389,20 @@ function stripProgressAndBoilerplate(text: string): { result: string; name: stri
   return { result: filtered.join('\n'), name: 'progress+boilerplate-strip' };
 }
 
+const RE_CODE_BLOCK = /```(\w*)\n([\s\S]*?)```/g;
+const RE_COMMENTS = /(?:^\ *\/\/.*$|^\ *#(?!!).*$|\/\*[\s\S]*?\*\/)/gm;
+const RE_BLANK_COLLAPSE = /\n{3,}/g;
+const RE_TRAILING_CODE_WS = /[ \t]+$/gm;
+
 function compressCodeBlocks(text: string): { result: string; name: string } {
-  const codeBlockPattern = /```(\w*)\n([\s\S]*?)```/g;
-  const result = text.replace(codeBlockPattern, (fullMatch, lang: string, code: string) => {
+  RE_CODE_BLOCK.lastIndex = 0;
+  const result = text.replace(RE_CODE_BLOCK, (fullMatch, lang: string, code: string) => {
     let compressed = code;
 
-    // Strip comments in single pass (// single-line, # single-line, /* multi-line */)
-    compressed = compressed.replace(/(?:^\ *\/\/.*$|^\ *#(?!!).*$|\/\*[\s\S]*?\*\/)/gm, '');
+    RE_COMMENTS.lastIndex = 0;
+    compressed = compressed.replace(RE_COMMENTS, '');
 
-    // Collapse blank lines + trailing whitespace in single pass
-    compressed = compressed.replace(/\n{3,}/g, '\n').replace(/[ \t]+$/gm, '');
+    compressed = compressed.replace(RE_BLANK_COLLAPSE, '\n').replace(RE_TRAILING_CODE_WS, '');
 
     // Apply if we saved any meaningful space (>5% reduction)
     if (compressed.length < code.length * 0.95) {
