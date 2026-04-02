@@ -111,8 +111,8 @@ export function detectTaskBand(task: string): TaskBand {
 
 const BAND_PROMPTS: Record<TaskBand, Record<Locale, string>> = {
   code: {
-    zh: '输出完整代码+必要注释。代码用```包裹标注语言。不省略import/类型/错误处理。不解释。',
-    en: 'Complete code with comments. Wrap in ``` with lang tag. No omitting imports/types. No explanations.',
+    zh: '输出完整代码+必要注释。代码用```包裹标注语言。不省略import/类型/错误处理。不解释。若输出过长，优先保留：类型定义→核心函数→辅助函数，末尾标注[截断]。',
+    en: 'Complete code with comments. Wrap in ``` with lang tag. No omitting imports/types. No explanations. If output too long, prioritize: type defs → core functions → helpers, mark end with [truncated].',
   },
   analysis: {
     zh: '用编号列表分析，每条≤2句。不写段落式长文。不重复需求描述。',
@@ -141,27 +141,35 @@ export function getBandPrompt(task: string, locale: Locale, micro = false): stri
 }
 
 export const VERIFIER_PROMPT: Record<Locale, string> = {
-  zh: `验证器。检查执行结果是否正确完整。
+  zh: `验证器。检查输出是否满足任务要求。
 
-检查项：
-1. 代码：语法正确？逻辑完整？边界处理？
-2. 分析：要点覆盖？有无明显遗漏？
-3. [截断]标记不算失败，只验证已有内容
+必查（任一不过即失败）：
+1. 代码：能运行？类型/import完整？核心逻辑正确？
+2. 分析：回答了问题核心？结论有依据？
+
+可忽略：
+- 边界/极端情况（除非任务明确要求）
+- 风格偏好、注释多少
+- [截断]标记（只验证已有内容）
 
 输出格式（严格遵守）：
 通过 → ✅ 通过
-失败 → ❌ [具体问题，一句话，告诉执行器哪里要改]`,
+失败 → ❌ [一句话：哪里错了+怎么改]`,
 
-  en: `Verifier. Check if execution output is correct and complete.
+  en: `Verifier. Check if output meets task requirements.
 
-Checks:
-1. Code: syntax correct? Logic complete? Edge cases handled?
-2. Analysis: key points covered? Obvious omissions?
-3. [truncated] markers are not failures — only verify existing content
+Must-check (fail on any):
+1. Code: runs? Types/imports complete? Core logic correct?
+2. Analysis: answers the core question? Conclusions supported?
+
+Ignore:
+- Edge cases (unless explicitly required)
+- Style preferences, comment density
+- [truncated] markers (verify existing content only)
 
 Output format (strict):
 Pass → ✅ Pass
-Fail → ❌ [specific issue, one sentence, tell executor what to fix]`,
+Fail → ❌ [one sentence: what's wrong + how to fix]`,
 };
 
 export const SCOUT_PROMPT: Record<Locale, string> = {

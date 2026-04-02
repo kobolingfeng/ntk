@@ -82,38 +82,48 @@ server.tool(
     skipScout: z.boolean().optional().describe('Skip the scout/research phase in standard depth'),
   },
   async ({ task, forceDepth, skipScout }) => {
-    await ensureInitialized();
-    const config = loadConfig();
+    try {
+      await ensureInitialized();
+      const config = loadConfig();
 
-    const pipeline = new Pipeline(config, () => {}, {
-      forceDepth: forceDepth as PipelineDepth | undefined,
-      skipScout,
-      endpointManager,
-    });
-    const result = await Promise.race([
-      pipeline.run(task),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Task timeout (5min)')), 300_000),
-      ),
-    ]);
+      const pipeline = new Pipeline(config, () => {}, {
+        forceDepth: forceDepth as PipelineDepth | undefined,
+        skipScout,
+        endpointManager,
+      });
+      let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+      const result = await Promise.race([
+        pipeline.run(task),
+        new Promise<never>((_, reject) => {
+          timeoutTimer = setTimeout(() => reject(new Error('Task timeout (5min)')), 300_000);
+        }),
+      ]);
+      clearTimeout(timeoutTimer);
 
-    const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
-    const plannerTok = result.tokenReport.byAgent.planner
-      ? result.tokenReport.byAgent.planner.input + result.tokenReport.byAgent.planner.output
-      : 0;
+      const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
+      const plannerTok = result.tokenReport.byAgent.planner
+        ? result.tokenReport.byAgent.planner.input + result.tokenReport.byAgent.planner.output
+        : 0;
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: result.report,
-        },
-        {
-          type: 'text' as const,
-          text: `\n---\n📊 Depth: ${result.depth} | Tokens: ${totalTokens} (strong: ${plannerTok}) | Success: ${result.success}`,
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: result.report,
+          },
+          {
+            type: 'text' as const,
+            text: `\n---\n📊 Depth: ${result.depth} | Tokens: ${totalTokens} (strong: ${plannerTok}) | Success: ${result.success}`,
+          },
+        ],
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: 'text' as const, text: `Error: ${msg}` }],
+        isError: true,
+      };
+    }
   },
 );
 
@@ -125,32 +135,40 @@ server.tool(
     task: z.string().max(10000).describe('The task to execute'),
   },
   async ({ task }) => {
-    await ensureInitialized();
-    const config = loadConfig();
-    const fastConfig = { ...config, planner: { ...config.compressor } };
-    const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth, endpointManager });
-    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
-    const result = await Promise.race([
-      pipeline.run(task),
-      new Promise<never>((_, reject) => {
-        timeoutTimer = setTimeout(() => reject(new Error('Task timeout (5min)')), 300_000);
-      }),
-    ]);
-    clearTimeout(timeoutTimer);
+    try {
+      await ensureInitialized();
+      const config = loadConfig();
+      const fastConfig = { ...config, planner: { ...config.compressor } };
+      const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth, endpointManager });
+      let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+      const result = await Promise.race([
+        pipeline.run(task),
+        new Promise<never>((_, reject) => {
+          timeoutTimer = setTimeout(() => reject(new Error('Task timeout (5min)')), 300_000);
+        }),
+      ]);
+      clearTimeout(timeoutTimer);
 
-    const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: result.report,
-        },
-        {
-          type: 'text' as const,
-          text: `\n---\n⚡ Fast mode | Tokens: ${totalTokens} | Success: ${result.success}`,
-        },
-      ],
-    };
+      const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: result.report,
+          },
+          {
+            type: 'text' as const,
+            text: `\n---\n⚡ Fast mode | Tokens: ${totalTokens} | Success: ${result.success}`,
+          },
+        ],
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: 'text' as const, text: `Error: ${msg}` }],
+        isError: true,
+      };
+    }
   },
 );
 
@@ -163,24 +181,32 @@ server.tool(
     level: z.enum(['minimal', 'standard', 'aggressive']).optional().describe('Compression level (default: standard)'),
   },
   async ({ text, level }) => {
-    await ensureInitialized();
-    const config = loadConfig();
+    try {
+      await ensureInitialized();
+      const config = loadConfig();
 
-    const compressor = new Compressor(new LLMClient(config.compressor, endpointManager));
-    const result = await compressor.compress(text, level || 'standard', 'summarizer', 'gather');
+      const compressor = new Compressor(new LLMClient(config.compressor, endpointManager));
+      const result = await compressor.compress(text, level || 'standard', 'summarizer', 'gather');
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: result.compressed,
-        },
-        {
-          type: 'text' as const,
-          text: `\n---\n📦 Compressed: ${result.originalLength}→${result.compressedLength} chars (${result.ratio.toFixed(1)}x)`,
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: result.compressed,
+          },
+          {
+            type: 'text' as const,
+            text: `\n---\n📦 Compressed: ${result.originalLength}→${result.compressedLength} chars (${result.ratio.toFixed(1)}x)`,
+          },
+        ],
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: 'text' as const, text: `Error: ${msg}` }],
+        isError: true,
+      };
+    }
   },
 );
 
