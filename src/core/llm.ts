@@ -117,15 +117,21 @@ export class EndpointManager {
     const now = Date.now();
     const probeBody = JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 });
 
-    // Track which probes are still in flight
-    const probePromises: Promise<number>[] = [];
+    // Track all probes and their results for background discovery
+    const workingSet = new Set<number>();
+    let firstWorkingIdx = -1;
+    let firstResolve: ((name: string | null) => void) | null = null;
+
+    // Promise that resolves as soon as the first working endpoint is found
+    const firstWorking = new Promise<string | null>((resolve) => { firstResolve = resolve; });
+
+    const probePromises: Promise<void>[] = [];
 
     for (let i = 0; i < this.endpoints.length; i++) {
       const ep = this.endpoints[i];
       // Skip endpoints that failed recently
       const lastFail = this.negativeProbeCache.get(i);
       if (lastFail && now - lastFail < this.negativeProbeTTL) {
-        probePromises.push(Promise.resolve(-1));
         continue;
       }
 
@@ -148,7 +154,18 @@ export class EndpointManager {
               const data = (await response.json()) as { choices?: unknown[] };
               if (data.choices && data.choices.length > 0) {
                 console.log(`[LLM] ✅ ${ep.name} (${ep.baseUrl}) — working`);
-                return epIndex;
+                workingSet.add(epIndex);
+                // Resolve immediately on first success — don't wait for other probes
+                if (firstWorkingIdx < 0) {
+                  firstWorkingIdx = epIndex;
+                  this.activeEndpointIndex = epIndex;
+                  this.modelEndpointMap.set(model, workingSet);
+                  const name = ep.name;
+                  this.probeCache.set(model, { name, timestamp: Date.now() });
+                  this.saveDiskProbeCache(model, name, epIndex);
+                  firstResolve!(name);
+                }
+                return;
               }
             }
             console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — HTTP ${response.status}`);
@@ -157,28 +174,24 @@ export class EndpointManager {
             console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — ${msg.slice(0, 80)}`);
           }
           this.negativeProbeCache.set(epIndex, Date.now());
-          return -1;
         })(),
       );
     }
 
-    const results = await Promise.all(probePromises);
+    if (probePromises.length === 0) return null;
 
-    const working = results
-      .map((idx, originalIdx) => ({ resultIdx: idx, priority: originalIdx }))
-      .filter((r) => r.resultIdx >= 0)
-      .sort((a, b) => a.priority - b.priority);
+    // Race: wait for either the first success or all probes to complete
+    const allDone = Promise.all(probePromises).then(() => {
+      // All probes finished — if no success yet, resolve null
+      if (firstWorkingIdx < 0) firstResolve!(null);
+    });
 
-    if (working.length > 0) {
-      this.activeEndpointIndex = working[0].resultIdx;
-      const supportedSet = new Set(working.map((w) => w.resultIdx));
-      this.modelEndpointMap.set(model, supportedSet);
-      const name = this.endpoints[this.activeEndpointIndex].name;
-      this.probeCache.set(model, { name, timestamp: Date.now() });
-      this.saveDiskProbeCache(model, name, this.activeEndpointIndex);
-      return name;
-    }
-    return null;
+    const name = await firstWorking;
+
+    // Continue background discovery for failover — don't await, just let it run
+    allDone.catch(() => {});
+
+    return name;
   }
 
   /**
