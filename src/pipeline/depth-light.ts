@@ -41,7 +41,9 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
   let rawContent = '';
   if (ctx.llm && ctx.onToken) {
     const bandPrompt = getBandPrompt(ctx.userRequest, ctx.locale);
-    const { content } = await ctx.llm.chatStream(bandPrompt, ctx.userRequest, 'executor', 'execute', ctx.onToken, 2048, undefined, 2048, ctx.signal);
+    // Adaptive output budget based on task complexity
+    const adaptiveMax = ctx.userRequest.length < 150 ? 1024 : ctx.userRequest.length < 500 ? 2048 : 3072;
+    const { content } = await ctx.llm.chatStream(bandPrompt, ctx.userRequest, 'executor', 'execute', ctx.onToken, adaptiveMax, undefined, adaptiveMax, ctx.signal);
     rawContent = content.trim();
     const streamedResponse = createMessage('executor', 'planner', ctx.userRequest, rawContent);
     ctx.router.route(streamedResponse, 'execute');
