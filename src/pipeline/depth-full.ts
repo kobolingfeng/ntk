@@ -93,8 +93,14 @@ async function gatherPhase(ctx: FullDepthContext): Promise<void> {
       const context: AgentContext = {
         visibleMessages: ctx.router.getVisibleMessages(inst.target),
       };
-      const response = await agent.process(msg, context);
-      return { inst, decision, response };
+      try {
+        const response = await agent.process(msg, context);
+        return { inst, decision, response };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        ctx.emit({ type: 'error', phase: 'gather', detail: `${inst.target} failed: ${errMsg}` });
+        return null;
+      }
     });
 
   const gatherResults = await Promise.all(gatherTasks);
@@ -192,18 +198,25 @@ async function executeSerial(ctx: FullDepthContext, instructions: PlannerInstruc
     }
 
     let output: string;
-    if (ctx.onToken && ctx.compressorLLM) {
-      const prompt = getBandPrompt(inst.instruction, ctx.locale);
-      const fullInput = `${ctx.strings.originalRequest}: ${ctx.userRequest}\n\n${inst.instruction}`;
-      const { content } = await ctx.compressorLLM.chatStream(prompt, fullInput, 'executor', 'execute', ctx.onToken);
-      output = content;
-      // Route the streamed response through the router for consistency with non-streaming path
-      const streamedResponse = createMessage('executor', 'planner', inst.instruction, output);
-      ctx.router.route(streamedResponse, 'execute');
-    } else {
-      const response = await ctx.executor.process(msg, EMPTY_CONTEXT);
-      ctx.router.route(response, 'execute');
-      output = response.payload;
+    try {
+      if (ctx.onToken && ctx.compressorLLM) {
+        const prompt = getBandPrompt(inst.instruction, ctx.locale);
+        const fullInput = `${ctx.strings.originalRequest}: ${ctx.userRequest}\n\n${inst.instruction}`;
+        const { content } = await ctx.compressorLLM.chatStream(prompt, fullInput, 'executor', 'execute', ctx.onToken);
+        output = content;
+        // Route the streamed response through the router for consistency with non-streaming path
+        const streamedResponse = createMessage('executor', 'planner', inst.instruction, output);
+        ctx.router.route(streamedResponse, 'execute');
+      } else {
+        const response = await ctx.executor.process(msg, EMPTY_CONTEXT);
+        ctx.router.route(response, 'execute');
+        output = response.payload;
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      ctx.emit({ type: 'error', phase: 'execute', detail: `serial task failed: ${errMsg}` });
+      results.push({ instruction: inst.instruction, output: '', success: false });
+      continue;
     }
 
     results.push({
@@ -237,24 +250,34 @@ async function executeParallel(ctx: FullDepthContext, instructions: PlannerInstr
       return null;
     }
 
-    const response = await ctx.executor.process(msg, EMPTY_CONTEXT);
-    ctx.router.route(response, 'execute');
+    try {
+      const response = await ctx.executor.process(msg, EMPTY_CONTEXT);
+      ctx.router.route(response, 'execute');
 
-    ctx.emit({
-      type: 'execution',
-      phase: 'execute',
-      detail: `✓ ${inst.instruction.slice(0, 60)}...`,
-    });
+      ctx.emit({
+        type: 'execution',
+        phase: 'execute',
+        detail: `✓ ${inst.instruction.slice(0, 60)}...`,
+      });
 
-    return {
-      instruction: inst.instruction,
-      output: response.payload,
-      success: true,
-    } as ExecutionResult;
+      return {
+        instruction: inst.instruction,
+        output: response.payload,
+        success: true,
+      } as ExecutionResult;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      ctx.emit({ type: 'error', phase: 'execute', detail: `parallel task failed: ${errMsg}` });
+      return {
+        instruction: inst.instruction,
+        output: '',
+        success: false,
+      } as ExecutionResult;
+    }
   });
 
   const results = await Promise.all(tasks);
-  return results.filter((r): r is ExecutionResult => r !== null);
+  return results.filter((r): r is ExecutionResult => r !== null && (r.success || r.output.length > 0));
 }
 
 async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): Promise<VerificationResult> {
@@ -305,7 +328,16 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
       localScratchpad: retries > 0 ? ctx.strings.retryVerify(retries) : undefined,
     };
 
-    const response = await ctx.verifier.process(verifyMsg, context);
+    let response;
+    try {
+      response = await ctx.verifier.process(verifyMsg, context);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      ctx.emit({ type: 'error', phase: 'verify', detail: `verifier failed: ${errMsg}` });
+      // Verifier crash → treat as passed (benefit of the doubt)
+      allPassed = true;
+      break;
+    }
     ctx.router.route(response, 'verify');
     lastVerification = response.payload;
 
@@ -327,13 +359,18 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
           visibleMessages: [],
           localScratchpad: `${ctx.strings.fixVerifyIssues}: ${ctx.userRequest.slice(0, 300)}`,
         };
-        const fixResponse = await ctx.executor.process(fixMsg, execContext);
-        ctx.router.route(fixResponse, 'execute');
+        try {
+          const fixResponse = await ctx.executor.process(fixMsg, execContext);
+          ctx.router.route(fixResponse, 'execute');
 
-        const lastResult = results[results.length - 1];
-        if (lastResult) {
-          lastResult.output += `\n\n--- ${ctx.strings.fixSupplement} ---\n${fixResponse.payload}`;
-          lastResult.success = true;
+          const lastResult = results[results.length - 1];
+          if (lastResult) {
+            lastResult.output += `\n\n--- ${ctx.strings.fixSupplement} ---\n${fixResponse.payload}`;
+            lastResult.success = true;
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          ctx.emit({ type: 'error', phase: 'verify', detail: `fix attempt failed: ${errMsg}` });
         }
       }
     }

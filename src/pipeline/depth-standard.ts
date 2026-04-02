@@ -35,11 +35,16 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
   if (!ctx.skipScout) {
     ctx.emit({ type: 'phase', phase: 'gather', detail: 'Scouting...' });
 
-    const scoutMsg = createMessage('planner', 'scout', `${ctx.strings.research}: ${ctx.userRequest}`, '');
-    const scoutResponse = await ctx.scout.process(scoutMsg, EMPTY_CONTEXT);
+    try {
+      const scoutMsg = createMessage('planner', 'scout', `${ctx.strings.research}: ${ctx.userRequest}`, '');
+      const scoutResponse = await ctx.scout.process(scoutMsg, EMPTY_CONTEXT);
 
-    ctx.emit({ type: 'message', phase: 'gather', detail: `scout: ${scoutResponse.payload.slice(0, 80)}` });
-    scoutContext = `${ctx.strings.researchResult}: ${scoutResponse.payload}`;
+      ctx.emit({ type: 'message', phase: 'gather', detail: `scout: ${scoutResponse.payload.slice(0, 80)}` });
+      scoutContext = `${ctx.strings.researchResult}: ${scoutResponse.payload}`;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      ctx.emit({ type: 'error', phase: 'gather', detail: `scout failed, continuing without: ${errMsg}` });
+    }
   }
 
   ctx.emit({
@@ -70,19 +75,28 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
     const skipVerify = isStructurallyComplete(rawContent, ctx.userRequest);
     if (!skipVerify) {
       ctx.emit({ type: 'phase', phase: 'verify', detail: 'Standard verification...' });
-      const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, rawContent);
-      const verifyResponse = await ctx.verifier.process(verifyMsg, EMPTY_CONTEXT);
-      const passed = parseVerificationResult(verifyResponse.payload);
-      if (!passed) {
-        ctx.emit({ type: 'retry', phase: 'verify', detail: 'Standard fix attempt...' });
-        const fixMsg = createMessage(
-          'verifier',
-          'executor',
-          ctx.userRequest,
-          `${ctx.strings.verifyFeedback}: ${verifyResponse.payload.slice(0, 300)}`,
-        );
-        const fixResponse = await ctx.executor.process(fixMsg, EMPTY_CONTEXT);
-        report = fixResponse.payload.trim() || report;
+      try {
+        const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, rawContent);
+        const verifyResponse = await ctx.verifier.process(verifyMsg, EMPTY_CONTEXT);
+        const passed = parseVerificationResult(verifyResponse.payload);
+        if (!passed) {
+          ctx.emit({ type: 'retry', phase: 'verify', detail: 'Standard fix attempt...' });
+          try {
+            const fixMsg = createMessage(
+              'verifier',
+              'executor',
+              ctx.userRequest,
+              `${ctx.strings.verifyFeedback}: ${verifyResponse.payload.slice(0, 300)}`,
+            );
+            const fixResponse = await ctx.executor.process(fixMsg, EMPTY_CONTEXT);
+            report = fixResponse.payload.trim() || report;
+          } catch {
+            ctx.emit({ type: 'error', phase: 'verify', detail: 'Fix attempt failed, keeping original output' });
+          }
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        ctx.emit({ type: 'error', phase: 'verify', detail: `verification failed: ${errMsg}` });
       }
     } else if (rawContent.length >= 100) {
       ctx.emit({ type: 'message', phase: 'verify', detail: 'Smart skip: output looks structurally complete' });

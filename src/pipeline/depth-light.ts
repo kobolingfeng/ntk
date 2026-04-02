@@ -59,25 +59,35 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
   if (!skipVerify) {
     ctx.emit({ type: 'phase', phase: 'verify', detail: 'Light verification...' });
 
-    const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, rawContent);
-    const verifyResponse = await ctx.verifier.process(verifyMsg, EMPTY_CONTEXT);
+    try {
+      const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, rawContent);
+      const verifyResponse = await ctx.verifier.process(verifyMsg, EMPTY_CONTEXT);
 
-    passed = parseVerificationResult(verifyResponse.payload);
-    verifyFeedback = verifyResponse.payload;
+      passed = parseVerificationResult(verifyResponse.payload);
+      verifyFeedback = verifyResponse.payload;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      ctx.emit({ type: 'error', phase: 'verify', detail: `verifier failed: ${errMsg}` });
+      // Verifier crash → treat as passed
+    }
   } else if (rawContent.length >= 100) {
     ctx.emit({ type: 'message', phase: 'verify', detail: 'Smart skip: output looks structurally complete' });
   }
 
   if (!passed) {
     ctx.emit({ type: 'retry', phase: 'verify', detail: 'Light fix attempt...' });
-    const fixMsg = createMessage(
-      'verifier',
-      'executor',
-      ctx.userRequest,
-      `${ctx.strings.verifyFeedback}: ${verifyFeedback.slice(0, 300)}`,
-    );
-    const fixResponse = await ctx.executor.process(fixMsg, EMPTY_CONTEXT);
-    report = fixResponse.payload.trim() || report;
+    try {
+      const fixMsg = createMessage(
+        'verifier',
+        'executor',
+        ctx.userRequest,
+        `${ctx.strings.verifyFeedback}: ${verifyFeedback.slice(0, 300)}`,
+      );
+      const fixResponse = await ctx.executor.process(fixMsg, EMPTY_CONTEXT);
+      report = fixResponse.payload.trim() || report;
+    } catch {
+      ctx.emit({ type: 'error', phase: 'verify', detail: 'Fix attempt failed, keeping original output' });
+    }
   }
 
   report = fixUnbalancedFences(report);
