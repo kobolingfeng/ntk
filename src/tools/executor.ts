@@ -189,6 +189,7 @@ function toolSearchInFiles(args: Record<string, unknown>, cwd: string): string {
             const stat = statSync(fullPath);
             if (stat.size > 200_000) continue;
             const content = cachedReadFile(fullPath);
+            const relPath = fullPath.slice(cwd.length + 1).replace(/\\/g, '/');
             // Line-by-line scan without split() allocation
             let lineStart = 0;
             let lineNum = 1;
@@ -196,7 +197,6 @@ function toolSearchInFiles(args: Record<string, unknown>, cwd: string): string {
               if (i === content.length || content.charCodeAt(i) === 10) {
                 const line = content.substring(lineStart, i);
                 if (regex.test(line)) {
-                  const relPath = fullPath.slice(cwd.length + 1).replace(/\\/g, '/');
                   results.push(`${relPath}:${lineNum}: ${line.trim().slice(0, 120)}`);
                   if (results.length >= 50) return;
                 }

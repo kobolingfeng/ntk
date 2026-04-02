@@ -179,7 +179,7 @@ export class EndpointManager {
 
     const TIMEOUT = 4000; // 4s is enough; working endpoints respond in <2s
     const now = Date.now();
-    const probeBody = JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 });
+    const probeBody = `{"model":${JSON.stringify(model)},"messages":[{"role":"user","content":"hi"}],"max_tokens":1}`;
 
     // Track all probes and their results for background discovery
     const workingSet = new Set<number>();
@@ -269,7 +269,7 @@ export class EndpointManager {
     this.loadDiskProbeCache();
     const TIMEOUT = 8000;
     const now = Date.now();
-    const probeBody = JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 });
+    const probeBody = `{"model":${JSON.stringify(model)},"messages":[{"role":"user","content":"hi"}],"max_tokens":1}`;
 
     const probePromises = this.endpoints.map(async (ep, i) => {
       const lastFail = this.negativeProbeCache.get(i);
