@@ -178,41 +178,32 @@ export class NTKServer {
 
     const config = { ...this.config, debug: debug === true ? true : this.config.debug };
     const events: PipelineEvent[] = [];
+    const signal = AbortSignal.timeout(this.requestTimeoutMs);
 
     const pipeline = new Pipeline(
       config,
       (event) => {
         events.push(event);
       },
-      { endpointManager: this.endpointManager },
+      { endpointManager: this.endpointManager, signal },
     );
 
     const startTime = Date.now();
-    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const result = await Promise.race([
-        pipeline.run(task),
-        new Promise<never>((_, reject) => {
-          timeoutTimer = setTimeout(() => reject(new Error('Request timeout: pipeline exceeded 5 minute limit')), this.requestTimeoutMs);
-        }),
-      ]);
-      const durationMs = Date.now() - startTime;
+    const result = await pipeline.run(task);
+    const durationMs = Date.now() - startTime;
 
-      this.lastResult = result;
-      this.addToHistory(task, result, startTime, durationMs);
+    this.lastResult = result;
+    this.addToHistory(task, result, startTime, durationMs);
 
-      this.sendJson(res, 200, {
-        success: result.success,
-        report: result.report,
-        tokenUsage: result.tokenReport,
-        routerStats: result.routerStats,
-        blockedCount: result.blockedMessages.length,
-        events: events.map((e) => ({ type: e.type, phase: e.phase, detail: e.detail })),
-        durationMs,
-      });
-    } finally {
-      clearTimeout(timeoutTimer);
-    }
+    this.sendJson(res, 200, {
+      success: result.success,
+      report: result.report,
+      tokenUsage: result.tokenReport,
+      routerStats: result.routerStats,
+      blockedCount: result.blockedMessages.length,
+      events: events.map((e) => ({ type: e.type, phase: e.phase, detail: e.detail })),
+      durationMs,
+    });
   }
 
   private async handleRunStream(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -268,6 +259,8 @@ export class NTKServer {
       }
     };
 
+    const signal = AbortSignal.timeout(this.requestTimeoutMs);
+
     const pipeline = new Pipeline(
       config,
       (event) => {
@@ -278,18 +271,13 @@ export class NTKServer {
         onToken: (token: string) => {
           writeSse(JSON.stringify({ type: 'token', phase: 'execute', detail: token }));
         },
+        signal,
       },
     );
 
     const startTime = Date.now();
-    let streamTimeoutTimer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const result = await Promise.race([
-        pipeline.run(task),
-        new Promise<never>((_, reject) => {
-          streamTimeoutTimer = setTimeout(() => reject(new Error('Stream timeout: pipeline exceeded 5 minute limit')), this.requestTimeoutMs);
-        }),
-      ]);
+      const result = await pipeline.run(task);
       const durationMs = Date.now() - startTime;
 
       this.lastResult = result;
@@ -316,7 +304,6 @@ export class NTKServer {
         res.write(`data: ${JSON.stringify({ type: 'error', phase: 'report', detail: message })}\n\n`);
       }
     } finally {
-      clearTimeout(streamTimeoutTimer);
       clearInterval(heartbeat);
       res.end();
     }
