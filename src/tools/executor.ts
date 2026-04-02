@@ -240,7 +240,14 @@ async function toolRunCommand(args: Record<string, unknown>, cwd: string): Promi
       encoding: 'utf-8',
     }, (err, stdout, stderr) => {
       if (!err) {
-        resolve(stdout || '(命令执行成功，无输出)');
+        // Include stderr if present (warnings, diagnostics) — many tools output useful info to stderr
+        const out = stdout || '';
+        const errOut = stderr ? stderr.trim() : '';
+        if (out && errOut) {
+          resolve(`${out}\n[stderr]: ${errOut}`);
+        } else {
+          resolve(out || errOut || '(命令执行成功，无输出)');
+        }
         return;
       }
       const out = String(stdout ?? '').trim();
@@ -298,8 +305,18 @@ const RE_BLOCK_OPEN = /<(p|div|h[1-6])[\s>]/gi;
 const RE_TAGS = /<[^>]+>/g;
 const RE_SPACES = /[ \t]+/g;
 const RE_MULTILINE = /\n{3,}/g;
-const RE_ENTITY = /&(?:amp|lt|gt|quot|nbsp|#39);/g;
-const HTML_ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' };
+const RE_ENTITY = /&(?:amp|lt|gt|quot|nbsp|apos|mdash|ndash|hellip|copy|reg|trade|laquo|raquo|bull|middot|#39|#(\d{1,5})|#x([0-9a-fA-F]{1,5}));/g;
+const HTML_ENTITIES: Record<string, string> = {
+  '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&apos;': "'", '&nbsp;': ' ',
+  '&mdash;': '—', '&ndash;': '–', '&hellip;': '…', '&copy;': '©', '&reg;': '®', '&trade;': '™',
+  '&laquo;': '«', '&raquo;': '»', '&bull;': '•', '&middot;': '·',
+};
+
+function decodeEntity(match: string, decimal?: string, hex?: string): string {
+  if (decimal) { const code = Number(decimal); return code > 0 && code < 0x10FFFF ? String.fromCodePoint(code) : match; }
+  if (hex) { const code = Number.parseInt(hex, 16); return code > 0 && code < 0x10FFFF ? String.fromCodePoint(code) : match; }
+  return HTML_ENTITIES[match] ?? match;
+}
 
 function htmlToText(html: string, maxLength: number): string {
   // Pre-truncate large HTML — avoid running 8 regex passes over megabytes
@@ -312,8 +329,8 @@ function htmlToText(html: string, maxLength: number): string {
   text = text.replace(RE_BLOCK_CLOSE, '\n');
   text = text.replace(RE_BLOCK_OPEN, '\n');
   text = text.replace(RE_TAGS, '');
-  // Decode common entities — single pass with Map lookup
-  text = text.replace(RE_ENTITY, m => HTML_ENTITIES[m] ?? m);
+  // Decode entities — named entities via lookup, numeric via fromCodePoint
+  text = text.replace(RE_ENTITY, decodeEntity);
   text = text.replace(RE_SPACES, ' ');
   text = text.replace(RE_MULTILINE, '\n\n');
   text = text.trim();
