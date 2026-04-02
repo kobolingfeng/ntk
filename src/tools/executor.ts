@@ -29,6 +29,36 @@ const DEFAULT_TIMEOUT = 15_000;
 /** Maximum result length (chars) before truncation */
 const MAX_RESULT_LENGTH = 12_000;
 
+// ─── File Read Cache ───────────────────────────────
+// Avoids redundant disk I/O when LLM reads the same file across tool rounds.
+// Inspired by Claude Code's FileReadCache with mtime-based invalidation.
+
+interface CachedFile { content: string; mtimeMs: number }
+const fileReadCache = new Map<string, CachedFile>();
+const FILE_CACHE_MAX = 200;
+
+function cachedReadFile(path: string): string {
+  const stat = statSync(path);
+  const cached = fileReadCache.get(path);
+  if (cached && cached.mtimeMs === stat.mtimeMs) return cached.content;
+  const content = readFileSync(path, 'utf-8');
+  fileReadCache.set(path, { content, mtimeMs: stat.mtimeMs });
+  // Simple eviction: drop oldest when exceeding limit
+  if (fileReadCache.size > FILE_CACHE_MAX) {
+    fileReadCache.delete(fileReadCache.keys().next().value!);
+  }
+  return content;
+}
+
+function invalidateFileCache(path: string): void {
+  fileReadCache.delete(path);
+}
+
+/** Flush entire file cache (e.g. between sessions) */
+export function clearFileReadCache(): void {
+  fileReadCache.clear();
+}
+
 // ─── Security Helpers ──────────────────────────────
 
 /** Resolve and validate a file path — prevent directory traversal */
@@ -57,7 +87,7 @@ function toolReadFile(args: Record<string, unknown>, cwd: string): string {
   }
   if (stat.isDirectory()) return `${args.path} 是目录，请使用 list_directory`;
   if (stat.size > 500_000) return `文件过大 (${(stat.size / 1024).toFixed(0)}KB)，请指定具体内容查找`;
-  return readFileSync(path, 'utf-8');
+  return cachedReadFile(path);
 }
 
 function toolWriteFile(args: Record<string, unknown>, cwd: string): string {
@@ -66,13 +96,14 @@ function toolWriteFile(args: Record<string, unknown>, cwd: string): string {
   const dir = dirname(path);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(path, content, 'utf-8');
+  invalidateFileCache(path);
   return `已写入 ${args.path} (${content.length} 字符)`;
 }
 
 function toolEditFile(args: Record<string, unknown>, cwd: string): string {
   const path = safePath(String(args.path ?? ''), cwd);
   if (!existsSync(path)) return `文件不存在: ${args.path}`;
-  const content = readFileSync(path, 'utf-8');
+  const content = cachedReadFile(path);
   const oldText = String(args.old_text ?? '');
   const newText = String(args.new_text ?? '');
   if (!oldText) return '错误: old_text 不能为空';
@@ -82,6 +113,7 @@ function toolEditFile(args: Record<string, unknown>, cwd: string): string {
   if (secondIdx >= 0) return '错误: old_text 匹配了多处，请提供更精确的上下文';
   const updated = content.slice(0, idx) + newText + content.slice(idx + oldText.length);
   writeFileSync(path, updated, 'utf-8');
+  invalidateFileCache(path);
   return `已替换 ${args.path} 中的文本 (${oldText.length}→${newText.length} 字符)`;
 }
 
@@ -156,7 +188,7 @@ function toolSearchInFiles(args: Record<string, unknown>, cwd: string): string {
           try {
             const stat = statSync(fullPath);
             if (stat.size > 200_000) continue;
-            const content = readFileSync(fullPath, 'utf-8');
+            const content = cachedReadFile(fullPath);
             // Line-by-line scan without split() allocation
             let lineStart = 0;
             let lineNum = 1;
@@ -314,13 +346,15 @@ const TOOL_MAP: Record<string, ToolFn> = {
   fetch_webpage: (args, _cwd) => toolFetchWebpage(args),
 };
 
+/** Async tools that need timeout protection via Promise.race */
+const ASYNC_TOOLS = new Set(['run_command', 'fetch_webpage']);
+
 /**
  * Execute a single tool call with timeout protection.
+ * Sync tools skip Promise.race overhead (no timer allocation).
  * Returns the result string, never throws.
  */
 export async function executeTool(call: ParsedToolCall, cwd: string): Promise<ToolResult> {
-  const timeout = TOOL_TIMEOUTS[call.name] ?? DEFAULT_TIMEOUT;
-
   if (!TOOL_NAMES.has(call.name)) {
     return { toolCallId: call.id, name: call.name, content: `未知工具: ${call.name}`, success: false };
   }
@@ -331,14 +365,24 @@ export async function executeTool(call: ParsedToolCall, cwd: string): Promise<To
       return { toolCallId: call.id, name: call.name, content: `未实现工具: ${call.name}`, success: false };
     }
 
-    let content = await Promise.race([
-      Promise.resolve(fn(call.args, cwd)),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error(`超时 (${timeout / 1000}s)`)), timeout)),
-    ]);
+    let content: string;
+    if (ASYNC_TOOLS.has(call.name)) {
+      // Async tools need timeout protection
+      const timeout = TOOL_TIMEOUTS[call.name] ?? DEFAULT_TIMEOUT;
+      content = await Promise.race([
+        fn(call.args, cwd) as Promise<string>,
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error(`超时 (${timeout / 1000}s)`)), timeout)),
+      ]);
+    } else {
+      // Sync tools — direct call, no timer overhead
+      content = fn(call.args, cwd) as string;
+    }
 
-    // Truncate oversized results
+    // Smart truncation: preserve head + tail so LLM sees both file structure and ending
     if (content.length > MAX_RESULT_LENGTH) {
-      content = content.slice(0, MAX_RESULT_LENGTH) + '\n...(结果已截断)';
+      const headLen = (MAX_RESULT_LENGTH * 0.7) | 0;
+      const tailLen = (MAX_RESULT_LENGTH * 0.25) | 0;
+      content = content.slice(0, headLen) + '\n\n...(中间内容已省略)...\n\n' + content.slice(-tailLen);
     }
 
     return { toolCallId: call.id, name: call.name, content, success: true };

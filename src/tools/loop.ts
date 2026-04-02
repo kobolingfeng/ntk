@@ -127,9 +127,15 @@ export async function runToolLoop(
       const perResultLimit = results.length <= 2 ? 6000 : Math.max(1500, Math.floor(12000 / results.length));
       for (const r of results) {
         onToolResult?.(r.name, r.content);
-        const truncated = r.content.length > perResultLimit
-          ? r.content.slice(0, perResultLimit) + '\n...(结果已截断)'
-          : r.content;
+        let truncated: string;
+        if (r.content.length > perResultLimit) {
+          // Smart truncation: keep head + tail for structure visibility
+          const headLen = (perResultLimit * 0.7) | 0;
+          const tailLen = (perResultLimit * 0.25) | 0;
+          truncated = r.content.slice(0, headLen) + '\n\n...(中间内容已省略)...\n\n' + r.content.slice(-tailLen);
+        } else {
+          truncated = r.content;
+        }
         messages.push({
           role: 'tool',
           tool_call_id: r.toolCallId,
