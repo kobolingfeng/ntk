@@ -159,4 +159,56 @@ describe('classifyDepthFastPath', () => {
       expect(classifyDepthFastPath('write a module including validation, transformation, and logging')).toBe('light');
     });
   });
+
+  describe('standard depth fast path', () => {
+    it('比较...和...优缺点 → standard', () => {
+      expect(classifyDepthFastPath('比较React和Vue的优缺点')).toBe('standard');
+    });
+
+    it('技术选型 → standard', () => {
+      expect(classifyDepthFastPath('技术选型：前端框架评估')).toBe('standard');
+    });
+
+    it('框架对比 → standard', () => {
+      expect(classifyDepthFastPath('框架对比分析')).toBe('standard');
+    });
+
+    it('compare...pros and cons → standard', () => {
+      expect(classifyDepthFastPath('compare React and Vue pros and cons')).toBe('standard');
+    });
+
+    it('trade-offs between → standard', () => {
+      expect(classifyDepthFastPath('trade-offs between REST and GraphQL')).toBe('standard');
+    });
+
+    it('evaluate frameworks → standard', () => {
+      expect(classifyDepthFastPath('evaluate frontend frameworks for our project')).toBe('standard');
+    });
+  });
+
+  describe('full depth fast path', () => {
+    it('完整项目设计 → full', () => {
+      expect(classifyDepthFastPath('完整项目设计包含前后端')).toBe('full');
+    });
+
+    it('多模块集成 → full', () => {
+      expect(classifyDepthFastPath('多模块集成方案设计')).toBe('full');
+    });
+
+    it('系统架构包含多模块 → full', () => {
+      expect(classifyDepthFastPath('系统架构设计包含用户模块和订单模块和支付服务')).toBe('full');
+    });
+
+    it('complete project design → full', () => {
+      expect(classifyDepthFastPath('complete project design with frontend and backend')).toBe('full');
+    });
+
+    it('multi-module integration → full', () => {
+      expect(classifyDepthFastPath('multi-module integration design')).toBe('full');
+    });
+
+    it('system architecture with modules → full', () => {
+      expect(classifyDepthFastPath('system architecture including user module, order module, and payment service')).toBe('full');
+    });
+  });
 });
