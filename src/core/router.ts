@@ -121,10 +121,6 @@ export class Router {
   /** Per-agent message index: agent → messages where agent is sender or receiver */
   private agentIndex: Map<AgentType, Message[]> = new Map();
 
-  constructor() {
-    // Rules and lookup initialized from module-level constants
-  }
-
   /**
    * Route a message. Returns true if delivered, false if blocked.
    *

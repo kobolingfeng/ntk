@@ -942,7 +942,7 @@ export class LLMClient {
 
     if (inputTokens === 0) {
       // Lazy concatenation — only needed when API doesn't report usage
-      const messageContent = systemPrompt ? (userMessage ? systemPrompt + ' ' + userMessage : systemPrompt) : (userMessage || body);
+      const messageContent = systemPrompt ? (userMessage ? `${systemPrompt} ${userMessage}` : systemPrompt) : (userMessage || body);
       inputTokens = estimateTokens(messageContent);
     }
     if (outputTokens === 0 || abortedByLimit) {

@@ -410,7 +410,7 @@ async function main(): Promise<void> {
       const prediction = predictTokenUsage(fastDepth, estTask.length);
 
       console.log(chalk.cyan.bold('\n  📊 Token Estimate'));
-      console.log(chalk.dim(`  Task: "${estTask.length > 60 ? estTask.slice(0, 60) + '...' : estTask}"`));
+      console.log(chalk.dim(`  Task: "${estTask.length > 60 ? `${estTask.slice(0, 60)}...` : estTask}"`));
       console.log(`  Predicted depth: ${chalk.bold(fastDepth)}`);
       console.log(`  Task band: ${chalk.bold(band)}`);
       console.log(`  Locale: ${chalk.bold(locale)}`);
@@ -451,7 +451,7 @@ async function main(): Promise<void> {
 
       for (let i = 0; i < tasks.length; i++) {
         const t = tasks[i];
-        console.log(chalk.dim(`  [${i + 1}/${tasks.length}] ${t.length > 50 ? t.slice(0, 50) + '...' : t}`));
+        console.log(chalk.dim(`  [${i + 1}/${tasks.length}] ${t.length > 50 ? `${t.slice(0, 50)}...` : t}`));
         const start = Date.now();
         try {
           const p = new Pipeline(config, () => {}, { endpointManager });

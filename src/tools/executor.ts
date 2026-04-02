@@ -322,7 +322,7 @@ function cachedGlobToRegex(glob: string): RegExp {
 }
 
 function globToRegex(glob: string): RegExp {
-  let re = glob
+  const re = glob
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '§DOUBLESTAR§')
     .replace(/\*/g, '[^/]*')
@@ -382,7 +382,11 @@ export async function executeTool(call: ParsedToolCall, cwd: string): Promise<To
     if (content.length > MAX_RESULT_LENGTH) {
       const headLen = (MAX_RESULT_LENGTH * 0.7) | 0;
       const tailLen = (MAX_RESULT_LENGTH * 0.25) | 0;
-      content = content.slice(0, headLen) + '\n\n...(中间内容已省略)...\n\n' + content.slice(-tailLen);
+      content = `${content.slice(0, headLen)}
+
+...(中间内容已省略)...
+
+${content.slice(-tailLen)}`;
     }
 
     return { toolCallId: call.id, name: call.name, content, success: true };

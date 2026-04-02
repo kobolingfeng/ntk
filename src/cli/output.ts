@@ -161,7 +161,7 @@ export function printTrace(trace: PipelineTrace): void {
 
   // Timing & cache
   console.log(chalk.cyan(`  │`));
-  console.log(chalk.white(`  │ Duration: ${chalk.bold(trace.durationMs + 'ms')}`));
+  console.log(chalk.white(`  │ Duration: ${chalk.bold(`${trace.durationMs}ms`)}`));
   if (trace.cached) console.log(chalk.green.bold(`  │ Cache: HIT`));
 
   console.log(chalk.magenta.bold('  └──────────────────────────────────────────────────┘'));

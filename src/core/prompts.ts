@@ -95,7 +95,7 @@ export const PASSTHROUGH_TASK_PATTERN =
   /^(翻译|转换|转成|改为|改写|改成|换成|修复|重构|概括|摘要|用.{0,5}(概括|总结|摘要)|将.{0,20}(翻译|转换|改为|改写|转成)|translate|convert|transform|rewrite|refactor|change to|fix|summarize in)/i;
 
 const TASK_HEAD_SPLIT = /[:：\n]/;
-const HEAD_HAS_CODE = /[{}\[\]();].*[{}\[\]();]/;
+const HEAD_HAS_CODE = /[{}[\]();].*[{}[\]();]/;
 
 export function detectTaskBand(task: string): TaskBand {
   if (PASSTHROUGH_TASK_PATTERN.test(task)) return 'passthrough';

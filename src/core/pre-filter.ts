@@ -396,7 +396,7 @@ function stripProgressAndBoilerplate(text: string): { result: string; name: stri
 }
 
 const RE_CODE_BLOCK = /```(\w*)\n([\s\S]*?)```/g;
-const RE_COMMENTS = /(?:^\ *\/\/.*$|^\ *#(?!!).*$|\/\*[\s\S]*?\*\/)/gm;
+const RE_COMMENTS = /(?:^ *\/\/.*$|^ *#(?!!).*$|\/\*[\s\S]*?\*\/)/gm;
 const RE_BLANK_COLLAPSE = /\n{3,}/g;
 const RE_TRAILING_CODE_WS = /[ \t]+$/gm;
 
