@@ -217,6 +217,8 @@ function trimTrailingWhitespace(text: string): { result: string; name: string } 
 const DEDUP_NORMALIZE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b|\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\dZ]*|\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b\d{10,13}\b|\b[0-9a-f]{12,}\b|\b\d{1,6}ms\b|\b\d{1,4}(?:\.\d+)?s\b/gi;
 
 function normalizeForDedup(line: string): string {
+  // Short lines can't contain UUIDs/timestamps/IPs — skip regex cost
+  if (line.length < 12) return line.trim();
   return line.trim().replace(DEDUP_NORMALIZE, '<N>');
 }
 
@@ -224,6 +226,8 @@ function deduplicateLines(text: string): { result: string; name: string } {
   // Skip split() allocation when too few lines to dedup
   if (!hasMinNewlines(text, 3)) return { result: text, name: 'dedup-lines' };
   const lines = text.split('\n');
+  // Skip dedup for very short outputs — not enough lines for meaningful duplicates
+  if (lines.length < 5) return { result: text, name: 'dedup-lines' };
 
   const output: string[] = [];
   let prevNormalized = '';

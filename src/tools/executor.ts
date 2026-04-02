@@ -36,6 +36,9 @@ const MAX_RESULT_LENGTH = 12_000;
 interface CachedFile { content: string; mtimeMs: number }
 const fileReadCache = new Map<string, CachedFile>();
 const FILE_CACHE_MAX = 200;
+/** Total bytes cached — prevents unbounded memory growth from large files */
+const FILE_CACHE_MAX_BYTES = 50_000_000; // 50MB
+let fileCacheBytes = 0;
 
 function cachedReadFile(path: string): string {
   const stat = statSync(path);
@@ -47,15 +50,22 @@ function cachedReadFile(path: string): string {
     return cached.content;
   }
   const content = readFileSync(path, 'utf-8');
-  fileReadCache.set(path, { content, mtimeMs: stat.mtimeMs });
-  // LRU eviction: drop least recently used (first in Map order)
-  if (fileReadCache.size > FILE_CACHE_MAX) {
-    fileReadCache.delete(fileReadCache.keys().next().value!);
+  // LRU eviction: drop entries until within count AND size limits
+  while (fileReadCache.size >= FILE_CACHE_MAX || fileCacheBytes + content.length > FILE_CACHE_MAX_BYTES) {
+    const oldestKey = fileReadCache.keys().next().value;
+    if (!oldestKey) break;
+    const old = fileReadCache.get(oldestKey);
+    if (old) fileCacheBytes -= old.content.length;
+    fileReadCache.delete(oldestKey);
   }
+  fileReadCache.set(path, { content, mtimeMs: stat.mtimeMs });
+  fileCacheBytes += content.length;
   return content;
 }
 
 function invalidateFileCache(path: string): void {
+  const old = fileReadCache.get(path);
+  if (old) fileCacheBytes -= old.content.length;
   fileReadCache.delete(path);
 }
 

@@ -95,6 +95,7 @@ async function gatherPhase(ctx: FullDepthContext): Promise<void> {
   const instructions = ctx.planner.parseInstructions(content);
 
   // Execute gather instructions (only scout/summarizer) — run in parallel
+  // Each task gathers AND compresses before resolving, overlapping gather+compress phases
   const gatherTasks = instructions
     .filter((inst) => inst.target === 'scout' || inst.target === 'summarizer')
     .map(async (inst) => {
@@ -110,49 +111,46 @@ async function gatherPhase(ctx: FullDepthContext): Promise<void> {
       const context: AgentContext = {
         visibleMessages: ctx.router.getVisibleMessages(inst.target),
       };
+      let response;
       try {
-        const response = await agent.process(msg, context);
-        return { inst, decision, response };
+        response = await agent.process(msg, context);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         ctx.emit({ type: 'error', phase: 'gather', detail: `${inst.target} failed: ${errMsg}` });
         return null;
       }
+
+      // Compress immediately after gather — don't wait for other gather tasks
+      if (decision.needsCompression) {
+        try {
+          const compressed = await ctx.compressor.compress(response.payload, 'standard', inst.target, 'gather', {
+            tee: true,
+          });
+          response.payload = compressed.compressed;
+
+          const pfInfo =
+            compressed.preFilterResult && compressed.preFilterResult.charsRemoved > 0
+              ? ` (pre-filter: -${compressed.preFilterResult.charsRemoved} chars)`
+              : '';
+          ctx.emit({
+            type: 'compressed',
+            phase: 'gather',
+            detail: `Compressed ${compressed.originalLength}→${compressed.compressedLength} chars (${compressed.ratio.toFixed(1)}x)${pfInfo}`,
+          });
+        } catch {
+          ctx.emit({
+            type: 'message',
+            phase: 'gather',
+            detail: `Compression fallback: using uncompressed ${inst.target} output (${response.payload.length} chars)`,
+          });
+        }
+      }
+
+      return { inst, response };
     });
 
   const gatherResults = await Promise.all(gatherTasks);
-
-  // Compress gather results in parallel (all use independent compressor calls)
   const validResults = gatherResults.filter((r): r is NonNullable<typeof r> => r !== null);
-  const compressionTasks = validResults.map(async (result) => {
-    const { inst, decision, response } = result;
-    if (decision.needsCompression) {
-      try {
-        const compressed = await ctx.compressor.compress(response.payload, 'standard', inst.target, 'gather', {
-          tee: true,
-        });
-        response.payload = compressed.compressed;
-
-        const pfInfo =
-          compressed.preFilterResult && compressed.preFilterResult.charsRemoved > 0
-            ? ` (pre-filter: -${compressed.preFilterResult.charsRemoved} chars)`
-            : '';
-        ctx.emit({
-          type: 'compressed',
-          phase: 'gather',
-          detail: `Compressed ${compressed.originalLength}→${compressed.compressedLength} chars (${compressed.ratio.toFixed(1)}x)${pfInfo}`,
-        });
-      } catch {
-        // Compression failed — use uncompressed payload (graceful degradation)
-        ctx.emit({
-          type: 'message',
-          phase: 'gather',
-          detail: `Compression fallback: using uncompressed ${inst.target} output (${response.payload.length} chars)`,
-        });
-      }
-    }
-  });
-  await Promise.all(compressionTasks);
 
   for (const result of validResults) {
     const { inst, response } = result;

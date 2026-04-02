@@ -147,6 +147,9 @@ export class Pipeline {
   private traceTeeRecoveryAttempts = 0;
   private traceTeeRecoverySuccesses = 0;
   private traceRetryCount = 0;
+  /** Cached token report — invalidated when token log length changes */
+  private cachedTokenReport: TokenReport | null = null;
+  private cachedTokenReportVersion = 0;
 
   constructor(
     config: NTKConfig,
@@ -212,6 +215,8 @@ export class Pipeline {
     this.traceCompressionFallbacks = 0;
     this.traceTeeRecoveryAttempts = 0;
     this.traceTeeRecoverySuccesses = 0;
+    this.cachedTokenReport = null;
+    this.cachedTokenReportVersion = 0;
 
     // Early return for empty / whitespace-only input
     if (!userRequest.trim()) {
@@ -516,13 +521,23 @@ export class Pipeline {
     }
   }
 
-  private getTokenReport() {
-    // If plannerLLM was never created (direct depth), skip its log entirely
+  private getTokenReport(): TokenReport {
+    // Cache token report — invalidated when token log grows
     const plannerLog = this.plannerLLM.getTokenLog();
     const compressorLog = this.compressorLLM.getTokenLog();
-    if (!plannerLog || plannerLog.length === 0) return generateTokenReport(compressorLog);
-    if (compressorLog.length === 0) return generateTokenReport(plannerLog);
-    return generateTokenReport(plannerLog, compressorLog);
+    const version = plannerLog.length + compressorLog.length;
+    if (this.cachedTokenReport && this.cachedTokenReportVersion === version) {
+      return this.cachedTokenReport;
+    }
+    if (!plannerLog || plannerLog.length === 0) {
+      this.cachedTokenReport = generateTokenReport(compressorLog);
+    } else if (compressorLog.length === 0) {
+      this.cachedTokenReport = generateTokenReport(plannerLog);
+    } else {
+      this.cachedTokenReport = generateTokenReport(plannerLog, compressorLog);
+    }
+    this.cachedTokenReportVersion = version;
+    return this.cachedTokenReport;
   }
 
   private buildTrace(result: PipelineResult): PipelineTrace {
