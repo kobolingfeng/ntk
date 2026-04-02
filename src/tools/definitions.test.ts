@@ -8,7 +8,7 @@ import type { ToolCall } from './definitions.js';
 
 describe('TOOL_DEFINITIONS', () => {
   it('has expected tool count', () => {
-    expect(TOOL_DEFINITIONS.length).toBe(8);
+    expect(TOOL_DEFINITIONS.length).toBe(9);
   });
 
   it('all tools have valid structure', () => {

@@ -6,7 +6,7 @@
  */
 
 import { exec } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import type { ParsedToolCall } from './definitions.js';
 import { TOOL_NAMES } from './definitions.js';
@@ -98,6 +98,16 @@ function toolWriteFile(args: Record<string, unknown>, cwd: string): string {
   writeFileSync(path, content, 'utf-8');
   invalidateFileCache(path);
   return `已写入 ${args.path} (${content.length} 字符)`;
+}
+
+function toolAppendFile(args: Record<string, unknown>, cwd: string): string {
+  const path = safePath(String(args.path ?? ''), cwd);
+  const content = String(args.content ?? '');
+  const dir = dirname(path);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  appendFileSync(path, content, 'utf-8');
+  invalidateFileCache(path);
+  return `已追加到 ${args.path} (${content.length} 字符)`;
 }
 
 function toolEditFile(args: Record<string, unknown>, cwd: string): string {
@@ -356,6 +366,7 @@ type ToolFn = (args: Record<string, unknown>, cwd: string) => string | Promise<s
 const TOOL_MAP: Record<string, ToolFn> = {
   read_file: toolReadFile,
   write_file: toolWriteFile,
+  append_file: toolAppendFile,
   edit_file: toolEditFile,
   list_directory: toolListDirectory,
   find_files: toolFindFiles,

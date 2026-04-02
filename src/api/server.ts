@@ -52,6 +52,7 @@ export class NTKServer {
         console.log(`🔒 NTK API Server running on http://localhost:${port}`);
         console.log(`   POST /run          — Run a pipeline task`);
         console.log(`   POST /compress     — Compress text`);
+        console.log(`   POST /estimate     — Estimate task cost (zero LLM cost)`);
         console.log(`   GET  /health       — Health check`);
         console.log(`   GET  /stats        — Run statistics`);
         console.log(`   GET  /history      — Run history`);
@@ -112,6 +113,9 @@ export class NTKServer {
         case '/compress':
           await this.handleCompress(req, res);
           break;
+        case '/estimate':
+          await this.handleEstimate(req, res);
+          break;
         case '/stats':
           this.handleStats(res);
           break;
@@ -121,7 +125,7 @@ export class NTKServer {
         default:
           this.sendJson(res, 404, {
             error: 'Not found',
-            endpoints: ['/run', '/run/stream', '/compress', '/health', '/stats', '/history'],
+            endpoints: ['/run', '/run/stream', '/compress', '/estimate', '/health', '/stats', '/history'],
           });
       }
     } catch (error) {
@@ -346,6 +350,51 @@ export class NTKServer {
     const result = await compressor.compress(text, level || 'standard');
 
     this.sendJson(res, 200, result);
+  }
+
+  private async handleEstimate(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (req.method !== 'POST') {
+      this.sendJson(res, 405, { error: 'Method not allowed, use POST' });
+      return;
+    }
+
+    const body = await this.readBody(req);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      this.sendJson(res, 400, { error: 'Invalid JSON in request body' });
+      return;
+    }
+    const { task } = parsed;
+
+    if (!task || typeof task !== 'string') {
+      this.sendJson(res, 400, { error: 'Missing or invalid "task" field (must be a string)' });
+      return;
+    }
+
+    if (task.length > 10000) {
+      this.sendJson(res, 400, { error: 'Task too long (max 10000 characters)' });
+      return;
+    }
+
+    const { classifyDepthFastPath } = await import('../pipeline/classifier.js');
+    const { predictTokenUsage } = await import('../pipeline/helpers.js');
+    const { detectLocale, detectTaskBand } = await import('../core/prompts.js');
+
+    const depth = classifyDepthFastPath(task) ?? 'light';
+    const locale = detectLocale(task);
+    const band = detectTaskBand(task);
+    const prediction = predictTokenUsage(depth, task.length);
+
+    this.sendJson(res, 200, {
+      depth,
+      band,
+      locale,
+      estimatedTokens: prediction.estimated,
+      tokenRange: prediction.range,
+      note: 'Heuristic estimate — zero LLM cost',
+    });
   }
 
   private handleStats(res: http.ServerResponse): void {

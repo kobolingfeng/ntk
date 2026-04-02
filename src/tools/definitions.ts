@@ -63,6 +63,11 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     content: { type: 'string', description: '文件内容' },
   }, ['path', 'content']),
 
+  def('append_file', '向文件末尾追加内容(自动创建文件和目录)', {
+    path: { type: 'string', description: '文件路径' },
+    content: { type: 'string', description: '要追加的内容' },
+  }, ['path', 'content']),
+
   def('edit_file', '精确替换文件中的文本', {
     path: { type: 'string', description: '文件路径' },
     old_text: { type: 'string', description: '要替换的原文' },
