@@ -100,6 +100,9 @@ export async function runToolLoop(
   // Per-message JSON cache — avoids re-serializing unchanged messages each round
   const messageJsons: string[] = [];
   for (const msg of messages) messageJsons.push(JSON.stringify(msg));
+  // Maintain accumulated inner JSON to avoid O(n) join every round
+  let cachedJsonBody = messageJsons.join(',');
+  let needRejoin = false;
 
   for (round = 0; round < maxRounds; round++) {
     // Abort signal check (e.g. speculative execution cancelled)
@@ -120,8 +123,12 @@ export async function runToolLoop(
         completed: false,
       };
     }
-    // Build messages JSON incrementally — only new/changed messages are serialized
-    const messagesJson = `[${messageJsons.join(',')}]`;
+    // Only rejoin after micro-compaction mutated entries; otherwise cachedJsonBody is up-to-date
+    if (needRejoin) {
+      cachedJsonBody = messageJsons.join(',');
+      needRejoin = false;
+    }
+    const messagesJson = `[${cachedJsonBody}]`;
     const result = await llm.chatWithTools(messages, tools, agent, phase, onToken, toolsJson, messagesJson);
 
     if (result.toolCalls && result.toolCalls.length > 0) {
@@ -135,7 +142,9 @@ export async function runToolLoop(
         })),
       };
       messages.push(assistantMsg);
-      messageJsons.push(JSON.stringify(assistantMsg));
+      const assistantJson = JSON.stringify(assistantMsg);
+      messageJsons.push(assistantJson);
+      cachedJsonBody += ',' + assistantJson;
 
       // Parse and execute
       const parsed = result.toolCalls.map(tc => {
@@ -169,7 +178,9 @@ export async function runToolLoop(
           content: truncated,
         };
         messages.push(toolMsg);
-        messageJsons.push(JSON.stringify(toolMsg));
+        const toolJson = JSON.stringify(toolMsg);
+        messageJsons.push(toolJson);
+        cachedJsonBody += ',' + toolJson;
         toolResultIndices.push(messages.length - 1);
       }
 
@@ -184,6 +195,7 @@ export async function runToolLoop(
           messageJsons[msgIdx] = JSON.stringify(messages[msgIdx]);
         }
         toolResultIndices.splice(0, clearCount);
+        needRejoin = true;
       }
     } else {
       // LLM returned final text response
