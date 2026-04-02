@@ -27,9 +27,9 @@ type FilterStrategy = (text: string) => { result: string; name: string };
 const universalStrategies: FilterStrategy[] = [stripAnsiCodes, collapseBlankLines, trimTrailingWhitespace, shortenUrls];
 
 const typeSpecificStrategies: Record<OutputType, FilterStrategy[]> = {
-  test: [stripProgressBars, deduplicateLines, stripPassedTests],
+  test: [stripProgressBars, deduplicateLines, stripPassedTests, compressStackTraces],
   json: [deduplicateLines, compactJson],
-  log: [stripProgressBars, deduplicateLines],
+  log: [stripProgressBars, deduplicateLines, compressStackTraces],
   build: [stripProgressAndBoilerplate, deduplicateLines, compressCodeBlocks],
   general: [
     stripProgressAndBoilerplate,
@@ -37,6 +37,7 @@ const typeSpecificStrategies: Record<OutputType, FilterStrategy[]> = {
     stripPassedTests,
     compactJson,
     compressCodeBlocks,
+    compressStackTraces,
   ],
 };
 
@@ -431,4 +432,42 @@ function compressCodeBlocks(text: string): { result: string; name: string } {
     return fullMatch;
   });
   return { result, name: 'code-compress' };
+}
+
+// ─── Stack Trace Compression ───────────────────────
+const RE_STACK_FRAME = /^\s+at\s|^\s+File "|^\s+in .+\(line \d/;
+const STACK_KEEP_HEAD = 3;
+const STACK_KEEP_TAIL = 2;
+const STACK_MIN_FRAMES = STACK_KEEP_HEAD + STACK_KEEP_TAIL + 1; // 6 — need at least 1 frame to collapse
+
+function compressStackTraces(text: string): { result: string; name: string } {
+  // Fast guard: skip when no stack frame indicators present
+  if (!text.includes('\n    at ') && !text.includes('\n\tat ') && !text.includes('\n  File "')) {
+    return { result: text, name: 'stack-compress' };
+  }
+  const lines = text.split('\n');
+  const output: string[] = [];
+  let runStart = -1;
+
+  for (let i = 0; i <= lines.length; i++) {
+    const isFrame = i < lines.length && RE_STACK_FRAME.test(lines[i]);
+    if (isFrame) {
+      if (runStart < 0) runStart = i;
+    } else {
+      if (runStart >= 0) {
+        const runLen = i - runStart;
+        if (runLen >= STACK_MIN_FRAMES) {
+          for (let j = runStart; j < runStart + STACK_KEEP_HEAD; j++) output.push(lines[j]);
+          output.push(`    ... (${runLen - STACK_KEEP_HEAD - STACK_KEEP_TAIL} frames omitted)`);
+          for (let j = i - STACK_KEEP_TAIL; j < i; j++) output.push(lines[j]);
+        } else {
+          for (let j = runStart; j < i; j++) output.push(lines[j]);
+        }
+        runStart = -1;
+      }
+      if (i < lines.length) output.push(lines[i]);
+    }
+  }
+
+  return { result: output.join('\n'), name: 'stack-compress' };
 }
