@@ -362,7 +362,7 @@ export class NTKServer {
 
   private sendJson(res: http.ServerResponse, status: number, data: unknown): void {
     res.writeHead(status, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(data, null, 2));
+    res.end(JSON.stringify(data));
   }
 
   private checkRateLimit(ip: string): boolean {
@@ -396,7 +396,7 @@ export class NTKServer {
       durationMs,
     });
     if (this.runHistory.length > 100) {
-      this.runHistory = this.runHistory.slice(-100);
+      this.runHistory.shift();
     }
   }
 

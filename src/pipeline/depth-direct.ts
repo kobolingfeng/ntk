@@ -53,9 +53,11 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
         ? 640
         : effectiveRequest.length < 500
           ? 1024
-          : effectiveRequest.length > 2000
-            ? 16384
-            : 2048;
+          : effectiveRequest.length < 1000
+            ? 1536
+            : effectiveRequest.length > 2000
+              ? 16384
+              : 2048;
   const adaptiveTemp = 0;
 
   const bandPrompt = getBandPrompt(effectiveRequest, ctx.locale, isMicroTask);
