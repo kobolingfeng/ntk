@@ -22,7 +22,7 @@ const SSE_DECODE_OPT = { stream: true } as const;
 /** 1MB safety limit for SSE buffer */
 const MAX_BUFFER = 1_048_576;
 /** 30s inactivity timeout for stream reading */
-const STREAM_INACTIVITY_TIMEOUT = 30_000;
+const STREAM_INACTIVITY_TIMEOUT = 60_000;
 
 /** Streaming repetition detection — abort when LLM loops on the same output */
 const REPEAT_CHECK_EVERY = 40;
@@ -546,7 +546,8 @@ export class LLMClient {
     this.model = config.model;
     this.modelJson = JSON.stringify(config.model);
     this.maxTokens = config.maxTokens ?? 2048;
-    this.temperature = config.temperature ?? 0.3;
+    const rawTemp = config.temperature ?? 0.3;
+    this.temperature = Number.isFinite(rawTemp) ? Math.max(0, Math.min(2, rawTemp)) : 0.3;
     this.endpointManager = endpointManager ?? defaultEndpointManager;
 
     if (this.endpointManager.getEndpoints().length === 0) {

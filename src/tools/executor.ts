@@ -21,7 +21,7 @@ export interface ToolResult {
 
 /** Per-tool timeout limits (ms) */
 const TOOL_TIMEOUTS: Record<string, number> = {
-  run_command: 35_000,
+  run_command: 125_000,
   fetch_webpage: 20_000,
 };
 const DEFAULT_TIMEOUT = 15_000;
@@ -227,8 +227,8 @@ function toolSearchInFiles(args: Record<string, unknown>, cwd: string): string {
 
 async function toolRunCommand(args: Record<string, unknown>, cwd: string): Promise<string> {
   const command = String(args.command ?? '');
-  const rawTimeout = Number(args.timeout ?? 30);
-  const timeout = Math.min(Number.isFinite(rawTimeout) ? rawTimeout * 1000 : 30_000, 60_000);
+  const rawTimeout = Number(args.timeout ?? 120);
+  const timeout = Math.min(Number.isFinite(rawTimeout) ? rawTimeout * 1000 : 120_000, 120_000);
   if (!command) return '错误: command 不能为空';
   if (BLOCKED_COMMANDS.test(command)) return `安全拦截: 禁止执行危险命令`;
 

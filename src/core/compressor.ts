@@ -95,14 +95,13 @@ export class Compressor {
     // Tee: store original before any transformation
     let teeId: string | undefined;
     if (options?.tee) {
-      teeId = `tee-${++this.teeCounter}`;
-      this.teeStore.set(teeId, text);
-
-      // Evict oldest entries if over limit
-      if (this.teeStore.size > MAX_TEE_ENTRIES) {
+      // Evict oldest entry BEFORE adding to stay within limit
+      if (this.teeStore.size >= MAX_TEE_ENTRIES) {
         const oldest = this.teeStore.keys().next().value;
         if (oldest) this.teeStore.delete(oldest);
       }
+      teeId = `tee-${++this.teeCounter}`;
+      this.teeStore.set(teeId, text);
     }
 
     // Stage 1: Deterministic pre-filter (zero token cost)
