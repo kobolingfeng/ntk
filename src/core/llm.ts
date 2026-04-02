@@ -121,6 +121,8 @@ export class EndpointManager {
     const workingSet = new Set<number>();
     let firstWorkingIdx = -1;
     let firstResolve: ((name: string | null) => void) | null = null;
+    // Suppress logging for probes that complete after we've already returned
+    let quiet = false;
 
     // Promise that resolves as soon as the first working endpoint is found
     const firstWorking = new Promise<string | null>((resolve) => { firstResolve = resolve; });
@@ -153,7 +155,7 @@ export class EndpointManager {
             if (response.ok) {
               const data = (await response.json()) as { choices?: unknown[] };
               if (data.choices && data.choices.length > 0) {
-                console.log(`[LLM] ✅ ${ep.name} (${ep.baseUrl}) — working`);
+                if (!quiet) console.log(`[LLM] ✅ ${ep.name} (${ep.baseUrl}) — working`);
                 workingSet.add(epIndex);
                 // Resolve immediately on first success — don't wait for other probes
                 if (firstWorkingIdx < 0) {
@@ -168,10 +170,12 @@ export class EndpointManager {
                 return;
               }
             }
-            console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — HTTP ${response.status}`);
+            if (!quiet) console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — HTTP ${response.status}`);
           } catch (error) {
-            const msg = error instanceof Error ? error.message : String(error);
-            console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — ${msg.slice(0, 80)}`);
+            if (!quiet) {
+              const msg = error instanceof Error ? error.message : String(error);
+              console.log(`[LLM] ❌ ${ep.name} (${ep.baseUrl}) — ${msg.slice(0, 80)}`);
+            }
           }
           this.negativeProbeCache.set(epIndex, Date.now());
         })(),
@@ -187,6 +191,9 @@ export class EndpointManager {
     });
 
     const name = await firstWorking;
+
+    // Suppress logging for slower background probes to avoid interleaving with task output
+    quiet = true;
 
     // Continue background discovery for failover — don't await, just let it run
     allDone.catch(() => {});
