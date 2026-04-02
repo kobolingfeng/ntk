@@ -215,7 +215,13 @@ export interface TokenReport {
 // ─── Utilities ────────────────────────────────────────
 
 let counter = 0;
+let lastTs = 0;
+let tsStr = '';
 export function generateId(): string {
-  counter++;
-  return `${Date.now().toString(36)}-${counter.toString(36)}`;
+  const now = Date.now();
+  if (now !== lastTs) {
+    lastTs = now;
+    tsStr = now.toString(36);
+  }
+  return `${tsStr}-${(++counter).toString(36)}`;
 }

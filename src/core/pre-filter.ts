@@ -287,7 +287,7 @@ function compactStandaloneJson(text: string): string {
 
     jsonBuf.push(line);
     if (jsonBuf.length > 100) {
-      output.push(...jsonBuf);
+      for (const l of jsonBuf) output.push(l);
       jsonBuf = [];
       inJson = false;
       continue;
@@ -302,12 +302,14 @@ function compactStandaloneJson(text: string): string {
     if (compact) {
       output.push(compact);
     } else {
-      output.push(...jsonBuf);
+      for (const l of jsonBuf) output.push(l);
     }
     jsonBuf = [];
   }
 
-  if (jsonBuf.length > 0) output.push(...jsonBuf);
+  if (jsonBuf.length > 0) {
+    for (const l of jsonBuf) output.push(l);
+  }
   return output.join('\n');
 }
 

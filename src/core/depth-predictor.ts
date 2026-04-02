@@ -165,8 +165,16 @@ export function predictDepth(task: string): { depth: PipelineDepth; confidence: 
   const matches = patternIndex?.get(pattern);
 
   if (!matches || matches.length === 0) {
-    const words = pattern.split(' ');
-    const partials = data.records.filter((r) => words.some((w) => w.length > 2 && r.pattern.includes(w)));
+    // Extract words >2 chars from pattern without split allocation
+    const significantWords: string[] = [];
+    let wStart = 0;
+    for (let i = 0; i <= pattern.length; i++) {
+      if (i === pattern.length || pattern.charCodeAt(i) === 32) {
+        if (i - wStart > 2) significantWords.push(pattern.substring(wStart, i));
+        wStart = i + 1;
+      }
+    }
+    const partials = data.records.filter((r) => significantWords.some((w) => r.pattern.includes(w)));
 
     if (partials.length === 0) return null;
 

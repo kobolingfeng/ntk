@@ -339,11 +339,17 @@ export class Pipeline {
   }
 
   private async runNonDirectDepth(depth: PipelineDepth, cleanRequest: string): Promise<PipelineResult> {
-    // Propagate locale to remaining agents on first non-direct execution
+    // Propagate locale and phase to remaining agents on first non-direct execution
     this.planner.setLocale(this.locale);
     this.scout.setLocale(this.locale);
     this.summarizer.setLocale(this.locale);
     this.verifier.setLocale(this.locale);
+    // Propagate phase to all agents (setPhase only updates executor in fast path)
+    const phase = this.state.phase;
+    this.planner.setPhase(phase);
+    this.scout.setPhase(phase);
+    this.summarizer.setPhase(phase);
+    this.verifier.setPhase(phase);
 
     switch (depth) {
       case 'light':
@@ -407,11 +413,9 @@ export class Pipeline {
 
   private setPhase(phase: Phase): void {
     this.state.phase = phase;
-    this.planner.setPhase(phase);
-    this.scout.setPhase(phase);
-    this.summarizer.setPhase(phase);
+    // Only executor phase is read in direct/light paths.
+    // Other agents get phase set lazily in runNonDirectDepth.
     this.executor.setPhase(phase);
-    this.verifier.setPhase(phase);
   }
 
   private emit(event: PipelineEvent): void {

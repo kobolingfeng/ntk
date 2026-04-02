@@ -465,32 +465,11 @@ export class LLMClient {
     return { content, usage };
   }
 
-  async chatMultiTurn(
-    systemPrompt: string,
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    agent: AgentType,
-    phase: Phase,
-  ): Promise<{ content: string; usage: TokenUsage }> {
-    const response = await this.callAPI([{ role: 'system', content: systemPrompt }, ...messages]);
-
-    const content = response.choices[0]?.message?.content ?? '';
-    const usage: TokenUsage = {
-      agent,
-      inputTokens: response.usage?.prompt_tokens ?? 0,
-      outputTokens: response.usage?.completion_tokens ?? 0,
-      timestamp: Date.now(),
-      phase,
-    };
-
-    this.pushTokenLog(usage);
-    return { content, usage };
-  }
-
   private pushTokenLog(usage: TokenUsage): void {
-    this.tokenLog.push(usage);
-    if (this.tokenLog.length > LLMClient.MAX_TOKEN_LOG) {
-      this.tokenLog = this.tokenLog.slice(-LLMClient.MAX_TOKEN_LOG);
+    if (this.tokenLog.length >= LLMClient.MAX_TOKEN_LOG) {
+      this.tokenLog.shift();
     }
+    this.tokenLog.push(usage);
   }
 
   getTokenLog(): readonly TokenUsage[] {
