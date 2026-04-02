@@ -104,20 +104,29 @@ async function gatherPhase(ctx: FullDepthContext): Promise<void> {
   const compressionTasks = validResults.map(async (result) => {
     const { inst, decision, response } = result;
     if (decision.needsCompression) {
-      const compressed = await ctx.compressor.compress(response.payload, 'standard', inst.target, 'gather', {
-        tee: true,
-      });
-      response.payload = compressed.compressed;
+      try {
+        const compressed = await ctx.compressor.compress(response.payload, 'standard', inst.target, 'gather', {
+          tee: true,
+        });
+        response.payload = compressed.compressed;
 
-      const pfInfo =
-        compressed.preFilterResult && compressed.preFilterResult.charsRemoved > 0
-          ? ` (pre-filter: -${compressed.preFilterResult.charsRemoved} chars)`
-          : '';
-      ctx.emit({
-        type: 'compressed',
-        phase: 'gather',
-        detail: `Compressed ${compressed.originalLength}→${compressed.compressedLength} chars (${compressed.ratio.toFixed(1)}x)${pfInfo}`,
-      });
+        const pfInfo =
+          compressed.preFilterResult && compressed.preFilterResult.charsRemoved > 0
+            ? ` (pre-filter: -${compressed.preFilterResult.charsRemoved} chars)`
+            : '';
+        ctx.emit({
+          type: 'compressed',
+          phase: 'gather',
+          detail: `Compressed ${compressed.originalLength}→${compressed.compressedLength} chars (${compressed.ratio.toFixed(1)}x)${pfInfo}`,
+        });
+      } catch {
+        // Compression failed — use uncompressed payload (graceful degradation)
+        ctx.emit({
+          type: 'message',
+          phase: 'gather',
+          detail: `Compression fallback: using uncompressed ${inst.target} output (${response.payload.length} chars)`,
+        });
+      }
     }
   });
   await Promise.all(compressionTasks);

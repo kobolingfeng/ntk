@@ -36,10 +36,13 @@ export class NTKServer {
   private rateLimiter = new Map<string, { count: number; resetAt: number }>();
   private readonly rateLimit = { windowMs: 60_000, maxRequests: 30 };
   private readonly requestTimeoutMs = 300_000; // 5 minutes max per request
+  /** Optional API token for authentication (from NTK_API_TOKEN env var) */
+  private readonly apiToken?: string;
 
   constructor(config: NTKConfig, endpointManager?: EndpointManager) {
     this.config = config;
     this.endpointManager = endpointManager;
+    this.apiToken = process.env.NTK_API_TOKEN || undefined;
     this.server = http.createServer(this.handleRequest.bind(this));
   }
 
@@ -80,6 +83,16 @@ export class NTKServer {
     if (!this.checkRateLimit(clientIp)) {
       this.sendJson(res, 429, { error: 'Too many requests. Try again later.' });
       return;
+    }
+
+    // Optional bearer token authentication (enabled by NTK_API_TOKEN env var)
+    if (this.apiToken) {
+      const auth = req.headers.authorization || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      if (token !== this.apiToken) {
+        this.sendJson(res, 401, { error: 'Unauthorized. Provide a valid Bearer token.' });
+        return;
+      }
     }
 
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
