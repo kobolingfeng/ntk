@@ -50,7 +50,7 @@ export type {
   TokenReport,
   TokenUsage,
 } from './core/protocol.js';
-export { AGENT_INFO_LEVEL, createMessage, createTask } from './core/protocol.js';
+export { AGENT_INFO_LEVEL, createMessage } from './core/protocol.js';
 export type { RouteDecision, RouterStats } from './core/router.js';
 export { Router } from './core/router.js';
 export { startMcpServer } from './mcp/server.js';
