@@ -138,6 +138,7 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
         console.log(chalk.dim('    cache clear  — Clear response cache'));
         console.log(chalk.dim('    depth <d>    — Force depth (direct|light|standard|full|auto)'));
         console.log(chalk.dim('    verbose      — Toggle verbose trace output'));
+        console.log(chalk.dim('    estimate <t> — Preview task depth/cost (zero LLM cost)'));
         console.log(chalk.dim('    help         — This help'));
         ask();
         return;
@@ -172,6 +173,22 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
       if (trimmed === 'verbose') {
         interactiveVerbose = !interactiveVerbose;
         console.log(chalk.dim(`  🔍 Verbose: ${interactiveVerbose ? 'on' : 'off'}`));
+        ask();
+        return;
+      }
+
+      if (trimmed.startsWith('estimate ')) {
+        const estTask = trimmed.slice(9).trim();
+        if (estTask) {
+          const { classifyDepthFastPath } = await import('./pipeline/classifier.js');
+          const { predictTokenUsage } = await import('./pipeline/helpers.js');
+          const { detectLocale, detectTaskBand } = await import('./core/prompts.js');
+          const depth = classifyDepthFastPath(estTask) ?? 'light';
+          const band = detectTaskBand(estTask);
+          const locale = detectLocale(estTask);
+          const prediction = predictTokenUsage(depth, estTask.length);
+          console.log(chalk.dim(`  📊 Depth: ${depth} | Band: ${band} | Locale: ${locale} | ~${prediction.estimated} tokens (${prediction.range[0]}~${prediction.range[1]})`));
+        }
         ask();
         return;
       }
