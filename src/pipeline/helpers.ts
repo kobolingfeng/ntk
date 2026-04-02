@@ -16,6 +16,9 @@ const NEGATION_PASS = /没有问题|无问题|没有错误|无错误|no issues|n
  * Uses emoji first, then falls back to keyword matching.
  */
 export function parseVerificationResult(payload: string): boolean {
+  // Empty/whitespace means verifier crashed or returned nothing — fail conservatively
+  if (!payload || payload.length < 2) return false;
+
   // Primary: emoji markers (system prompt instructs verifier to use these)
   const hasPass = payload.includes('✅');
   const hasFail = payload.includes('❌');

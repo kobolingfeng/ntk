@@ -585,6 +585,8 @@ export class LLMClient {
     phase: Phase,
     maxTokensOverride?: number,
     temperatureOverride?: number,
+    /** External abort signal for cancellation */
+    signal?: AbortSignal,
   ): Promise<{ content: string; usage: TokenUsage }> {
     const effectiveMax = maxTokensOverride ?? this.maxTokens;
     const effectiveTemp = temperatureOverride ?? this.temperature;
@@ -593,7 +595,7 @@ export class LLMClient {
       ? `[{"role":"system","content":${JSON.stringify(systemPrompt)}},{"role":"user","content":${JSON.stringify(userMessage)}}]`
       : `[{"role":"user","content":${JSON.stringify(userMessage)}}]`;
     const body = `{"model":${this.modelJson},"messages":${messagesJson},"max_tokens":${effectiveMax},"max_completion_tokens":${effectiveMax},"temperature":${effectiveTemp}}`;
-    const response = await this.callAPIWithBody(body);
+    const response = await this.callAPIWithBody(body, signal);
 
     const content = response.choices[0]?.message?.content ?? '';
     const usage: TokenUsage = {
@@ -1040,6 +1042,7 @@ export class LLMClient {
 
   private async callAPIWithBody(
     body: string,
+    externalSignal?: AbortSignal,
   ): Promise<ChatCompletionResponse> {
     const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
     const allEndpoints = this.endpointManager.getEndpoints();
@@ -1047,7 +1050,7 @@ export class LLMClient {
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
       const startMs = Date.now();
-      const result = await this.tryEndpoint(ep, body);
+      const result = await this.tryEndpoint(ep, body, externalSignal);
 
       if (result.success) {
         this.endpointManager.recordSuccess(epIndex, Date.now() - startMs);
@@ -1065,8 +1068,12 @@ export class LLMClient {
   private async tryEndpoint(
     ep: Endpoint,
     body: string,
+    externalSignal?: AbortSignal,
   ): Promise<{ success: boolean; data?: ChatCompletionResponse; error?: string }> {
     const maxRetries = 2;
+    const fetchSignal = externalSignal
+      ? AbortSignal.any([externalSignal, AbortSignal.timeout(120000)])
+      : AbortSignal.timeout(120000);
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -1074,7 +1081,7 @@ export class LLMClient {
           method: 'POST',
           headers: ep.headers,
           body,
-          signal: AbortSignal.timeout(120000),
+          signal: fetchSignal,
         });
 
         if ((response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {

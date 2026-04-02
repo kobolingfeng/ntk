@@ -166,7 +166,8 @@ export interface AgentContext {
 }
 
 /** Reusable empty context — avoids allocating a new empty array per call */
-export const EMPTY_CONTEXT: AgentContext = Object.freeze({ visibleMessages: [] as Message[] });
+const FROZEN_EMPTY: readonly Message[] = Object.freeze([]);
+export const EMPTY_CONTEXT: AgentContext = Object.freeze({ visibleMessages: FROZEN_EMPTY as Message[] });
 
 // ─── Routing ──────────────────────────────────────────
 

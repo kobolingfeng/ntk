@@ -46,10 +46,8 @@ export async function classifyDepth(
 
   let content: string;
   try {
-    const result = await Promise.race([
-      compressorLLM.chat(system, classifierInput, 'classifier', 'gather', 10, 0),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('classifier timeout')), 15_000)),
-    ]);
+    // Use AbortSignal.timeout instead of Promise.race+setTimeout to avoid timer leak
+    const result = await compressorLLM.chat(system, classifierInput, 'classifier', 'gather', 10, 0, AbortSignal.timeout(15_000));
     content = result.content;
   } catch {
     // Classifier timeout or error — default to light (safe middle ground)

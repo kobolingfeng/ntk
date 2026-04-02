@@ -19,7 +19,7 @@ export function discoverEndpoints(): EndpointInput[] {
   for (let i = 1; i <= 20; i++) {
     const key = process.env[`API_ENDPOINT_${i}_KEY`]?.trim();
     const url = process.env[`API_ENDPOINT_${i}_URL`]?.trim();
-    const name = process.env[`API_ENDPOINT_${i}_NAME`] || `endpoint-${i}`;
+    const name = (process.env[`API_ENDPOINT_${i}_NAME`] || `endpoint-${i}`).trim();
     if (key && url) {
       if (!isValidUrl(url)) {
         console.warn(`[config] ⚠️ Skipping ${name}: invalid URL "${url}"`);

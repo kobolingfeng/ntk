@@ -131,8 +131,8 @@ describe('parseVerificationResult', () => {
       expect(parseVerificationResult('看起来不错')).toBe(true);
     });
 
-    it('empty string → true', () => {
-      expect(parseVerificationResult('')).toBe(true);
+    it('empty string → false (verifier crashed)', () => {
+      expect(parseVerificationResult('')).toBe(false);
     });
 
     it('random unrelated text → true', () => {
