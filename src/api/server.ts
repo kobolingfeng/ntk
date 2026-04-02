@@ -253,7 +253,18 @@ export class NTKServer {
           // Response destroyed mid-write, safe to ignore
         }
       },
-      { endpointManager: this.endpointManager },
+      {
+        endpointManager: this.endpointManager,
+        onToken: (token: string) => {
+          try {
+            if (!res.destroyed) {
+              res.write(`data: ${JSON.stringify({ type: 'token', phase: 'execute', detail: token })}\n\n`);
+            }
+          } catch {
+            // Response destroyed mid-write, safe to ignore
+          }
+        },
+      },
     );
 
     const startTime = Date.now();
