@@ -11,7 +11,9 @@ export type Locale = 'zh' | 'en';
 
 /** Detect locale from user input text — charCodeAt loop avoids regex overhead */
 export function detectLocale(text: string): Locale {
-  for (let i = 0; i < text.length; i++) {
+  // CJK characters almost always appear in first 200 chars if present at all
+  const limit = Math.min(200, text.length);
+  for (let i = 0; i < limit; i++) {
     const c = text.charCodeAt(i);
     if (
       (c >= 0x4E00 && c <= 0x9FFF) ||  // CJK Unified Ideographs

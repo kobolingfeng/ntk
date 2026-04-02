@@ -95,7 +95,7 @@ export async function runToolLoop(
   const toolResultIndices: number[] = [];
   const COMPACT_AFTER_ROUND = 3;
   const KEEP_RECENT_RESULTS = 6;
-  const CLEARED_MSG = '[旧工具结果已清除]';
+  const CLEARED_MSG = '[已清除]';
 
   // Per-message JSON cache — avoids re-serializing unchanged messages each round
   const messageJsons: string[] = [];
