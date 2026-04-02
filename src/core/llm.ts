@@ -24,6 +24,31 @@ const MAX_BUFFER = 1_048_576;
 /** 30s inactivity timeout for stream reading */
 const STREAM_INACTIVITY_TIMEOUT = 30_000;
 
+/** Streaming repetition detection — abort when LLM loops on the same output */
+const REPEAT_CHECK_EVERY = 40;
+const REPEAT_BUF_SIZE = 500;
+const REPEAT_BUF_CAP = REPEAT_BUF_SIZE * 2;
+const REPEAT_PAT_LENS = [150, 80, 40] as const;
+const REPEAT_REQUIRED = 3;
+
+function hasStreamRepetition(buf: string): boolean {
+  for (const patLen of REPEAT_PAT_LENS) {
+    const needed = patLen * REPEAT_REQUIRED;
+    if (buf.length < needed) continue;
+    const tail = buf.slice(-needed);
+    const pat = tail.slice(-patLen);
+    let allMatch = true;
+    for (let i = 0; i < REPEAT_REQUIRED - 1; i++) {
+      if (tail.slice(i * patLen, (i + 1) * patLen) !== pat) {
+        allMatch = false;
+        break;
+      }
+    }
+    if (allMatch) return true;
+  }
+  return false;
+}
+
 /** Extract usage info from remaining SSE buffer after stream ends */
 function flushSSEBuffer(buffer: string): { inputTokens: number; outputTokens: number } | null {
   // Fast empty check without allocating a trimmed copy
@@ -832,6 +857,7 @@ export class LLMClient {
     let abortedByLimit = false;
     let chunkCount = 0;
     let runningTokenEstimate = 0;
+    let repeatBuf = '';
 
     const reader = response.body.getReader();
     let buffer = '';
@@ -891,6 +917,13 @@ export class LLMClient {
               } else {
                 contentParts.push(delta);
                 onToken(delta);
+              }
+              // Streaming repetition detection
+              repeatBuf += delta;
+              if (repeatBuf.length > REPEAT_BUF_CAP) repeatBuf = repeatBuf.slice(-REPEAT_BUF_SIZE);
+              if (chunkCount % REPEAT_CHECK_EVERY === 0 && repeatBuf.length >= REPEAT_BUF_SIZE && hasStreamRepetition(repeatBuf)) {
+                abortedByLimit = true;
+                break;
               }
             }
             if (json.usage) {
