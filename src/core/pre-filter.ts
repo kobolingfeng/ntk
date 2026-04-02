@@ -173,7 +173,7 @@ function stripAnsiCodes(text: string): { result: string; name: string } {
 }
 
 const PROGRESS_BAR = /^[▓░█▒■□●○◆◇\-=>#\s|]*\d{1,3}%|^\s*[|/\-\\]\s*$|^\s*\[=+>?\s*\]\s*\d+%|^\s*(?:Downloading|Uploading|Installing|Progress).*\.\.\.\s*\d+%/i;
-const BOILERPLATE = /^\s*(?:\d+ packages? are looking for funding|run `npm (?:fund|audit(?: fix)?)` for details|run `npm audit` for details|found \d+ vulnerabilit(?:y|ies)|npm warn deprecated)/i;
+const BOILERPLATE = /^\s*(?:\d+ packages? are looking for funding|run `npm (?:fund|audit(?: fix)?)` for details|run `npm audit` for details|found \d+ vulnerabilit(?:y|ies)|npm warn |added \d+ packages?.+in \d|up to date.+audited \d|Requirement already satisfied|Successfully installed .{20,}|Using cached |Looking in indexes)/i;
 
 // ─── Precompiled regex for detectOutputType ────────
 const TEST_INDICATORS = /[✓✔✗✘×]|^PASS\s|^FAIL\s|Tests?:\s+\d+\s+(passed|failed)|^\s*(ok|not ok)\s+\d/im;
