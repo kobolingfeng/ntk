@@ -10,7 +10,7 @@
 
 import { BaseAgent } from '../core/base-agent.js';
 import type { LLMClient } from '../core/llm.js';
-import { PLANNER_PROMPT } from '../core/prompts.js';
+import { PLANNER_PROMPT, PIPELINE_STRINGS } from '../core/prompts.js';
 import type { AgentContext } from '../core/protocol.js';
 import { createMessage } from '../core/protocol.js';
 
@@ -74,7 +74,6 @@ export class Planner extends BaseAgent {
     userRequest: string,
     gatheredInfo: string,
   ): Promise<{ plan: string; instructions: PlannerInstruction[] }> {
-    const { PIPELINE_STRINGS } = await import('../core/prompts.js');
     const s = PIPELINE_STRINGS[this.locale];
     const prompt = gatheredInfo ? s.planPrompt(userRequest, gatheredInfo) : s.planPrompt(userRequest, '');
 
