@@ -50,7 +50,7 @@ export function printTokenReport(result: PipelineResult): void {
     chalk.white(`  │ Total: ${total} tokens (in: ${tokenReport.totalInput}, out: ${tokenReport.totalOutput})`),
   );
 
-  if (Object.keys(tokenReport.byAgent).length > 0) {
+  if (tokenReport.byAgent.executor || tokenReport.byAgent.planner || tokenReport.byAgent.scout || tokenReport.byAgent.summarizer || tokenReport.byAgent.verifier || tokenReport.byAgent.classifier) {
     console.log(chalk.cyan('  │'));
     console.log(chalk.cyan('  │ By Agent:'));
     for (const [agent, usage] of Object.entries(tokenReport.byAgent)) {
@@ -60,7 +60,7 @@ export function printTokenReport(result: PipelineResult): void {
     }
   }
 
-  if (Object.keys(tokenReport.byPhase).length > 0) {
+  if (tokenReport.byPhase.gather || tokenReport.byPhase.plan || tokenReport.byPhase.execute || tokenReport.byPhase.verify || tokenReport.byPhase.report) {
     console.log(chalk.cyan('  │'));
     console.log(chalk.cyan('  │ By Phase:'));
     for (const [phase, usage] of Object.entries(tokenReport.byPhase)) {

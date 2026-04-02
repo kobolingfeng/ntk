@@ -630,7 +630,10 @@ export class LLMClient {
     }
 
     const content = contentParts.join('');
-    const toolCalls = [...toolCallsMap.values()].filter(tc => tc.id && tc.name);
+    const toolCalls: Array<{ id: string; name: string; arguments: string }> = [];
+    for (const tc of toolCallsMap.values()) {
+      if (tc.id && tc.name) toolCalls.push(tc);
+    }
 
     // Fallback token estimation
     if (inputTokens === 0) inputTokens = estimateTokens(body);

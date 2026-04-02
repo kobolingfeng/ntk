@@ -154,7 +154,11 @@ export class Compressor {
     items: Array<{ source: string; content: string }>,
     phase: Phase = 'gather',
   ): Promise<CompressResult> {
-    const formatted = items.map((item) => `[${item.source}]: ${item.content}`).join('\n');
+    let formatted = '';
+    for (let i = 0; i < items.length; i++) {
+      if (i > 0) formatted += '\n';
+      formatted += `[${items[i].source}]: ${items[i].content}`;
+    }
 
     return this.compress(formatted, 'standard', 'summarizer', phase);
   }

@@ -80,7 +80,7 @@ async function cmdRun(
     console.log('');
   } else {
     console.log(chalk.cyan.bold('\n  === Final Report ==='));
-    console.log(`  ${result.report.split('\n').join('\n  ')}`);
+    console.log(`  ${result.report.replace(/\n/g, '\n  ')}`);
   }
   console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
 
@@ -196,7 +196,7 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
           console.log('');
         } else {
           console.log(chalk.cyan.bold('\n  === Final Report ==='));
-          console.log(`  ${result.report.split('\n').join('\n  ')}`);
+          console.log(`  ${result.report.replace(/\n/g, '\n  ')}`);
         }
         console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
         printTokenReport(result);

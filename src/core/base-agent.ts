@@ -81,10 +81,13 @@ export abstract class BaseAgent implements Agent {
 
     // Add relevant context (already filtered — this is the magic)
     if (context.visibleMessages.length > 0) {
-      const contextLines = context.visibleMessages
-        .slice(-5) // Only last 5 messages max — keep context short
-        .map((m) => `[${m.from}]: ${m.payload}`)
-        .join('\n');
+      const msgs = context.visibleMessages;
+      const start = Math.max(0, msgs.length - 5);
+      let contextLines = '';
+      for (let i = start; i < msgs.length; i++) {
+        if (i > start) contextLines += '\n';
+        contextLines += `[${msgs[i].from}]: ${msgs[i].payload}`;
+      }
       parts.push(`${this.locale === 'zh' ? '背景' : 'Context'}:\n${contextLines}`);
     }
 
