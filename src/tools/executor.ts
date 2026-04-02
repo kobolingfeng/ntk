@@ -5,9 +5,9 @@
  * All tools run in the current Node.js process (no subprocess overhead).
  */
 
-import { execSync } from 'node:child_process';
+import { exec } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import type { ParsedToolCall } from './definitions.js';
 import { TOOL_NAMES } from './definitions.js';
 
@@ -34,8 +34,9 @@ const MAX_RESULT_LENGTH = 12_000;
 /** Resolve and validate a file path — prevent directory traversal */
 function safePath(path: string, cwd: string): string {
   const resolved = resolve(cwd, path);
-  // Block traversal outside cwd
-  if (!resolved.startsWith(cwd)) {
+  // Block traversal outside cwd — use sep suffix to prevent prefix confusion
+  // e.g. cwd="/home/user" must not match "/home/username/secret"
+  if (resolved !== cwd && !resolved.startsWith(cwd + sep)) {
     throw new Error(`路径越界: ${path} (不允许访问 ${cwd} 之外的文件)`);
   }
   return resolved;
@@ -182,30 +183,35 @@ function toolSearchInFiles(args: Record<string, unknown>, cwd: string): string {
   return results.length > 0 ? results.join('\n') : `未找到匹配 "${pattern}" 的内容`;
 }
 
-function toolRunCommand(args: Record<string, unknown>, cwd: string): string {
+async function toolRunCommand(args: Record<string, unknown>, cwd: string): Promise<string> {
   const command = String(args.command ?? '');
   const timeout = Math.min(Number(args.timeout ?? 30) * 1000, 60_000);
   if (!command) return '错误: command 不能为空';
   if (BLOCKED_COMMANDS.test(command)) return `安全拦截: 禁止执行危险命令`;
 
-  try {
-    const output = execSync(command, {
+  return new Promise<string>((resolve) => {
+    const child = exec(command, {
       cwd,
       timeout,
       maxBuffer: 1024 * 1024,
       encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
+    }, (err, stdout, stderr) => {
+      if (!err) {
+        resolve(stdout || '(命令执行成功，无输出)');
+        return;
+      }
+      const out = String(stdout ?? '').trim();
+      const errOut = String(stderr ?? '').trim();
+      const code = (err as NodeJS.ErrnoException & { code?: number | string }).code;
+      if (code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+        resolve(`${out}\n...(输出已截断)`);
+        return;
+      }
+      resolve(`退出码: ${(err as { status?: number }).status ?? 1}\n${out}\n${errOut}`.trim());
     });
-    return output || '(命令执行成功，无输出)';
-  } catch (err: unknown) {
-    if (err && typeof err === 'object' && 'stderr' in err) {
-      const e = err as { stderr?: string; stdout?: string; status?: number };
-      const stderr = String(e.stderr ?? '').trim();
-      const stdout = String(e.stdout ?? '').trim();
-      return `退出码: ${e.status ?? 1}\n${stdout}\n${stderr}`.trim();
-    }
-    return `命令执行失败: ${err instanceof Error ? err.message : err}`;
-  }
+    // Kill tree on timeout — exec handles this via timeout option
+    child.on('error', () => { /* exec callback handles errors */ });
+  });
 }
 
 async function toolFetchWebpage(args: Record<string, unknown>): Promise<string> {
@@ -301,11 +307,13 @@ const SYNC_TOOL_MAP: Record<string, (args: Record<string, unknown>, cwd: string)
   list_directory: toolListDirectory,
   find_files: toolFindFiles,
   search_in_files: toolSearchInFiles,
-  run_command: toolRunCommand,
 };
 
-/** Async tool set */
-const ASYNC_TOOLS = new Set(['fetch_webpage']);
+/** Async tool map */
+const ASYNC_TOOL_MAP: Record<string, (args: Record<string, unknown>, cwd: string) => Promise<string>> = {
+  run_command: toolRunCommand,
+  fetch_webpage: (args, _cwd) => toolFetchWebpage(args),
+};
 
 /**
  * Execute a single tool call with timeout protection.
@@ -321,9 +329,10 @@ export async function executeTool(call: ParsedToolCall, cwd: string): Promise<To
   try {
     let content: string;
 
-    if (ASYNC_TOOLS.has(call.name)) {
+    const asyncFn = ASYNC_TOOL_MAP[call.name];
+    if (asyncFn) {
       content = await Promise.race([
-        toolFetchWebpage(call.args),
+        asyncFn(call.args, cwd),
         new Promise<string>((_, reject) => setTimeout(() => reject(new Error(`超时 (${timeout / 1000}s)`)), timeout)),
       ]);
     } else {
