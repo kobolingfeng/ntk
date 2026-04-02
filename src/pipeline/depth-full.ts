@@ -38,17 +38,21 @@ export interface FullDepthContext {
   getRouterStats: () => RouterStats;
   emit: (event: PipelineEvent) => void;
   onToken?: (token: string) => void;
+  signal?: AbortSignal;
 }
 
 export async function runFull(ctx: FullDepthContext): Promise<PipelineResult> {
   // Gather
   await gatherPhase(ctx);
+  if (ctx.signal?.aborted) return abortedResult(ctx);
 
   // Plan
   const instructions = await planPhase(ctx);
+  if (ctx.signal?.aborted) return abortedResult(ctx);
 
   // Execute
   const results = await executePhase(ctx, instructions);
+  if (ctx.signal?.aborted) return abortedResult(ctx);
 
   // Verify (local loop)
   const verified = await verifyPhase(ctx, results);
@@ -64,6 +68,19 @@ export async function runFull(ctx: FullDepthContext): Promise<PipelineResult> {
     routerStats: ctx.getRouterStats(),
     blockedMessages: ctx.router.getBlockedLog(),
     depth: 'full',
+  };
+}
+
+// ─── Abort Helper ───────────────────────────────────
+
+function abortedResult(ctx: { getTokenReport: () => TokenReport; getRouterStats: () => RouterStats; router: Router }, depth: 'full' | 'light' | 'standard' = 'full'): PipelineResult {
+  return {
+    success: false,
+    report: 'Task cancelled.',
+    tokenReport: ctx.getTokenReport(),
+    routerStats: ctx.getRouterStats(),
+    blockedMessages: ctx.router.getBlockedLog(),
+    depth,
   };
 }
 
@@ -202,7 +219,7 @@ async function executeSerial(ctx: FullDepthContext, instructions: PlannerInstruc
       if (ctx.onToken && ctx.compressorLLM) {
         const prompt = getBandPrompt(inst.instruction, ctx.locale);
         const fullInput = `${ctx.strings.originalRequest}: ${ctx.userRequest}\n\n${inst.instruction}`;
-        const { content } = await ctx.compressorLLM.chatStream(prompt, fullInput, 'executor', 'execute', ctx.onToken);
+        const { content } = await ctx.compressorLLM.chatStream(prompt, fullInput, 'executor', 'execute', ctx.onToken, undefined, undefined, undefined, ctx.signal);
         output = content;
         // Route the streamed response through the router for consistency with non-streaming path
         const streamedResponse = createMessage('executor', 'planner', inst.instruction, output);

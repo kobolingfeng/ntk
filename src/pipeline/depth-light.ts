@@ -28,6 +28,7 @@ export interface LightDepthContext {
   emit: (event: PipelineEvent) => void;
   llm?: LLMClient;
   onToken?: (token: string) => void;
+  signal?: AbortSignal;
 }
 
 
@@ -40,7 +41,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
   let rawContent = '';
   if (ctx.llm && ctx.onToken) {
     const bandPrompt = getBandPrompt(ctx.userRequest, ctx.locale);
-    const { content } = await ctx.llm.chatStream(bandPrompt, ctx.userRequest, 'executor', 'execute', ctx.onToken, 2048, undefined, 2048);
+    const { content } = await ctx.llm.chatStream(bandPrompt, ctx.userRequest, 'executor', 'execute', ctx.onToken, 2048, undefined, 2048, ctx.signal);
     rawContent = content.trim();
     const streamedResponse = createMessage('executor', 'planner', ctx.userRequest, rawContent);
     ctx.router.route(streamedResponse, 'execute');
@@ -51,6 +52,8 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
   }
 
   let report = rawContent || emptyOutputMessage(ctx.locale);
+
+  if (ctx.signal?.aborted) return abortedResult(ctx);
 
   const skipVerify = isStructurallyComplete(rawContent, ctx.userRequest);
 
@@ -96,6 +99,17 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
   return {
     success: rawContent.length > 0,
     report,
+    tokenReport: ctx.getTokenReport(),
+    routerStats: ctx.getRouterStats(),
+    blockedMessages: ctx.router.getBlockedLog(),
+    depth: 'light',
+  };
+}
+
+function abortedResult(ctx: LightDepthContext): PipelineResult {
+  return {
+    success: false,
+    report: 'Task cancelled.',
     tokenReport: ctx.getTokenReport(),
     routerStats: ctx.getRouterStats(),
     blockedMessages: ctx.router.getBlockedLog(),

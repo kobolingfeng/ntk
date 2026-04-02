@@ -27,6 +27,7 @@ export interface StandardDepthContext {
   emit: (event: PipelineEvent) => void;
   llm?: LLMClient;
   onToken?: (token: string) => void;
+  signal?: AbortSignal;
 }
 
 export async function runStandard(ctx: StandardDepthContext): Promise<PipelineResult> {
@@ -47,6 +48,8 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
     }
   }
 
+  if (ctx.signal?.aborted) return abortedResult(ctx);
+
   ctx.emit({
     type: 'phase',
     phase: 'execute',
@@ -57,7 +60,7 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
   if (ctx.llm && ctx.onToken) {
     const bandPrompt = getBandPrompt(ctx.userRequest, ctx.locale);
     const fullPrompt = scoutContext ? `${scoutContext}\n\n${ctx.userRequest}` : ctx.userRequest;
-    const { content } = await ctx.llm.chatStream(bandPrompt, fullPrompt, 'executor', 'execute', ctx.onToken, 2048, undefined, 2048);
+    const { content } = await ctx.llm.chatStream(bandPrompt, fullPrompt, 'executor', 'execute', ctx.onToken, 2048, undefined, 2048, ctx.signal);
     rawContent = content.trim();
     const streamedResponse = createMessage('executor', 'planner', ctx.userRequest, rawContent);
     ctx.router.route(streamedResponse, 'execute');
@@ -69,6 +72,8 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
     rawContent = execResponse.payload.trim();
   }
   let report = rawContent || emptyOutputMessage(ctx.locale);
+
+  if (ctx.signal?.aborted) return abortedResult(ctx);
 
   // Lightweight verification with smart skip (like light depth)
   if (ctx.verifier && rawContent.length > 0) {
@@ -109,6 +114,17 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
   return {
     success: rawContent.length > 0,
     report,
+    tokenReport: ctx.getTokenReport(),
+    routerStats: ctx.getRouterStats(),
+    blockedMessages: ctx.router.getBlockedLog(),
+    depth: 'standard',
+  };
+}
+
+function abortedResult(ctx: StandardDepthContext): PipelineResult {
+  return {
+    success: false,
+    report: 'Task cancelled.',
     tokenReport: ctx.getTokenReport(),
     routerStats: ctx.getRouterStats(),
     blockedMessages: ctx.router.getBlockedLog(),

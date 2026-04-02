@@ -435,6 +435,7 @@ export class Pipeline {
           emit: (e) => this.emit(e),
           llm: this.compressorLLM,
           onToken: this.onToken,
+          signal: this.signal,
         });
       case 'standard':
         this.scout.setLocale(this.locale);
@@ -456,6 +457,7 @@ export class Pipeline {
           emit: (e) => this.emit(e),
           llm: this.compressorLLM,
           onToken: this.onToken,
+          signal: this.signal,
         });
       case 'full':
         // Full depth uses all agents — propagate locale/phase to all
@@ -486,6 +488,7 @@ export class Pipeline {
           getRouterStats: () => this.router.getStats(),
           emit: (e) => this.emit(e),
           onToken: this.onToken,
+          signal: this.signal,
         });
       default:
         this.setPhase('execute');
