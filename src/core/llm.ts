@@ -289,15 +289,19 @@ export class EndpointManager {
 
     const results = await Promise.all(probePromises);
     const working: Endpoint[] = [];
+    const workingIndices = new Set<number>();
     for (let i = 0; i < results.length; i++) {
-      if (results[i]) working.push(this.endpoints[i]);
+      if (results[i]) {
+        working.push(this.endpoints[i]);
+        workingIndices.add(i);
+      }
     }
 
     // Also set probe cache for the best working endpoint
     if (working.length > 0) {
-      const bestIdx = this.endpoints.indexOf(working[0]);
+      const bestIdx = workingIndices.values().next().value as number;
       this.activeEndpointIndex = bestIdx;
-      this.modelEndpointMap.set(model, new Set(results.map((ok, i) => ok ? i : -1).filter(i => i >= 0)));
+      this.modelEndpointMap.set(model, workingIndices);
       this.probeCache.set(model, { name: working[0].name, timestamp: Date.now() });
       this.saveDiskProbeCache(model, working[0].name, bestIdx);
     }
@@ -852,7 +856,7 @@ export class LLMClient {
                 let cutIdx = -1;
                 for (let k = 0; k < delta.length; k++) {
                   const c = delta.charCodeAt(k);
-                  runningTokenEstimate += (c >= 0x4E00 && c <= 0x9FFF) ? 1.5 : 0.4;
+                  runningTokenEstimate += ((c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF) || (c >= 0xF900 && c <= 0xFAFF)) ? 1.5 : 0.4;
                   if (runningTokenEstimate >= maxOutputTokens) {
                     cutIdx = k + 1;
                     break;
@@ -924,7 +928,7 @@ export class LLMClient {
         let truncateAt = -1;
         for (let i = 0; i < fullContent.length; i++) {
           const ch = fullContent.charCodeAt(i);
-          tokens += (ch >= 0x4E00 && ch <= 0x9FFF) ? 1.5 : 0.4;
+          tokens += ((ch >= 0x4E00 && ch <= 0x9FFF) || (ch >= 0x3400 && ch <= 0x4DBF) || (ch >= 0xF900 && ch <= 0xFAFF)) ? 1.5 : 0.4;
           if (truncateAt < 0 && tokens >= maxOutputTokens) {
             truncateAt = i + 1;
           }

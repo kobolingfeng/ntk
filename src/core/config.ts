@@ -4,7 +4,7 @@
  * Eliminates endpoint loading duplication across CLI, MCP server, and test runner.
  */
 
-import type { Endpoint, EndpointManager } from './llm.js';
+import type { EndpointInput, EndpointManager } from './llm.js';
 import type { NTKConfig } from './protocol.js';
 
 /**
@@ -13,8 +13,8 @@ import type { NTKConfig } from './protocol.js';
  * Searches API_ENDPOINT_{1..10}_{KEY,URL,NAME} first,
  * falls back to UNIFIED_API_KEY + UNIFIED_BASE_URL.
  */
-export function discoverEndpoints(): Endpoint[] {
-  const endpoints: Endpoint[] = [];
+export function discoverEndpoints(): EndpointInput[] {
+  const endpoints: EndpointInput[] = [];
 
   for (let i = 1; i <= 20; i++) {
     const key = process.env[`API_ENDPOINT_${i}_KEY`];
