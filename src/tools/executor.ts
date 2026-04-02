@@ -301,18 +301,15 @@ function globToRegex(glob: string): RegExp {
 
 // ─── Dispatch ──────────────────────────────────────
 
-/** Synchronous tool map */
-const SYNC_TOOL_MAP: Record<string, (args: Record<string, unknown>, cwd: string) => string> = {
+/** Unified tool dispatch map — sync tools are wrapped to return Promise */
+type ToolFn = (args: Record<string, unknown>, cwd: string) => string | Promise<string>;
+const TOOL_MAP: Record<string, ToolFn> = {
   read_file: toolReadFile,
   write_file: toolWriteFile,
   edit_file: toolEditFile,
   list_directory: toolListDirectory,
   find_files: toolFindFiles,
   search_in_files: toolSearchInFiles,
-};
-
-/** Async tool map */
-const ASYNC_TOOL_MAP: Record<string, (args: Record<string, unknown>, cwd: string) => Promise<string>> = {
   run_command: toolRunCommand,
   fetch_webpage: (args, _cwd) => toolFetchWebpage(args),
 };
@@ -329,21 +326,15 @@ export async function executeTool(call: ParsedToolCall, cwd: string): Promise<To
   }
 
   try {
-    let content: string;
-
-    const asyncFn = ASYNC_TOOL_MAP[call.name];
-    if (asyncFn) {
-      content = await Promise.race([
-        asyncFn(call.args, cwd),
-        new Promise<string>((_, reject) => setTimeout(() => reject(new Error(`超时 (${timeout / 1000}s)`)), timeout)),
-      ]);
-    } else {
-      const fn = SYNC_TOOL_MAP[call.name];
-      if (!fn) {
-        return { toolCallId: call.id, name: call.name, content: `未实现工具: ${call.name}`, success: false };
-      }
-      content = fn(call.args, cwd);
+    const fn = TOOL_MAP[call.name];
+    if (!fn) {
+      return { toolCallId: call.id, name: call.name, content: `未实现工具: ${call.name}`, success: false };
     }
+
+    let content = await Promise.race([
+      Promise.resolve(fn(call.args, cwd)),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error(`超时 (${timeout / 1000}s)`)), timeout)),
+    ]);
 
     // Truncate oversized results
     if (content.length > MAX_RESULT_LENGTH) {
@@ -357,12 +348,51 @@ export async function executeTool(call: ParsedToolCall, cwd: string): Promise<To
   }
 }
 
+/** Read-only tools that are safe to run concurrently */
+const READ_ONLY_TOOLS = new Set(['read_file', 'list_directory', 'find_files', 'search_in_files', 'fetch_webpage']);
+
 /**
- * Execute multiple tool calls, with concurrency for async tools.
+ * Execute multiple tool calls with concurrency safety.
+ * Read-only tools run in parallel; write tools run sequentially after reads complete.
+ * Inspired by Claude Code's isConcurrencySafe pattern.
  */
 export async function executeTools(calls: ParsedToolCall[], cwd: string): Promise<ToolResult[]> {
   if (calls.length === 1) {
     return [await executeTool(calls[0], cwd)];
   }
-  return Promise.all(calls.map(c => executeTool(c, cwd)));
+
+  // Partition into read-only (safe to parallelize) and write (must serialize)
+  const reads: Array<{ call: ParsedToolCall; idx: number }> = [];
+  const writes: Array<{ call: ParsedToolCall; idx: number }> = [];
+  for (let i = 0; i < calls.length; i++) {
+    if (READ_ONLY_TOOLS.has(calls[i].name)) {
+      reads.push({ call: calls[i], idx: i });
+    } else {
+      writes.push({ call: calls[i], idx: i });
+    }
+  }
+
+  // All read-only or all write — use simple path
+  if (writes.length === 0) {
+    return Promise.all(calls.map(c => executeTool(c, cwd)));
+  }
+  if (reads.length === 0) {
+    // Serialize write tools to prevent conflicts (e.g., edit_file + write_file on same file)
+    const results: ToolResult[] = [];
+    for (const c of calls) {
+      results.push(await executeTool(c, cwd));
+    }
+    return results;
+  }
+
+  // Mixed: run reads in parallel first, then writes sequentially
+  const results = new Array<ToolResult>(calls.length);
+  const readResults = await Promise.all(reads.map(r => executeTool(r.call, cwd)));
+  for (let i = 0; i < reads.length; i++) {
+    results[reads[i].idx] = readResults[i];
+  }
+  for (const w of writes) {
+    results[w.idx] = await executeTool(w.call, cwd);
+  }
+  return results;
 }

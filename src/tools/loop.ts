@@ -123,11 +123,12 @@ export async function runToolLoop(
       totalToolCalls += results.length;
 
       // Append tool results to conversation
+      // Adaptive context budget: reduce per-result limit when many tools run in one round
+      const perResultLimit = results.length <= 2 ? 6000 : Math.max(1500, Math.floor(12000 / results.length));
       for (const r of results) {
         onToolResult?.(r.name, r.content);
-        // Truncate large results to keep context manageable
-        const truncated = r.content.length > 6000
-          ? r.content.slice(0, 6000) + '\n...(结果已截断)'
+        const truncated = r.content.length > perResultLimit
+          ? r.content.slice(0, perResultLimit) + '\n...(结果已截断)'
           : r.content;
         messages.push({
           role: 'tool',
