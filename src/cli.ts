@@ -109,6 +109,8 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const { DiffContext } = await import('./cli/diff-context.js');
   const diffCtx = new DiffContext();
+  let interactiveForceDepth: string | undefined;
+  let interactiveVerbose = false;
 
   const ask = (): void => {
     rl.question(chalk.cyan('\n  📝 Task > '), async (input) => {
@@ -134,6 +136,8 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
         console.log(chalk.dim('    clear        — Clear conversation context'));
         console.log(chalk.dim('    cache        — Show response cache stats'));
         console.log(chalk.dim('    cache clear  — Clear response cache'));
+        console.log(chalk.dim('    depth <d>    — Force depth (direct|light|standard|full|auto)'));
+        console.log(chalk.dim('    verbose      — Toggle verbose trace output'));
         console.log(chalk.dim('    help         — This help'));
         ask();
         return;
@@ -148,6 +152,26 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
       if (trimmed === 'clear') {
         diffCtx.clear();
         console.log(chalk.dim('  Conversation context cleared.'));
+        ask();
+        return;
+      }
+
+      if (trimmed.startsWith('depth ')) {
+        const d = trimmed.slice(6).trim();
+        const validDepths = ['direct', 'light', 'standard', 'full', 'auto'];
+        if (validDepths.includes(d)) {
+          interactiveForceDepth = d === 'auto' ? undefined : d;
+          console.log(chalk.dim(`  🎯 Depth set to: ${d}`));
+        } else {
+          console.log(chalk.yellow(`  ⚠️ Invalid depth. Valid: ${validDepths.join(', ')}`));
+        }
+        ask();
+        return;
+      }
+
+      if (trimmed === 'verbose') {
+        interactiveVerbose = !interactiveVerbose;
+        console.log(chalk.dim(`  🔍 Verbose: ${interactiveVerbose ? 'on' : 'off'}`));
         ask();
         return;
       }
@@ -180,6 +204,7 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
         let streamStarted = false;
         const pipeline = new Pipeline(config, handleEvent, {
           endpointManager,
+          ...(interactiveForceDepth ? { forceDepth: interactiveForceDepth as any } : {}),
           onToken: (token: string) => {
             if (!streamStarted) {
               console.log(chalk.cyan.bold('\n  === Final Report ==='));
@@ -200,6 +225,9 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
         }
         console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
         printTokenReport(result);
+        if (interactiveVerbose && result.trace) {
+          printTrace(result.trace);
+        }
 
         const tr = result.tokenReport;
         const totalTok = tr.totalInput + tr.totalOutput;
