@@ -478,6 +478,14 @@ export class EndpointManager {
         // Start fresh
       }
       data[model] = { name, timestamp: Date.now(), endpointIndex };
+      // Prune expired entries to prevent unbounded disk cache growth
+      const now = Date.now();
+      for (const key of Object.keys(data)) {
+        const e = data[key] as { timestamp?: number };
+        if (e.timestamp && now - e.timestamp > this.diskCacheTTL) {
+          delete data[key];
+        }
+      }
       const tmpFile = `${this.diskCacheFile}.tmp`;
       writeFileSync(tmpFile, JSON.stringify(data));
       renameSync(tmpFile, this.diskCacheFile);

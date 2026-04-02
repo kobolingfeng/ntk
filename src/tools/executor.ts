@@ -40,10 +40,15 @@ const FILE_CACHE_MAX = 200;
 function cachedReadFile(path: string): string {
   const stat = statSync(path);
   const cached = fileReadCache.get(path);
-  if (cached && cached.mtimeMs === stat.mtimeMs) return cached.content;
+  if (cached && cached.mtimeMs === stat.mtimeMs) {
+    // LRU: re-insert to mark as most recently used
+    fileReadCache.delete(path);
+    fileReadCache.set(path, cached);
+    return cached.content;
+  }
   const content = readFileSync(path, 'utf-8');
   fileReadCache.set(path, { content, mtimeMs: stat.mtimeMs });
-  // Simple eviction: drop oldest when exceeding limit
+  // LRU eviction: drop least recently used (first in Map order)
   if (fileReadCache.size > FILE_CACHE_MAX) {
     fileReadCache.delete(fileReadCache.keys().next().value!);
   }
