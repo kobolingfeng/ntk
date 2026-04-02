@@ -25,10 +25,10 @@ const MAX_BUFFER = 1_048_576;
 const STREAM_INACTIVITY_TIMEOUT = 60_000;
 
 /** Streaming repetition detection — abort when LLM loops on the same output */
-const REPEAT_CHECK_EVERY = 40;
+const REPEAT_CHECK_EVERY = 20;
 const REPEAT_BUF_SIZE = 500;
 const REPEAT_BUF_CAP = REPEAT_BUF_SIZE * 2;
-const REPEAT_PAT_LENS = [150, 80, 40] as const;
+const REPEAT_PAT_LENS = [150, 80, 40, 20] as const;
 const REPEAT_REQUIRED = 3;
 
 function hasStreamRepetition(buf: string): boolean {
