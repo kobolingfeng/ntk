@@ -26,7 +26,13 @@ const STREAM_INACTIVITY_TIMEOUT = 30_000;
 
 /** Extract usage info from remaining SSE buffer after stream ends */
 function flushSSEBuffer(buffer: string): { inputTokens: number; outputTokens: number } | null {
-  if (!buffer.trim()) return null;
+  // Fast empty check without allocating a trimmed copy
+  let hasContent = false;
+  for (let i = 0; i < buffer.length; i++) {
+    const c = buffer.charCodeAt(i);
+    if (c !== 32 && c !== 9 && c !== 10 && c !== 13) { hasContent = true; break; }
+  }
+  if (!hasContent) return null;
   let inputTokens = 0;
   let outputTokens = 0;
   let found = false;
@@ -692,7 +698,7 @@ export class LLMClient {
             }
           } catch { /* malformed SSE */ }
         }
-        buffer = buffer.substring(searchFrom);
+        if (searchFrom > 0) buffer = buffer.substring(searchFrom);
       }
     } catch {
       // stream error
@@ -884,7 +890,7 @@ export class LLMClient {
             // Skip malformed SSE lines
           }
         }
-        buffer = buffer.substring(searchFrom);
+        if (searchFrom > 0) buffer = buffer.substring(searchFrom);
         if (abortedByLimit) break;
       }
       // Flush remaining buffer — usage event may arrive in the final chunk
