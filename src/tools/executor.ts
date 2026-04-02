@@ -73,7 +73,7 @@ function safePath(path: string, cwd: string): string {
 }
 
 /** Blocked commands for security */
-const BLOCKED_COMMANDS = /^\s*(rm\s+-rf\s+\/|del\s+\/s\s+\/q\s+[A-Z]:\\|format\s+[A-Z]:|mkfs|dd\s+if=|:(){ :|curl\s+.*\|\s*(?:sh|bash)|wget\s+.*\|\s*(?:sh|bash)|sudo\s|>\s*\/dev\/)/i;
+const BLOCKED_COMMANDS = /^\s*(rm\s+-rf\s+\/|del\s+\/s\s+\/q\s+[A-Z]:\\|format\s+[A-Z]:|mkfs|dd\s+if=|:(){ :|(?:curl|wget)\s+.*\|\s*(?:sh|bash|python3?|node|perl|ruby|eval)|sudo\s|>\s*\/dev\/|eval\s+["'`$(])/i;
 
 // ─── Tool Implementations ──────────────────────────
 
