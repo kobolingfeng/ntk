@@ -227,7 +227,7 @@ export class NTKServer {
       Connection: 'keep-alive',
     });
 
-    const config = { ...this.config, debug: debug === true };
+    const config = { ...this.config, debug: debug === true ? true : this.config.debug };
 
     const pipeline = new Pipeline(
       config,

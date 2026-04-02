@@ -479,7 +479,7 @@ async function main(): Promise<void> {
       }
 
       console.log(chalk.cyan.bold(`\n  ═══ Batch Summary ═══`));
-      console.log(`  Tasks: ${results.length} | Passed: ${results.filter((r) => r.ok).length}`);
+      console.log(`  Tasks: ${results.length} | Passed: ${results.reduce((n, r) => n + (r.ok ? 1 : 0), 0)}`);
       console.log(`  Total tokens: ${totalTokens}`);
       console.log(`  Total time: ${totalTime.toFixed(1)}s`);
       console.log(`  Avg tokens/task: ${Math.round(totalTokens / results.length)}`);
