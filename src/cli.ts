@@ -18,6 +18,7 @@ import { flushDepthPredictor } from './core/depth-predictor.js';
 import { defaultEndpointManager, EndpointManager } from './core/llm.js';
 import type { NTKConfig } from './index.js';
 import { Pipeline } from './pipeline/pipeline.js';
+import { TOOL_DEFINITIONS } from './tools/definitions.js';
 
 const endpointManager = new EndpointManager();
 
@@ -48,13 +49,14 @@ function loadConfig(): NTKConfig {
 async function cmdRun(
   task: string,
   config: NTKConfig,
-  opts?: { forceDepth?: string; skipScout?: boolean; stream?: boolean; verbose?: boolean; json?: boolean },
+  opts?: { forceDepth?: string; skipScout?: boolean; stream?: boolean; verbose?: boolean; json?: boolean; tools?: boolean },
 ): Promise<void> {
   const jsonOutput = opts?.json;
   if (!jsonOutput) {
     console.log(chalk.blue.bold(`\n  ⚡ Running task: "${task}"\n`));
     if (opts?.forceDepth) console.log(chalk.dim(`  Force depth: ${opts.forceDepth}`));
     if (opts?.skipScout) console.log(chalk.dim(`  Skip scout: true`));
+    if (opts?.tools) console.log(chalk.dim(`  Tool-calling: enabled (${TOOL_DEFINITIONS.length} tools)`));
   }
 
   const useStream = !jsonOutput && opts?.stream !== false;
@@ -64,6 +66,7 @@ async function cmdRun(
   const pipeline = new Pipeline(config, jsonOutput ? () => {} : handleEvent, {
     ...(opts as any),
     endpointManager,
+    ...(opts?.tools ? { tools: TOOL_DEFINITIONS, toolsCwd: process.cwd() } : {}),
     onToken: useStream
       ? (token: string) => {
           if (!streamStarted) {
@@ -127,6 +130,7 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
   const diffCtx = new DiffContext();
   let interactiveForceDepth: string | undefined;
   let interactiveVerbose = false;
+  let interactiveTools = false;
 
   const ask = (): void => {
     rl.question(chalk.cyan('\n  📝 Task > '), async (input) => {
@@ -154,6 +158,7 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
         console.log(chalk.dim('    cache clear  — Clear response cache'));
         console.log(chalk.dim('    depth <d>    — Force depth (direct|light|standard|full|auto)'));
         console.log(chalk.dim('    verbose      — Toggle verbose trace output'));
+        console.log(chalk.dim('    tools        — Toggle tool-calling mode'));
         console.log(chalk.dim('    estimate <t> — Preview task depth/cost (zero LLM cost)'));
         console.log(chalk.dim('    help         — This help'));
         ask();
@@ -189,6 +194,13 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
       if (trimmed === 'verbose') {
         interactiveVerbose = !interactiveVerbose;
         console.log(chalk.dim(`  🔍 Verbose: ${interactiveVerbose ? 'on' : 'off'}`));
+        ask();
+        return;
+      }
+
+      if (trimmed === 'tools') {
+        interactiveTools = !interactiveTools;
+        console.log(chalk.dim(`  🔧 Tool-calling: ${interactiveTools ? `on (${TOOL_DEFINITIONS.length} tools)` : 'off'}`));
         ask();
         return;
       }
@@ -238,6 +250,7 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
         const pipeline = new Pipeline(config, handleEvent, {
           endpointManager,
           ...(interactiveForceDepth ? { forceDepth: interactiveForceDepth as any } : {}),
+          ...(interactiveTools ? { tools: TOOL_DEFINITIONS, toolsCwd: process.cwd() } : {}),
           onToken: (token: string) => {
             if (!streamStarted) {
               console.log(chalk.cyan.bold('\n  === Final Report ==='));
@@ -317,7 +330,7 @@ async function main(): Promise<void> {
     if (!task) {
       console.log(
         chalk.yellow(
-          '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout] [--json]',
+          '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout] [--tools] [--json]',
         ),
       );
       return;
@@ -371,6 +384,7 @@ async function main(): Promise<void> {
       const skipScout = args.includes('--skip-scout');
       const verbose = args.includes('--verbose') || args.includes('-v');
       const jsonFlag = args.includes('--json');
+      const toolsFlag = args.includes('--tools');
       const skipIndices = new Set<number>();
       if (fdIdx >= 0) {
         skipIndices.add(fdIdx);
@@ -385,12 +399,12 @@ async function main(): Promise<void> {
       if (!task) {
         console.log(
           chalk.yellow(
-            '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout] [--json]',
+            '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout] [--tools] [--json]',
           ),
         );
         return;
       }
-      await cmdRun(task, config, { forceDepth, skipScout: skipScout || undefined, verbose, json: jsonFlag });
+      await cmdRun(task, config, { forceDepth, skipScout: skipScout || undefined, verbose, json: jsonFlag, tools: toolsFlag || undefined });
       break;
     }
 
@@ -635,6 +649,7 @@ async function main(): Promise<void> {
         console.log(chalk.dim('  Flags:'));
         console.log(chalk.dim('    --force-depth <d> — Force depth (direct|light|standard|full)'));
         console.log(chalk.dim('    --skip-scout      — Skip scout in standard depth'));
+        console.log(chalk.dim('    --tools           — Enable tool-calling mode (file/command/search tools)'));
         console.log(chalk.dim('    --verbose / -v    — Show pipeline trace (routing, compression, token details)'));
         console.log(chalk.dim('    --json            — Output result as JSON (for programmatic use)'));
         console.log(chalk.dim('    --fast-start      — Skip compressor model probe'));
