@@ -342,17 +342,13 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
     const lastResult = results[results.length - 1];
     if (lastResult) {
       try {
-        const teeKeys: string[] = [];
+        const originals: string[] = [];
         for (let i = 1; i <= ctx.compressor.teeSize; i++) {
-          const key = `tee-${i}`;
-          const original = ctx.compressor.teeRetrieve(key);
-          if (original) teeKeys.push(key);
+          const original = ctx.compressor.teeRetrieve(`tee-${i}`);
+          if (original) originals.push(original);
         }
 
-        if (teeKeys.length > 0) {
-          const originals = teeKeys
-            .map((k) => ctx.compressor.teeRetrieve(k))
-            .filter((v): v is string => v !== undefined);
+        if (originals.length > 0) {
           const recoveredContext = originals.join('\n');
 
           const fixMsg = createMessage(
