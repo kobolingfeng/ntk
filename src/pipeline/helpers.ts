@@ -142,7 +142,8 @@ export function isStructurallyComplete(
   userRequest: string,
   thresholds: SkipThresholds = DEFAULT_SKIP_THRESHOLDS,
 ): boolean {
-  if (output.length < 100) return true;
+  // Very short outputs in non-trivial depths are likely incomplete — verify them
+  if (output.length < 100) return false;
 
   const hasCode = hasCodeBlock(output);
   const hasNumberedList = HAS_NUMBERED_LIST.test(output);

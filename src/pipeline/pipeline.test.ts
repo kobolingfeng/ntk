@@ -525,16 +525,16 @@ describe('isStructurallyComplete', () => {
   const bulletList = '\n- Item A\n- Item B\n- Item C';
 
   describe('short-circuit for short output', () => {
-    it('output < 100 chars → true regardless of content', () => {
-      expect(isStructurallyComplete('short', '写代码')).toBe(true);
+    it('output < 100 chars → false (likely incomplete in non-trivial depths)', () => {
+      expect(isStructurallyComplete('short', '写代码')).toBe(false);
     });
 
-    it('empty output → true', () => {
-      expect(isStructurallyComplete('', '写代码')).toBe(true);
+    it('empty output → false', () => {
+      expect(isStructurallyComplete('', '写代码')).toBe(false);
     });
 
-    it('exactly 99 chars → true', () => {
-      expect(isStructurallyComplete('a'.repeat(99), '写代码')).toBe(true);
+    it('exactly 99 chars → false', () => {
+      expect(isStructurallyComplete('a'.repeat(99), '写代码')).toBe(false);
     });
   });
 
