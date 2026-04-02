@@ -48,8 +48,12 @@ const BLOCKED_COMMANDS = /^\s*(rm\s+-rf\s+\/|del\s+\/s\s+\/q\s+[A-Z]:\\|format\s
 
 function toolReadFile(args: Record<string, unknown>, cwd: string): string {
   const path = safePath(String(args.path ?? ''), cwd);
-  if (!existsSync(path)) return `文件不存在: ${args.path}`;
-  const stat = statSync(path);
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(path);
+  } catch {
+    return `文件不存在: ${args.path}`;
+  }
   if (stat.isDirectory()) return `${args.path} 是目录，请使用 list_directory`;
   if (stat.size > 500_000) return `文件过大 (${(stat.size / 1024).toFixed(0)}KB)，请指定具体内容查找`;
   return readFileSync(path, 'utf-8');
@@ -101,7 +105,7 @@ function toolFindFiles(args: Record<string, unknown>, cwd: string): string {
 
   // Simple glob matching using recursive directory walk
   const results: string[] = [];
-  const globRegex = globToRegex(pattern);
+  const globRegex = cachedGlobToRegex(pattern);
 
   function walk(dir: string, depth: number): void {
     if (depth > 8 || results.length >= 100) return;
@@ -137,7 +141,7 @@ function toolSearchInFiles(args: Record<string, unknown>, cwd: string): string {
     regex = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'im');
   }
 
-  const fileFilter = globToRegex(fileGlob);
+  const fileFilter = cachedGlobToRegex(fileGlob);
   const results: string[] = [];
 
   function walk(dir: string, depth: number): void {
@@ -152,12 +156,19 @@ function toolSearchInFiles(args: Record<string, unknown>, cwd: string): string {
             const stat = statSync(fullPath);
             if (stat.size > 200_000) continue;
             const content = readFileSync(fullPath, 'utf-8');
-            const lines = content.split('\n');
-            for (let i = 0; i < lines.length; i++) {
-              if (regex.test(lines[i])) {
-                const relPath = fullPath.slice(cwd.length + 1).replace(/\\/g, '/');
-                results.push(`${relPath}:${i + 1}: ${lines[i].trim().slice(0, 120)}`);
-                if (results.length >= 50) return;
+            // Line-by-line scan without split() allocation
+            let lineStart = 0;
+            let lineNum = 1;
+            for (let i = 0; i <= content.length; i++) {
+              if (i === content.length || content.charCodeAt(i) === 10) {
+                const line = content.substring(lineStart, i);
+                if (regex.test(line)) {
+                  const relPath = fullPath.slice(cwd.length + 1).replace(/\\/g, '/');
+                  results.push(`${relPath}:${lineNum}: ${line.trim().slice(0, 120)}`);
+                  if (results.length >= 50) return;
+                }
+                lineStart = i + 1;
+                lineNum++;
               }
             }
           } catch { /* binary file or read error */ }
@@ -258,6 +269,17 @@ function htmlToText(html: string, maxLength: number): string {
 }
 
 // ─── Glob to Regex ─────────────────────────────────
+
+/** LRU-1 cache for glob→regex conversion */
+let _lastGlob = '';
+let _lastGlobRe: RegExp | null = null;
+
+function cachedGlobToRegex(glob: string): RegExp {
+  if (glob === _lastGlob && _lastGlobRe) return _lastGlobRe;
+  _lastGlob = glob;
+  _lastGlobRe = globToRegex(glob);
+  return _lastGlobRe;
+}
 
 function globToRegex(glob: string): RegExp {
   let re = glob
