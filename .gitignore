@@ -20,3 +20,9 @@ src/probe.ts
 .cursor/
 .ntk/
 benchmark-output.txt
+dnf_test_output/
+extract_test.py
+test_api_request.json
+test_result_api2.json
+test_simple.json
+test_skill_full.json
