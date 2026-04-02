@@ -17,6 +17,8 @@ import type { AgentType, LLMConfig, Phase, TokenUsage } from './protocol.js';
 
 /** Shared TextDecoder instance for SSE stream parsing */
 const sseDecoder = new TextDecoder();
+/** Reusable decode options — avoids per-chunk object allocation */
+const SSE_DECODE_OPT: TextDecodeOptions = { stream: true };
 /** 1MB safety limit for SSE buffer */
 const MAX_BUFFER = 1_048_576;
 /** 30s inactivity timeout for stream reading */
@@ -77,6 +79,8 @@ export class EndpointManager {
   private healthStats = new Map<number, { failures: number; successes: number; lastFailure: number; demoted: boolean; avgLatencyMs: number; latencyCount: number }>();
   private readonly demoteThreshold = 3; // consecutive failures before demotion
   private readonly recoveryCheckInterval = 120_000; // re-check demoted endpoints every 2 min
+  /** Cached endpoint order — invalidated on health state changes */
+  private cachedOrder: { model: string; order: number[]; ts: number } | null = null;
 
   constructor() {
     this.diskCacheFile = join(this.diskCacheDir, 'probe-cache.json');
@@ -272,6 +276,11 @@ export class EndpointManager {
 
   /** Get endpoint indices ordered by priority, with demoted endpoints at the end */
   getEndpointOrder(model: string): number[] {
+    // Return cached order if still valid (invalidated by recordSuccess/recordFailure)
+    if (this.cachedOrder && this.cachedOrder.model === model) {
+      return this.cachedOrder.order;
+    }
+
     const compatible = this.modelEndpointMap.get(model);
     const healthy: number[] = [];
     const demoted: number[] = [];
@@ -317,8 +326,12 @@ export class EndpointManager {
     }
 
     // Concat without spread — avoid intermediate array
-    if (demoted.length === 0) return healthy;
+    if (demoted.length === 0) {
+      this.cachedOrder = { model, order: healthy, ts: Date.now() };
+      return healthy;
+    }
     for (const d of demoted) healthy.push(d);
+    this.cachedOrder = { model, order: healthy, ts: Date.now() };
     return healthy;
   }
 
@@ -332,9 +345,11 @@ export class EndpointManager {
       const alpha = 0.3;
       stats.avgLatencyMs = stats.latencyCount === 0 ? latencyMs : stats.avgLatencyMs * (1 - alpha) + latencyMs * alpha;
       stats.latencyCount++;
+      this.cachedOrder = null; // Latency change affects priority order
     }
     if (stats.demoted) {
       stats.demoted = false;
+      this.cachedOrder = null;
       console.log(`[LLM] ♻️ ${this.endpoints[endpointIndex]?.name} recovered, promoting back`);
     }
     this.healthStats.set(endpointIndex, stats);
@@ -345,6 +360,7 @@ export class EndpointManager {
     const stats = this.healthStats.get(endpointIndex) ?? { failures: 0, successes: 0, lastFailure: 0, demoted: false, avgLatencyMs: 0, latencyCount: 0 };
     stats.failures++;
     stats.lastFailure = Date.now();
+    this.cachedOrder = null; // Failure may trigger demotion
     if (stats.failures >= this.demoteThreshold && !stats.demoted) {
       stats.demoted = true;
       console.log(`[LLM] ⬇️ ${this.endpoints[endpointIndex]?.name} demoted after ${stats.failures} consecutive failures`);
@@ -574,7 +590,7 @@ export class LLMClient {
         lastActivityMs = Date.now();
         if (done) break;
 
-        buffer += sseDecoder.decode(value, { stream: true });
+        buffer += sseDecoder.decode(value, SSE_DECODE_OPT);
         if (buffer.length > MAX_BUFFER) buffer = buffer.slice(-MAX_BUFFER / 2);
 
         let nlIdx: number;
@@ -780,7 +796,7 @@ export class LLMClient {
           break;
         }
 
-        buffer += sseDecoder.decode(value, { stream: true });
+        buffer += sseDecoder.decode(value, SSE_DECODE_OPT);
         if (buffer.length > MAX_BUFFER) {
           buffer = buffer.slice(-MAX_BUFFER / 2);        }
 
