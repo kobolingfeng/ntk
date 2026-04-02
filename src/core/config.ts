@@ -81,8 +81,3 @@ export function buildConfig(
     },
   };
 }
-
-/** Get the fallback model for OpenRouter endpoints */
-export function getFallbackModel(): string | undefined {
-  return process.env.OPENROUTER_FALLBACK_MODEL;
-}

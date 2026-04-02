@@ -208,10 +208,3 @@ export function predictDepth(task: string): { depth: PipelineDepth; confidence: 
 
   return { depth: best, confidence: bestCount / total };
 }
-
-/** Flush any pending changes to disk (for testing/cleanup) */
-export function flushPredictorCache(): void {
-  if (dirty && memoryCache) {
-    saveToDisk(memoryCache);
-  }
-}
