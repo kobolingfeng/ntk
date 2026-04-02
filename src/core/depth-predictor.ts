@@ -193,7 +193,8 @@ export function predictDepth(task: string): { depth: PipelineDepth; confidence: 
       }
     }
 
-    return { depth: best, confidence: bestCount / total };
+    // Scale down partial match confidence — fuzzy matches are less reliable than exact
+    return { depth: best, confidence: (bestCount / total) * 0.7 };
   }
 
   const total = matches.reduce((s, m) => s + m.count, 0);
