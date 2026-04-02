@@ -5,13 +5,14 @@ import {
   assembleReport,
   DEFAULT_SKIP_THRESHOLDS,
   emptyOutputMessage,
+  formatTrace,
   FULL_SKIP_THRESHOLDS,
   generateTokenReport,
   isStructurallyComplete,
   parseVerificationResult,
   predictTokenUsage,
 } from './helpers.js';
-import type { ExecutionResult } from './types.js';
+import type { ExecutionResult, PipelineTrace } from './types.js';
 
 /**
  * Wrapper for cost savings calculation using the real generateTokenReport function.
@@ -802,5 +803,144 @@ describe('predictTokenUsage', () => {
       expect(result.estimated).toBeGreaterThan(0);
       expect(result.estimated).toBeLessThan(10000);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+
+describe('formatTrace', () => {
+  function makeTrace(overrides: Partial<PipelineTrace> = {}): PipelineTrace {
+    return {
+      startedAt: 0,
+      finishedAt: 100,
+      durationMs: 100,
+      routing: {
+        fastPathResult: null,
+        classifierResult: 'direct',
+        finalDepth: 'direct',
+        speculativeHit: null,
+        predictionConfidence: null,
+      },
+      compression: {
+        preFilterCharsRemoved: 0,
+        preFilterOriginalChars: 0,
+        preFilterReductionPercent: 0,
+        llmCompressionCalls: 0,
+        teeEntriesStored: 0,
+        teeRetrieved: 0,
+      },
+      tokens: {
+        totalInput: 50,
+        totalOutput: 80,
+        total: 130,
+        strongModelTokens: 50,
+        cheapModelTokens: 80,
+        strongModelPercent: 38.5,
+        estimatedCostSavingsPercent: 55,
+        byAgent: {},
+      },
+      errors: {
+        compressionFallbacks: 0,
+        teeRecoveryAttempts: 0,
+        teeRecoverySuccesses: 0,
+        apiRetries: 0,
+      },
+      cached: false,
+      events: [],
+      ...overrides,
+    };
+  }
+
+  it('formats basic trace', () => {
+    const output = formatTrace(makeTrace());
+    expect(output).toContain('Pipeline Trace');
+    expect(output).toContain('LLM classifier');
+    expect(output).toContain('direct');
+    expect(output).toContain('100ms');
+  });
+
+  it('shows regex fast path routing', () => {
+    const output = formatTrace(makeTrace({
+      routing: { fastPathResult: 'light', classifierResult: null, finalDepth: 'light', speculativeHit: null, predictionConfidence: null },
+    }));
+    expect(output).toContain('regex');
+    expect(output).toContain('light');
+  });
+
+  it('shows speculative hit', () => {
+    const output = formatTrace(makeTrace({
+      routing: { fastPathResult: null, classifierResult: 'standard', finalDepth: 'standard', speculativeHit: true, predictionConfidence: 0.85 },
+    }));
+    expect(output).toContain('hit');
+    expect(output).toContain('85%');
+  });
+
+  it('shows speculative miss', () => {
+    const output = formatTrace(makeTrace({
+      routing: { fastPathResult: null, classifierResult: 'standard', finalDepth: 'standard', speculativeHit: false, predictionConfidence: null },
+    }));
+    expect(output).toContain('miss');
+  });
+
+  it('shows pre-filter compression', () => {
+    const output = formatTrace(makeTrace({
+      compression: { preFilterCharsRemoved: 500, preFilterOriginalChars: 2000, preFilterReductionPercent: 25, llmCompressionCalls: 0, teeEntriesStored: 0, teeRetrieved: 0 },
+    }));
+    expect(output).toContain('500 chars removed');
+    expect(output).toContain('25.0%');
+  });
+
+  it('shows LLM compression calls', () => {
+    const output = formatTrace(makeTrace({
+      compression: { preFilterCharsRemoved: 0, preFilterOriginalChars: 0, preFilterReductionPercent: 0, llmCompressionCalls: 3, teeEntriesStored: 0, teeRetrieved: 0 },
+    }));
+    expect(output).toContain('LLM compression calls: 3');
+  });
+
+  it('shows tee stats', () => {
+    const output = formatTrace(makeTrace({
+      compression: { preFilterCharsRemoved: 0, preFilterOriginalChars: 0, preFilterReductionPercent: 0, llmCompressionCalls: 0, teeEntriesStored: 5, teeRetrieved: 2 },
+    }));
+    expect(output).toContain('5 stored');
+    expect(output).toContain('2 retrieved');
+  });
+
+  it('shows agent token breakdown', () => {
+    const output = formatTrace(makeTrace({
+      tokens: { totalInput: 100, totalOutput: 200, total: 300, strongModelTokens: 100, cheapModelTokens: 200, strongModelPercent: 33.3, estimatedCostSavingsPercent: 60, byAgent: { planner: { input: 50, output: 50 }, scout: { input: 50, output: 150 } } },
+    }));
+    expect(output).toContain('planner=100');
+    expect(output).toContain('scout=200');
+  });
+
+  it('shows error recovery info', () => {
+    const output = formatTrace(makeTrace({
+      errors: { compressionFallbacks: 2, teeRecoveryAttempts: 3, teeRecoverySuccesses: 1, apiRetries: 5 },
+    }));
+    expect(output).toContain('api-retries=5');
+    expect(output).toContain('compression-fallbacks=2');
+    expect(output).toContain('tee-recovery=1/3');
+  });
+
+  it('shows cache hit', () => {
+    const output = formatTrace(makeTrace({ cached: true }));
+    expect(output).toContain('HIT');
+  });
+
+  it('does not show cache line when not cached', () => {
+    const output = formatTrace(makeTrace({ cached: false }));
+    expect(output).not.toContain('Cache');
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+
+describe('emptyOutputMessage', () => {
+  it('returns Chinese message for zh locale', () => {
+    expect(emptyOutputMessage('zh')).toContain('未生成输出');
+  });
+
+  it('returns English message for en locale', () => {
+    expect(emptyOutputMessage('en')).toContain('No output generated');
   });
 });
