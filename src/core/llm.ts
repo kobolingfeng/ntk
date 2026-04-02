@@ -644,6 +644,11 @@ export class LLMClient {
 
     if (endpointsToTry.length === 0) throw new AllEndpointsFailedError(0);
 
+    // Fast bail: skip everything if already cancelled
+    if (signal?.aborted) {
+      return { usage: { agent, inputTokens: 0, outputTokens: 0, timestamp: Date.now(), phase } };
+    }
+
     // Build payload with optional pre-serialized tools to avoid redundant JSON.stringify on tools array
     const toolsJson = cachedToolsJson ?? JSON.stringify(tools);
     const messagesJson = cachedMessagesJson ?? JSON.stringify(messages);
@@ -836,6 +841,11 @@ export class LLMClient {
     const allEndpoints = this.endpointManager.getEndpoints();
 
     if (endpointsToTry.length === 0) throw new AllEndpointsFailedError(0);
+
+    // Fast bail: skip payload construction if already cancelled
+    if (signal?.aborted) {
+      return { content: '', usage: { agent, inputTokens: 0, outputTokens: 0, timestamp: Date.now(), phase } };
+    }
 
     const effectiveMax = maxTokensOverride ?? this.maxTokens;
     const effectiveTemp = temperatureOverride ?? this.temperature;
