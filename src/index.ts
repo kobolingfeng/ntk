@@ -29,7 +29,7 @@ export {
   NTKError,
   PipelineError,
 } from './core/errors.js';
-export type { Endpoint } from './core/llm.js';
+export type { Endpoint, EndpointInput } from './core/llm.js';
 export { defaultEndpointManager, EndpointManager, estimateTokens, LLMClient } from './core/llm.js';
 export type { PreFilterResult, PreFilterStrategyReport } from './core/pre-filter.js';
 export { preFilter } from './core/pre-filter.js';
