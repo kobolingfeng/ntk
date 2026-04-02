@@ -153,12 +153,14 @@ export function preFilter(text: string): PreFilterResult {
   };
 }
 
-/** Count newlines without allocating an array */
-function newlineCount(text: string): number {
+/** Check if text has at least `min` newlines — exits early */
+function hasMinNewlines(text: string, min: number): boolean {
   let n = 0;
   let i = -1;
-  while ((i = text.indexOf('\n', i + 1)) !== -1) n++;
-  return n;
+  while ((i = text.indexOf('\n', i + 1)) !== -1) {
+    if (++n >= min) return true;
+  }
+  return false;
 }
 
 // ─── Strategies ────────────────────────────────────────
@@ -212,7 +214,7 @@ function normalizeForDedup(line: string): string {
 
 function deduplicateLines(text: string): { result: string; name: string } {
   // Skip split() allocation when too few lines to dedup
-  if (newlineCount(text) < 3) return { result: text, name: 'dedup-lines' };
+  if (!hasMinNewlines(text, 3)) return { result: text, name: 'dedup-lines' };
   const lines = text.split('\n');
 
   const output: string[] = [];
@@ -383,13 +385,6 @@ function shortenUrls(text: string): { result: string; name: string } {
     }
   });
   return { result, name: 'url-shorten' };
-}
-
-
-function stripBoilerplateNotices(text: string): { result: string; name: string } {
-  const lines = text.split('\n');
-  const filtered = lines.filter((line) => !BOILERPLATE.test(line));
-  return { result: filtered.join('\n'), name: 'boilerplate-strip' };
 }
 
 /** Combined progress bar + boilerplate filter — single split+join instead of two */
