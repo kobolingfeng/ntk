@@ -525,13 +525,17 @@ async function main(): Promise<void> {
       async function runBatchTask(t: string, idx: number): Promise<void> {
         const start = Date.now();
         let batchTimer: ReturnType<typeof setTimeout> | undefined;
+        const ac = new AbortController();
         try {
-          const p = new Pipeline(config, () => {}, { endpointManager });
+          const p = new Pipeline(config, () => {}, { endpointManager, signal: ac.signal });
           const taskTimeout = 300_000; // 5 min per task
           const r = await Promise.race([
             p.run(t),
             new Promise<never>((_, reject) => {
-              batchTimer = setTimeout(() => reject(new Error('Task timeout (5min)')), taskTimeout);
+              batchTimer = setTimeout(() => {
+                ac.abort();
+                reject(new Error('Task timeout (5min)'));
+              }, taskTimeout);
             }),
           ]);
           clearTimeout(batchTimer);
@@ -544,6 +548,7 @@ async function main(): Promise<void> {
           reports[idx] = r.report;
           console.log(chalk.green(`  [${completedCount}/${tasks.length}] ✅ ${tok} tok, ${elapsed.toFixed(1)}s, depth=${r.depth} — ${t.length > 40 ? `${t.slice(0, 40)}...` : t}`));
         } catch (e: any) {
+          ac.abort();
           clearTimeout(batchTimer);
           const elapsed = (Date.now() - start) / 1000;
           totalTime += elapsed;

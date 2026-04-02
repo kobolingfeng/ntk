@@ -29,7 +29,10 @@ import { z } from 'zod';
 import { Compressor } from '../core/compressor.js';
 import { buildConfig, discoverEndpoints } from '../core/config.js';
 import { EndpointManager, LLMClient } from '../core/llm.js';
+import { detectLocale, detectTaskBand } from '../core/prompts.js';
 import type { NTKConfig, PipelineDepth } from '../index.js';
+import { classifyDepthFastPath } from '../pipeline/classifier.js';
+import { predictTokenUsage } from '../pipeline/helpers.js';
 import { Pipeline } from '../pipeline/pipeline.js';
 
 dotenv.config();
@@ -87,6 +90,7 @@ server.tool(
   },
   async ({ task, forceDepth, skipScout }) => {
     let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+    const ac = new AbortController();
     try {
       const config = await ensureInitialized();
 
@@ -94,11 +98,15 @@ server.tool(
         forceDepth: forceDepth as PipelineDepth | undefined,
         skipScout,
         endpointManager,
+        signal: ac.signal,
       });
       const result = await Promise.race([
         pipeline.run(task),
         new Promise<never>((_, reject) => {
-          timeoutTimer = setTimeout(() => reject(new Error('Task timeout (5min)')), 300_000);
+          timeoutTimer = setTimeout(() => {
+            ac.abort();
+            reject(new Error('Task timeout (5min)'));
+          }, 300_000);
         }),
       ]);
 
@@ -126,6 +134,7 @@ server.tool(
         isError: true,
       };
     } finally {
+      ac.abort();
       clearTimeout(timeoutTimer);
     }
   },
@@ -140,14 +149,18 @@ server.tool(
   },
   async ({ task }) => {
     let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+    const ac = new AbortController();
     try {
       const config = await ensureInitialized();
       const fastConfig = { ...config, planner: { ...config.compressor } };
-      const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth, endpointManager });
+      const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth, endpointManager, signal: ac.signal });
       const result = await Promise.race([
         pipeline.run(task),
         new Promise<never>((_, reject) => {
-          timeoutTimer = setTimeout(() => reject(new Error('Task timeout (5min)')), 300_000);
+          timeoutTimer = setTimeout(() => {
+            ac.abort();
+            reject(new Error('Task timeout (5min)'));
+          }, 300_000);
         }),
       ]);
 
@@ -171,6 +184,7 @@ server.tool(
         isError: true,
       };
     } finally {
+      ac.abort();
       clearTimeout(timeoutTimer);
     }
   },
@@ -223,10 +237,6 @@ server.tool(
     task: z.string().max(10000).describe('The task to estimate'),
   },
   async ({ task }) => {
-    const { classifyDepthFastPath } = await import('../pipeline/classifier.js');
-    const { predictTokenUsage } = await import('../pipeline/helpers.js');
-    const { detectLocale, detectTaskBand } = await import('../core/prompts.js');
-
     const depth = classifyDepthFastPath(task) ?? 'light';
     const locale = detectLocale(task);
     const band = detectTaskBand(task);

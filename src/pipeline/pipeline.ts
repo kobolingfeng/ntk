@@ -97,6 +97,7 @@ export class Pipeline {
   private onToken?: (token: string) => void;
   private tools?: ToolDefinition[];
   private toolsCwd?: string;
+  private signal?: AbortSignal;
 
   // Lazy accessors for agents/infrastructure only needed in non-direct paths
   private get planner(): Planner {
@@ -158,6 +159,7 @@ export class Pipeline {
       endpointManager?: EndpointManager;
       tools?: ToolDefinition[];
       toolsCwd?: string;
+      signal?: AbortSignal;
     },
   ) {
     this.config = config;
@@ -168,6 +170,7 @@ export class Pipeline {
     this.onToken = options?.onToken;
     this.tools = options?.tools;
     this.toolsCwd = options?.toolsCwd;
+    this.signal = options?.signal;
 
     this.em = options?.endpointManager;
 
@@ -253,6 +256,18 @@ export class Pipeline {
     }
 
     try {
+      // Abort check — exit early if externally cancelled
+      if (this.signal?.aborted) {
+        return {
+          success: false,
+          report: 'Task cancelled.',
+          tokenReport: this.getTokenReport(),
+          routerStats: this._router?.getStats() ?? EMPTY_ROUTER_STATS,
+          blockedMessages: [],
+          depth: 'direct',
+        };
+      }
+
       if (pfResult && pfResult.charsRemoved > 0) {
         this.emit({
           type: 'message',
@@ -560,6 +575,11 @@ export class Pipeline {
     userRequest: string,
     overrides?: { onToken?: (token: string) => void; emit?: (e: PipelineEvent) => void; signal?: AbortSignal },
   ): DirectDepthContext {
+    // Merge external pipeline signal with any override signal
+    let signal = overrides?.signal ?? this.signal;
+    if (overrides?.signal && this.signal && overrides.signal !== this.signal) {
+      signal = AbortSignal.any([overrides.signal, this.signal]);
+    }
     return {
       userRequest,
       executor: this.executor,
@@ -572,7 +592,7 @@ export class Pipeline {
       onToken: overrides?.onToken,
       tools: this.tools,
       toolsCwd: this.toolsCwd,
-      signal: overrides?.signal,
+      signal,
     };
   }
 
