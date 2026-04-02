@@ -59,6 +59,11 @@ export class Compressor {
     return this.teeStore.size;
   }
 
+  /** Get all tee IDs currently stored */
+  get teeIds(): string[] {
+    return [...this.teeStore.keys()];
+  }
+
   /** Discard a tee entry after it's no longer needed */
   teeDiscard(teeId: string): boolean {
     return this.teeStore.delete(teeId);

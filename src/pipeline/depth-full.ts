@@ -354,8 +354,8 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
     if (lastResult) {
       try {
         const originals: string[] = [];
-        for (let i = 1; i <= ctx.compressor.teeSize; i++) {
-          const original = ctx.compressor.teeRetrieve(`tee-${i}`);
+        for (const id of ctx.compressor.teeIds) {
+          const original = ctx.compressor.teeRetrieve(id);
           if (original) originals.push(original);
         }
 
