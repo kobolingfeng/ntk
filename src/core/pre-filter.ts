@@ -30,7 +30,7 @@ const typeSpecificStrategies: Record<OutputType, FilterStrategy[]> = {
   test: [stripProgressBars, deduplicateLines, stripPassedTests, compressStackTraces],
   json: [deduplicateLines, compactJson],
   log: [stripProgressBars, deduplicateLines, compressStackTraces, collapsePrefixRuns],
-  build: [stripProgressAndBoilerplate, deduplicateLines, compressCodeBlocks, collapsePrefixRuns],
+  build: [stripProgressAndBoilerplate, deduplicateLines, compressCodeBlocks, collapsePrefixRuns, stripDiffMetadata],
   general: [
     stripProgressAndBoilerplate,
     deduplicateLines,
@@ -38,6 +38,7 @@ const typeSpecificStrategies: Record<OutputType, FilterStrategy[]> = {
     compactJson,
     compressCodeBlocks,
     compressStackTraces,
+    stripDiffMetadata,
   ],
 };
 
@@ -517,4 +518,17 @@ function collapsePrefixRuns(text: string): { result: string; name: string } {
   }
 
   return { result: output.join('\n'), name: 'prefix-collapse' };
+}
+
+// ─── Git diff metadata stripping ───────────────────
+const RE_DIFF_META = /^(?:diff --git |index [0-9a-f]+\.\.[0-9a-f]|similarity index |rename from |rename to |old mode |new mode |deleted file |new file mode )/;
+
+function stripDiffMetadata(text: string): { result: string; name: string } {
+  // Fast guard: skip when text doesn't look like a diff
+  if (!text.includes('diff --git ') && !text.includes('index ') && !text.includes('--- a/')) {
+    return { result: text, name: 'diff-meta-strip' };
+  }
+  const lines = text.split('\n');
+  const filtered = lines.filter((line) => !RE_DIFF_META.test(line));
+  return { result: filtered.join('\n'), name: 'diff-meta-strip' };
 }

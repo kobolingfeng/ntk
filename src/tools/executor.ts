@@ -178,7 +178,7 @@ function toolSearchInFiles(args: Record<string, unknown>, cwd: string): string {
   const results: string[] = [];
 
   function walk(dir: string, depth: number): void {
-    if (depth > 6 || results.length >= 50) return;
+    if (depth > 8 || results.length >= 50) return;
     try {
       const entries = readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
