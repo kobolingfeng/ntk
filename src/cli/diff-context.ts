@@ -18,15 +18,7 @@ interface ConversationTurn {
   tokenCount: number;
 }
 
-const FOLLOW_UP_PATTERNS = [
-  /^(那|然后|继续|还有|另外|再|接着|除此之外|此外|同样)/,
-  /^(and |also |then |next |but |however |what about |how about )/i,
-  /^(用|改|换|试|加|删|修改|优化|重构|简化)/,
-  /(上面|之前|刚才|前面|上一个|这个|同样的)/,
-  /(above|previous|earlier|last one|the same|this one)/i,
-  /^(为什么|怎么|如何|是否|能不能|可以|可不可以)/,
-  /^(why|how|can you|could you|is it|does it)/i,
-];
+const FOLLOW_UP_COMBINED = /^(?:那|然后|继续|还有|另外|再|接着|除此之外|此外|同样|用|改|换|试|加|删|修改|优化|重构|简化|为什么|怎么|如何|是否|能不能|可以|可不可以)|^(?:and |also |then |next |but |however |what about |how about |why|how|can you|could you|is it|does it)|(?:上面|之前|刚才|前面|上一个|这个|同样的|above|previous|earlier|last one|the same|this one)/i;
 
 export class DiffContext {
   private turns: ConversationTurn[] = [];
@@ -85,7 +77,7 @@ export class DiffContext {
 
   private isFollowUp(question: string): boolean {
     if (question.length < 40) return true;
-    return FOLLOW_UP_PATTERNS.some((p) => p.test(question));
+    return FOLLOW_UP_COMBINED.test(question);
   }
 
   private summarizeResponse(report: string): string {

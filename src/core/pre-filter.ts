@@ -364,17 +364,11 @@ function shortenUrls(text: string): { result: string; name: string } {
   return { result, name: 'url-shorten' };
 }
 
+const BOILERPLATE = /^\s*(?:\d+ packages? are looking for funding|run `npm (?:fund|audit(?: fix)?)` for details|run `npm audit` for details|found \d+ vulnerabilit(?:y|ies)|npm warn deprecated)/i;
+
 function stripBoilerplateNotices(text: string): { result: string; name: string } {
-  const boilerplatePatterns = [
-    /^\d+ packages? are looking for funding$/,
-    /^\s*run `npm fund` for details$/,
-    /^\s*run `npm audit fix` to resolve$/,
-    /^\s*run `npm audit` for details$/,
-    /^\s*found \d+ vulnerabilit(y|ies)$/,
-    /^\s*npm warn deprecated/,
-  ];
   const lines = text.split('\n');
-  const filtered = lines.filter((line) => !boilerplatePatterns.some((p) => p.test(line.trim())));
+  const filtered = lines.filter((line) => !BOILERPLATE.test(line));
   return { result: filtered.join('\n'), name: 'boilerplate-strip' };
 }
 
@@ -394,10 +388,7 @@ function compressCodeBlocks(text: string): { result: string; name: string } {
     compressed = compressed.replace(/\n{3,}/g, '\n');
 
     // Remove trailing whitespace in code lines
-    compressed = compressed
-      .split('\n')
-      .map((l) => l.trimEnd())
-      .join('\n');
+    compressed = compressed.replace(/[ \t]+$/gm, '');
 
     // Apply if we saved any meaningful space (>5% reduction)
     if (compressed.length < code.length * 0.95) {
