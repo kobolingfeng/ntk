@@ -121,4 +121,42 @@ describe('classifyDepthFastPath', () => {
       expect(classifyDepthFastPath(input)).toBeNull();
     });
   });
+
+  describe('light depth fast path', () => {
+    it('设计API → light', () => {
+      expect(classifyDepthFastPath('设计一个用户认证API')).toBe('light');
+    });
+
+    it('设计数据库 → light', () => {
+      expect(classifyDepthFastPath('设计一个订单表结构')).toBe('light');
+    });
+
+    it('完整组件 → light', () => {
+      expect(classifyDepthFastPath('完整的登录组件')).toBe('light');
+    });
+
+    it('实现完整功能 → light', () => {
+      expect(classifyDepthFastPath('实现一个完整的购物车功能')).toBe('light');
+    });
+
+    it('design a REST API → light', () => {
+      expect(classifyDepthFastPath('design a REST API for user management')).toBe('light');
+    });
+
+    it('full component → light', () => {
+      expect(classifyDepthFastPath('full React login component with validation')).toBe('light');
+    });
+
+    it('implement a complete feature → light', () => {
+      expect(classifyDepthFastPath('implement a complete authentication module')).toBe('light');
+    });
+
+    it('multi-component ZH → light', () => {
+      expect(classifyDepthFastPath('写一个函数包括输入验证、数据转换和错误处理')).toBe('light');
+    });
+
+    it('multi-component EN → light', () => {
+      expect(classifyDepthFastPath('write a module including validation, transformation, and logging')).toBe('light');
+    });
+  });
 });

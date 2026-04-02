@@ -321,10 +321,10 @@ describe('classifyDepth fast path', () => {
   });
 
   describe('non-matching inputs', () => {
-    it('long complex description matching pattern ≤200 chars → direct', () => {
+    it('long complex description matching light pattern → light', () => {
       const input =
         'Design a complete microservices architecture with event sourcing, CQRS, and saga pattern for an e-commerce platform';
-      expect(classifyDepthFastPath(input)).toBe('direct');
+      expect(classifyDepthFastPath(input)).toBe('light');
     });
 
     it('very long complex description >200 chars → null', () => {
