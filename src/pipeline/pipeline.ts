@@ -367,21 +367,14 @@ export class Pipeline {
   }
 
   private async runNonDirectDepth(depth: PipelineDepth, cleanRequest: string): Promise<PipelineResult> {
-    // Propagate locale and phase to remaining agents on first non-direct execution
-    this.compressor.setLocale(this.locale);
-    this.planner.setLocale(this.locale);
-    this.scout.setLocale(this.locale);
-    this.summarizer.setLocale(this.locale);
-    this.verifier.setLocale(this.locale);
-    // Propagate phase to all agents (setPhase only updates executor in fast path)
+    // Propagate locale/phase only to agents the depth actually uses
+    // Avoids triggering lazy init of unused agents (e.g. planner/scout for light depth)
     const phase = this.state.phase;
-    this.planner.setPhase(phase);
-    this.scout.setPhase(phase);
-    this.summarizer.setPhase(phase);
-    this.verifier.setPhase(phase);
 
     switch (depth) {
       case 'light':
+        this.verifier.setLocale(this.locale);
+        this.verifier.setPhase(phase);
         this.setPhase('execute');
         return await runLight({
           userRequest: cleanRequest,
@@ -397,6 +390,8 @@ export class Pipeline {
           onToken: this.onToken,
         });
       case 'standard':
+        this.scout.setLocale(this.locale);
+        this.scout.setPhase(phase);
         this.setPhase('gather');
         return await runStandard({
           userRequest: cleanRequest,
@@ -413,6 +408,16 @@ export class Pipeline {
           onToken: this.onToken,
         });
       case 'full':
+        // Full depth uses all agents — propagate locale/phase to all
+        this.compressor.setLocale(this.locale);
+        this.planner.setLocale(this.locale);
+        this.scout.setLocale(this.locale);
+        this.summarizer.setLocale(this.locale);
+        this.verifier.setLocale(this.locale);
+        this.planner.setPhase(phase);
+        this.scout.setPhase(phase);
+        this.summarizer.setPhase(phase);
+        this.verifier.setPhase(phase);
         return await runFull({
           config: this.config,
           plannerLLM: this.plannerLLM,

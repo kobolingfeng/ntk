@@ -136,9 +136,9 @@ const MICRO_PROMPT: Record<Locale, string> = {
 };
 
 export function getBandPrompt(task: string, locale: Locale, micro = false): string {
-  if (PASSTHROUGH_TASK_PATTERN.test(task)) return '';
-  if (micro) return MICRO_PROMPT[locale];
   const band = detectTaskBand(task);
+  if (band === 'passthrough') return '';
+  if (micro) return MICRO_PROMPT[locale];
   return BAND_PROMPTS[band][locale];
 }
 

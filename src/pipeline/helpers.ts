@@ -147,6 +147,13 @@ export function isStructurallyComplete(
 export { DEFAULT_SKIP_THRESHOLDS, FULL_SKIP_THRESHOLDS };
 export type { SkipThresholds };
 
+const DEPTH_PROFILES: Record<string, { base: number; outputMultiplier: number; min: number; max: number }> = {
+  direct: { base: 30, outputMultiplier: 3, min: 60, max: 800 },
+  light: { base: 200, outputMultiplier: 5, min: 500, max: 2000 },
+  standard: { base: 500, outputMultiplier: 6, min: 1500, max: 4000 },
+  full: { base: 800, outputMultiplier: 8, min: 2000, max: 6000 },
+};
+
 /**
  * Predict token usage for a task before execution.
  * Based on empirical averages from benchmarks.
@@ -157,14 +164,7 @@ export function predictTokenUsage(
 ): { estimated: number; range: [number, number] } {
   const inputTokens = Math.ceil(inputLength / 3.5);
 
-  const depthProfiles: Record<string, { base: number; outputMultiplier: number; min: number; max: number }> = {
-    direct: { base: 30, outputMultiplier: 3, min: 60, max: 800 },
-    light: { base: 200, outputMultiplier: 5, min: 500, max: 2000 },
-    standard: { base: 500, outputMultiplier: 6, min: 1500, max: 4000 },
-    full: { base: 800, outputMultiplier: 8, min: 2000, max: 6000 },
-  };
-
-  const profile = depthProfiles[depth];
+  const profile = DEPTH_PROFILES[depth];
   const estimated = Math.round(profile.base + inputTokens * profile.outputMultiplier);
   const clamped = Math.max(profile.min, Math.min(profile.max, estimated));
 

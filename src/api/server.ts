@@ -408,8 +408,9 @@ export class NTKServer {
       timestamp,
       durationMs,
     });
-    if (this.runHistory.length > 100) {
-      this.runHistory.shift();
+    // Bulk trim when 25% over cap — avoids O(n) shift() on every insert
+    if (this.runHistory.length > 125) {
+      this.runHistory = this.runHistory.slice(-100);
     }
   }
 
