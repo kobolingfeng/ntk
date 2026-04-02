@@ -59,11 +59,6 @@ function invalidateFileCache(path: string): void {
   fileReadCache.delete(path);
 }
 
-/** Flush entire file cache (e.g. between sessions) */
-export function clearFileReadCache(): void {
-  fileReadCache.clear();
-}
-
 // ─── Security Helpers ──────────────────────────────
 
 /** Resolve and validate a file path — prevent directory traversal */

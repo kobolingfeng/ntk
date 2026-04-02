@@ -97,18 +97,6 @@ export interface Task {
   completedAt?: number;
 }
 
-export function createTask(description: string, assignee: AgentType, input: string, dependsOn?: string[]): Task {
-  return {
-    id: generateId(),
-    description,
-    assignee,
-    status: 'pending',
-    input,
-    dependsOn,
-    createdAt: Date.now(),
-  };
-}
-
 // ─── Pipeline ──────────────────────────────────────────
 
 /** Pipeline phase */
