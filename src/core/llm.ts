@@ -404,16 +404,23 @@ export class EndpointManager {
 
     // Sort healthy endpoints by latency (fastest first), keeping active endpoint at front
     if (healthy.length > 1) {
-      // Sort in-place from index 1 (keep active at front)
+      // Pre-fetch latency values to avoid repeated Map lookups during sort
+      const lat: number[] = new Array(healthy.length);
+      for (let i = 0; i < healthy.length; i++) {
+        lat[i] = this.healthStats.get(healthy[i])?.avgLatencyMs || Infinity;
+      }
+      // Insertion sort in-place from index 1 (keep active at front)
       for (let i = 2; i < healthy.length; i++) {
         const val = healthy[i];
-        const valLat = this.healthStats.get(val)?.avgLatencyMs || Infinity;
+        const valLat = lat[i];
         let j = i - 1;
-        while (j >= 1 && (this.healthStats.get(healthy[j])?.avgLatencyMs || Infinity) > valLat) {
+        while (j >= 1 && lat[j] > valLat) {
           healthy[j + 1] = healthy[j];
+          lat[j + 1] = lat[j];
           j--;
         }
         healthy[j + 1] = val;
+        lat[j + 1] = valLat;
       }
     }
 

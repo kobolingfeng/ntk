@@ -89,8 +89,7 @@ server.tool(
     skipScout: z.boolean().optional().describe('Skip the scout/research phase in standard depth'),
   },
   async ({ task, forceDepth, skipScout }) => {
-    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
-    const ac = new AbortController();
+    const ac = AbortSignal.timeout(300_000);
     try {
       const config = await ensureInitialized();
 
@@ -98,17 +97,9 @@ server.tool(
         forceDepth: forceDepth as PipelineDepth | undefined,
         skipScout,
         endpointManager,
-        signal: ac.signal,
+        signal: ac,
       });
-      const result = await Promise.race([
-        pipeline.run(task),
-        new Promise<never>((_, reject) => {
-          timeoutTimer = setTimeout(() => {
-            ac.abort();
-            reject(new Error('Task timeout (5min)'));
-          }, 300_000);
-        }),
-      ]);
+      const result = await pipeline.run(task);
 
       const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
       const plannerTok = result.tokenReport.byAgent.planner
@@ -133,9 +124,6 @@ server.tool(
         content: [{ type: 'text' as const, text: `Error: ${msg}` }],
         isError: true,
       };
-    } finally {
-      ac.abort();
-      clearTimeout(timeoutTimer);
     }
   },
 );
@@ -148,21 +136,12 @@ server.tool(
     task: z.string().max(10000).describe('The task to execute'),
   },
   async ({ task }) => {
-    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
-    const ac = new AbortController();
+    const ac = AbortSignal.timeout(300_000);
     try {
       const config = await ensureInitialized();
       const fastConfig = { ...config, planner: { ...config.compressor } };
-      const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth, endpointManager, signal: ac.signal });
-      const result = await Promise.race([
-        pipeline.run(task),
-        new Promise<never>((_, reject) => {
-          timeoutTimer = setTimeout(() => {
-            ac.abort();
-            reject(new Error('Task timeout (5min)'));
-          }, 300_000);
-        }),
-      ]);
+      const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth, endpointManager, signal: ac });
+      const result = await pipeline.run(task);
 
       const totalTokens = result.tokenReport.totalInput + result.tokenReport.totalOutput;
       return {
@@ -183,9 +162,6 @@ server.tool(
         content: [{ type: 'text' as const, text: `Error: ${msg}` }],
         isError: true,
       };
-    } finally {
-      ac.abort();
-      clearTimeout(timeoutTimer);
     }
   },
 );
