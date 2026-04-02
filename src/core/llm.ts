@@ -657,14 +657,24 @@ export class LLMClient {
     onToken?: (token: string) => void,
   ): Promise<{ content: string; toolCalls: Array<{ id: string; name: string; arguments: string }>; inputTokens: number; outputTokens: number } | null> {
     let response: Response;
-    try {
-      response = await fetch(ep.chatUrl, {
-        method: 'POST',
-        headers: ep.headers,
-        body,
-        signal: AbortSignal.timeout(120_000),
-      });
-    } catch { return null; }
+    const maxRetries = 2;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        response = await fetch(ep.chatUrl, {
+          method: 'POST',
+          headers: ep.headers,
+          body,
+          signal: AbortSignal.timeout(120_000),
+        });
+      } catch { return null; }
+
+      if ((response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
+        const baseDelay = response.status === 429 ? 1000 : 500;
+        await new Promise((r) => setTimeout(r, baseDelay * 2 ** attempt + Math.random() * 200));
+        continue;
+      }
+      break;
+    }
 
     if (!response.ok || !response.body) return null;
 
@@ -837,15 +847,25 @@ export class LLMClient {
       : AbortSignal.timeout(120000);
 
     let response: Response;
-    try {
-      response = await fetch(ep.chatUrl, {
-        method: 'POST',
-        headers: ep.headers,
-        body,
-        signal: fetchSignal,
-      });
-    } catch {
-      return null;
+    const maxRetries = 2;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        response = await fetch(ep.chatUrl, {
+          method: 'POST',
+          headers: ep.headers,
+          body,
+          signal: fetchSignal,
+        });
+      } catch {
+        return null;
+      }
+
+      if ((response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
+        const baseDelay = response.status === 429 ? 1000 : 500;
+        await new Promise((r) => setTimeout(r, baseDelay * 2 ** attempt + Math.random() * 200));
+        continue;
+      }
+      break;
     }
 
     if (!response.ok || !response.body) return null;
