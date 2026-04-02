@@ -86,6 +86,7 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
       cwd: ctx.toolsCwd,
       tools: ctx.tools,
       onToken: ctx.onToken,
+      signal: ctx.signal,
       onToolCall: (name, args) => {
         ctx.emit({ type: 'message', phase: 'execute', detail: `Tool: ${name}(${Object.keys(args).join(', ')})` });
       },

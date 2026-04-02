@@ -35,6 +35,8 @@ export interface ToolLoopConfig {
   agent?: AgentType;
   /** Phase for token tracking */
   phase?: Phase;
+  /** Abort signal for cancellation (e.g. speculative execution miss) */
+  signal?: AbortSignal;
 }
 
 /** Result of a tool loop execution */
@@ -73,6 +75,7 @@ export async function runToolLoop(
     onToolResult,
     agent = 'executor',
     phase = 'execute',
+    signal,
   } = config;
 
   // Build conversation messages
@@ -95,6 +98,15 @@ export async function runToolLoop(
   const CLEARED_MSG = '[旧工具结果已清除]';
 
   for (round = 0; round < maxRounds; round++) {
+    // Abort signal check (e.g. speculative execution cancelled)
+    if (signal?.aborted) {
+      return {
+        content: '',
+        toolCallCount: totalToolCalls,
+        rounds: round,
+        completed: false,
+      };
+    }
     // Global timeout check
     if (maxDurationMs > 0 && Date.now() - startTime >= maxDurationMs) {
       return {
