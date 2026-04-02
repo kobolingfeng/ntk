@@ -11,9 +11,10 @@
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
-import { cmdGain, recordGain } from './cli/gain.js';
+import { cmdGain, flushGain, recordGain } from './cli/gain.js';
 import { handleEvent, printTokenReport, printTrace } from './cli/output.js';
 import { buildConfig, discoverEndpoints } from './core/config.js';
+import { flushDepthPredictor } from './core/depth-predictor.js';
 import { defaultEndpointManager, EndpointManager } from './core/llm.js';
 import type { NTKConfig } from './index.js';
 import { Pipeline } from './pipeline/pipeline.js';
@@ -526,5 +527,11 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   console.error(chalk.red(`  Fatal: ${err.message}`));
+  flushGain();
+  flushDepthPredictor();
   process.exit(1);
+}).then(() => {
+  // Flush pending debounced data before process exits
+  flushGain();
+  flushDepthPredictor();
 });

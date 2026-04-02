@@ -58,7 +58,7 @@ export function recordGain(entry: GainEntry): void {
   }
 }
 
-function flushGain(): void {
+export function flushGain(): void {
   if (pendingEntries.length === 0) return;
   const data = loadGainData();
   data.entries.push(...pendingEntries);
