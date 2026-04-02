@@ -1,21 +1,23 @@
 /**
- * Standard depth — scout → executor (no planner).
+ * Standard depth — scout → executor → optional verification.
  */
 
 import type { Executor } from '../agents/executor.js';
 import type { Scout } from '../agents/scout.js';
+import type { Verifier } from '../agents/verifier.js';
 import type { LLMClient } from '../core/llm.js';
 import { getBandPrompt, type Locale, type PIPELINE_STRINGS } from '../core/prompts.js';
 import type { AgentContext, TokenReport } from '../core/protocol.js';
 import { createMessage, EMPTY_CONTEXT } from '../core/protocol.js';
 import type { Router, RouterStats } from '../core/router.js';
-import { emptyOutputMessage, fixUnbalancedFences } from './helpers.js';
+import { emptyOutputMessage, fixUnbalancedFences, isStructurallyComplete, parseVerificationResult } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
 
 export interface StandardDepthContext {
   userRequest: string;
   executor: Executor;
   scout: Scout;
+  verifier?: Verifier;
   router: Router;
   skipScout: boolean;
   strings: (typeof PIPELINE_STRINGS)['zh'];
@@ -61,7 +63,33 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
     ctx.router.route(execResponse, 'execute');
     rawContent = execResponse.payload.trim();
   }
-  const report = fixUnbalancedFences(rawContent || emptyOutputMessage(ctx.locale));
+  let report = rawContent || emptyOutputMessage(ctx.locale);
+
+  // Lightweight verification with smart skip (like light depth)
+  if (ctx.verifier && rawContent.length > 0) {
+    const skipVerify = isStructurallyComplete(rawContent, ctx.userRequest);
+    if (!skipVerify) {
+      ctx.emit({ type: 'phase', phase: 'verify', detail: 'Standard verification...' });
+      const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, rawContent);
+      const verifyResponse = await ctx.verifier.process(verifyMsg, EMPTY_CONTEXT);
+      const passed = parseVerificationResult(verifyResponse.payload);
+      if (!passed) {
+        ctx.emit({ type: 'retry', phase: 'verify', detail: 'Standard fix attempt...' });
+        const fixMsg = createMessage(
+          'verifier',
+          'executor',
+          ctx.userRequest,
+          `${ctx.strings.verifyFeedback}: ${verifyResponse.payload.slice(0, 300)}`,
+        );
+        const fixResponse = await ctx.executor.process(fixMsg, EMPTY_CONTEXT);
+        report = fixResponse.payload.trim() || report;
+      }
+    } else if (rawContent.length >= 100) {
+      ctx.emit({ type: 'message', phase: 'verify', detail: 'Smart skip: output looks structurally complete' });
+    }
+  }
+
+  report = fixUnbalancedFences(report);
   ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (standard)' });
 
   return {

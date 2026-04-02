@@ -416,11 +416,14 @@ export class Pipeline {
       case 'standard':
         this.scout.setLocale(this.locale);
         this.scout.setPhase(phase);
+        this.verifier.setLocale(this.locale);
+        this.verifier.setPhase(phase);
         this.setPhase('gather');
         return await runStandard({
           userRequest: cleanRequest,
           executor: this.executor,
           scout: this.scout,
+          verifier: this.verifier,
           router: this.router,
           skipScout: this.skipScout,
           strings: this.strings,
