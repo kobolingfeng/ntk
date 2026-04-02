@@ -30,7 +30,7 @@ export class ResponseCache {
   }
 
   private hash(task: string, depth?: string): string {
-    const normalized = `${depth ?? 'auto'}:${task.trim().toLowerCase()}`;
+    const normalized = `${depth ?? 'auto'}:${this.normalizeTask(task)}`;
     // FNV-1a hash — fast, sufficient collision resistance for 100-entry cache
     let h = 0x811c9dc5;
     for (let i = 0; i < normalized.length; i++) {
@@ -38,6 +38,25 @@ export class ResponseCache {
       h = (h * 0x01000193) >>> 0;
     }
     return h.toString(36);
+  }
+
+  /** Normalize task text for cache matching:
+   *  - lowercase + trim
+   *  - strip trailing punctuation (。！？.!?)
+   *  - collapse multiple spaces to single space
+   *  - remove common filler prefixes (帮我/请/帮忙/please/can you/could you)
+   */
+  private normalizeTask(task: string): string {
+    let s = task.trim().toLowerCase()
+      .replace(/[。！？.!?]+$/, '')
+      .replace(/\s+/g, ' ');
+    // Strip filler prefixes — repeat to handle "请帮我" → "帮我" → ""
+    for (let i = 0; i < 2; i++) {
+      const stripped = s.replace(/^(?:帮我|请|帮忙|please |can you |could you )\s*/, '');
+      if (stripped === s) break;
+      s = stripped;
+    }
+    return s;
   }
 
   get(task: string, depth?: string): CacheEntry | null {
