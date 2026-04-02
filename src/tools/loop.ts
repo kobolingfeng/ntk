@@ -138,7 +138,8 @@ export async function runToolLoop(
           // Smart truncation: keep head + tail for structure visibility
           const headLen = (perResultLimit * 0.7) | 0;
           const tailLen = (perResultLimit * 0.25) | 0;
-          truncated = r.content.slice(0, headLen) + '\n\n...(中间内容已省略)...\n\n' + r.content.slice(-tailLen);
+          const omitted = r.content.length - headLen - tailLen;
+          truncated = r.content.slice(0, headLen) + `\n\n[... 已省略 ${omitted} 字符 ...]\n\n` + r.content.slice(-tailLen);
         } else {
           truncated = r.content;
         }

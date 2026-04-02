@@ -222,7 +222,8 @@ function toolSearchInFiles(args: Record<string, unknown>, cwd: string): string {
 
 async function toolRunCommand(args: Record<string, unknown>, cwd: string): Promise<string> {
   const command = String(args.command ?? '');
-  const timeout = Math.min(Number(args.timeout ?? 30) * 1000, 60_000);
+  const rawTimeout = Number(args.timeout ?? 30);
+  const timeout = Math.min(Number.isFinite(rawTimeout) ? rawTimeout * 1000 : 30_000, 60_000);
   if (!command) return '错误: command 不能为空';
   if (BLOCKED_COMMANDS.test(command)) return `安全拦截: 禁止执行危险命令`;
 
@@ -253,7 +254,8 @@ async function toolRunCommand(args: Record<string, unknown>, cwd: string): Promi
 
 async function toolFetchWebpage(args: Record<string, unknown>): Promise<string> {
   const url = String(args.url ?? '');
-  const maxLength = Math.min(Number(args.max_length ?? 8000), 30_000);
+  const rawMaxLen = Number(args.max_length ?? 8000);
+  const maxLength = Math.min(Number.isFinite(rawMaxLen) ? rawMaxLen : 8000, 30_000);
   if (!url || !url.startsWith('http')) return '错误: 无效URL (必须以 http:// 或 https:// 开头)';
 
   try {
@@ -394,9 +396,10 @@ export async function executeTool(call: ParsedToolCall, cwd: string): Promise<To
     if (content.length > MAX_RESULT_LENGTH) {
       const headLen = (MAX_RESULT_LENGTH * 0.7) | 0;
       const tailLen = (MAX_RESULT_LENGTH * 0.25) | 0;
+      const omitted = content.length - headLen - tailLen;
       content = `${content.slice(0, headLen)}
 
-...(中间内容已省略)...
+[... 已省略 ${omitted} 字符 ...]
 
 ${content.slice(-tailLen)}`;
     }
