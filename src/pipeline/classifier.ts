@@ -8,9 +8,9 @@ import type { PipelineDepth } from './types.js';
 
 // ─── Pre-compiled regex patterns for fast-path classification ───
 const CODE_UNIT = /^(写|实现|编写|创建|用\w+写|帮我写|请写).{0,30}(函数|function|算法|方法|脚本|工具|类|class)/;
-const SIMPLE = /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为)|分析以下|以下是|帮我|请|给出)/;
-const DIRECT_ZH = /^(写一个|写一|实现一个|用\w+实现|生成|输出|列出|什么是|如何|怎么|用.{0,15}(写|解释|计算|描述|说明|分析|创建|生成|实现)|对比|比较|介绍|说明|描述|总结|设计|编写|为.{0,20}(写|编写|创建|实现|开发|设计|构建))/;
-const DIRECT_EN = /^(write|implement|create|generate|explain|what is|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define|analyze|summarize|design|build|add|compare|set up|configure)\b/i;
+const SIMPLE = /^(翻译|转换|解释|计算|修复|重构|分析这段|优化这|改写|将.{0,15}(翻译|转换|改为)|分析以下|以下是|帮我|请|给出|能不能|可不可以|能否|怎样)/;
+const DIRECT_ZH = /^(写一个|写一|实现一个|用\w+实现|生成|输出|列出|什么是|为什么|如何|怎么|用.{0,15}(写|解释|计算|描述|说明|分析|创建|生成|实现)|对比|比较|介绍|说明|描述|总结|设计|编写|为.{0,20}(写|编写|创建|实现|开发|设计|构建))/
+const DIRECT_EN = /^(write|implement|create|generate|explain|what is|why|how to|convert|translate|fix|solve|calculate|find (all )?bugs|given|read the|extract|count|list|sort|return|check|validate|parse|format|output|review|refactor|debug|optimize|describe|define|analyze|summarize|design|build|add|compare|set up|configure|make|show|I need)\b/i;
 const EMBEDDED_DATA = /^(分析以下|以下是|分析这|分析下面|请分析|帮我分析|看看以下|检查以下|为以下|审查以下|审查这|对以下|给以下|review the|analyze the|check the|look at|debug this|fix this|write .{0,20}tests? for)/;
 const TECH_NAME = /^[A-Za-z][A-Za-z0-9]*[.+\-#/][A-Za-z0-9.+\-#/]*[\s的和与\u4e00-\u9fff]|^[A-Za-z][A-Za-z0-9.+\-#/]*[的和与\u4e00-\u9fff]/;
 const HAS_CJK = /[\u4e00-\u9fff]/;
