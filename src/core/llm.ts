@@ -24,6 +24,44 @@ const MAX_BUFFER = 1_048_576;
 /** 30s inactivity timeout for stream reading */
 const STREAM_INACTIVITY_TIMEOUT = 30_000;
 
+/** Extract usage info from remaining SSE buffer after stream ends */
+function flushSSEBuffer(buffer: string): { inputTokens: number; outputTokens: number } | null {
+  if (!buffer.trim()) return null;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let found = false;
+  let flushFrom = 0;
+  let flushIdx: number;
+  while ((flushIdx = buffer.indexOf('\n', flushFrom)) !== -1) {
+    const line = buffer.substring(flushFrom, flushIdx);
+    flushFrom = flushIdx + 1;
+    if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+    try {
+      const json = JSON.parse(line.slice(6));
+      if (json.usage) {
+        inputTokens = json.usage.prompt_tokens || 0;
+        outputTokens = json.usage.completion_tokens || 0;
+        found = true;
+      }
+    } catch { /* malformed */ }
+  }
+  // Handle last line without trailing newline
+  if (flushFrom < buffer.length) {
+    const lastLine = buffer.substring(flushFrom);
+    if (lastLine.startsWith('data: ') && lastLine !== 'data: [DONE]') {
+      try {
+        const json = JSON.parse(lastLine.slice(6));
+        if (json.usage) {
+          inputTokens = json.usage.prompt_tokens || 0;
+          outputTokens = json.usage.completion_tokens || 0;
+          found = true;
+        }
+      } catch { /* malformed */ }
+    }
+  }
+  return found ? { inputTokens, outputTokens } : null;
+}
+
 interface ChatCompletionResponse {
   id: string;
   choices: Array<{
@@ -38,11 +76,19 @@ interface ChatCompletionResponse {
   };
 }
 
-/** A single API endpoint configuration */
-export interface Endpoint {
+/** A single API endpoint configuration (input — before setEndpoints processes it) */
+export interface EndpointInput {
   name: string;
   apiKey: string;
   baseUrl: string;
+}
+
+/** A fully-initialized endpoint with pre-computed URL and headers */
+export interface Endpoint extends EndpointInput {
+  /** Pre-computed chat completions URL */
+  readonly chatUrl: string;
+  /** Pre-computed authorization headers */
+  readonly headers: Readonly<Record<string, string>>;
 }
 
 /** Estimate token count accounting for CJK characters (~1.5 tokens each vs ASCII ~0.25) */
@@ -87,11 +133,19 @@ export class EndpointManager {
   }
 
   /** Register multiple endpoints for failover */
-  setEndpoints(endpoints: Endpoint[]): void {
-    this.endpoints = endpoints.map((e) => ({
-      ...e,
-      baseUrl: e.baseUrl.replace(/\/+$/, ''),
-    }));
+  setEndpoints(endpoints: EndpointInput[]): void {
+    this.endpoints = endpoints.map((e) => {
+      const baseUrl = e.baseUrl.replace(/\/+$/, '');
+      return {
+        ...e,
+        baseUrl,
+        chatUrl: `${baseUrl}/chat/completions`,
+        headers: Object.freeze({
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${e.apiKey}`,
+        }),
+      };
+    });
     this.activeEndpointIndex = 0;
   }
 
@@ -145,13 +199,9 @@ export class EndpointManager {
       probePromises.push(
         (async () => {
           try {
-            const url = `${ep.baseUrl}/chat/completions`;
-            const response = await fetch(url, {
+            const response = await fetch(ep.chatUrl, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${ep.apiKey}`,
-              },
+              headers: ep.headers,
               body: probeBody,
               signal: AbortSignal.timeout(TIMEOUT),
             });
@@ -220,9 +270,9 @@ export class EndpointManager {
       if (lastFail && now - lastFail < this.negativeProbeTTL) return false;
 
       try {
-        const res = await fetch(`${ep.baseUrl}/chat/completions`, {
+        const res = await fetch(ep.chatUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
+          headers: ep.headers,
           body: probeBody,
           signal: AbortSignal.timeout(TIMEOUT),
         });
@@ -454,14 +504,14 @@ export class LLMClient {
         {
           name: 'primary',
           apiKey: config.apiKey,
-          baseUrl: config.baseUrl.replace(/\/+$/, ''),
+          baseUrl: config.baseUrl,
         },
       ]);
     }
   }
 
   /** @deprecated Use EndpointManager.setEndpoints() directly */
-  static setEndpoints(endpoints: Endpoint[]): void {
+  static setEndpoints(endpoints: EndpointInput[]): void {
     defaultEndpointManager.setEndpoints(endpoints);
   }
 
@@ -560,13 +610,11 @@ export class LLMClient {
     body: string,
     onToken?: (token: string) => void,
   ): Promise<{ content: string; toolCalls: Array<{ id: string; name: string; arguments: string }>; inputTokens: number; outputTokens: number } | null> {
-    const url = `${ep.baseUrl}/chat/completions`;
-
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(ep.chatUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
+        headers: ep.headers,
         body,
         signal: AbortSignal.timeout(120_000),
       });
@@ -650,21 +698,10 @@ export class LLMClient {
     }
 
     // Flush remaining buffer — usage event may arrive in the final chunk
-    if (buffer.trim()) {
-      let flushFrom = 0;
-      let flushIdx: number;
-      while ((flushIdx = buffer.indexOf('\n', flushFrom)) !== -1) {
-        const line = buffer.substring(flushFrom, flushIdx);
-        flushFrom = flushIdx + 1;
-        if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
-        try {
-          const json = JSON.parse(line.slice(6));
-          if (json.usage) {
-            inputTokens = json.usage.prompt_tokens || 0;
-            outputTokens = json.usage.completion_tokens || 0;
-          }
-        } catch { /* malformed */ }
-      }
+    const flushed = flushSSEBuffer(buffer);
+    if (flushed) {
+      inputTokens = flushed.inputTokens;
+      outputTokens = flushed.outputTokens;
     }
 
     const content = contentParts.join('');
@@ -748,8 +785,6 @@ export class LLMClient {
     userMessage?: string,
     externalSignal?: AbortSignal,
   ): Promise<{ content: string; inputTokens: number; outputTokens: number } | null> {
-    const url = `${ep.baseUrl}/chat/completions`;
-
     // Combine external abort signal with default timeout
     const fetchSignal = externalSignal
       ? AbortSignal.any([externalSignal, AbortSignal.timeout(120000)])
@@ -757,12 +792,9 @@ export class LLMClient {
 
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(ep.chatUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ep.apiKey}`,
-        },
+        headers: ep.headers,
         body,
         signal: fetchSignal,
       });
@@ -852,38 +884,10 @@ export class LLMClient {
         if (abortedByLimit) break;
       }
       // Flush remaining buffer — usage event may arrive in the final chunk
-      if (buffer.trim()) {
-        let flushFrom = 0;
-        let flushIdx: number;
-        while ((flushIdx = buffer.indexOf('\n', flushFrom)) !== -1) {
-          const line = buffer.substring(flushFrom, flushIdx);
-          flushFrom = flushIdx + 1;
-          if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
-          try {
-            const json = JSON.parse(line.slice(6));
-            if (json.usage) {
-              inputTokens = json.usage.prompt_tokens || 0;
-              outputTokens = json.usage.completion_tokens || 0;
-            }
-          } catch {
-            // Skip malformed SSE lines
-          }
-        }
-        // Handle last line without trailing newline
-        if (flushFrom < buffer.length) {
-          const lastLine = buffer.substring(flushFrom);
-          if (lastLine.startsWith('data: ') && lastLine !== 'data: [DONE]') {
-            try {
-              const json = JSON.parse(lastLine.slice(6));
-              if (json.usage) {
-                inputTokens = json.usage.prompt_tokens || 0;
-                outputTokens = json.usage.completion_tokens || 0;
-              }
-            } catch {
-              // Skip
-            }
-          }
-        }
+      const flushed2 = flushSSEBuffer(buffer);
+      if (flushed2) {
+        inputTokens = flushed2.inputTokens;
+        outputTokens = flushed2.outputTokens;
       }
     } catch {
       // Stream read error — only unexpected if we didn't intentionally abort
@@ -974,17 +978,13 @@ export class LLMClient {
     ep: Endpoint,
     body: string,
   ): Promise<{ success: boolean; data?: ChatCompletionResponse; error?: string }> {
-    const url = `${ep.baseUrl}/chat/completions`;
     const maxRetries = 2;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const response = await fetch(url, {
+        const response = await fetch(ep.chatUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${ep.apiKey}`,
-          },
+          headers: ep.headers,
           body,
           signal: AbortSignal.timeout(120000),
         });
