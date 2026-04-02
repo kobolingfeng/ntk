@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import chalk from 'chalk';
 import { discoverEndpoints } from '../../core/config.js';
 import { EndpointManager, LLMClient } from '../../core/llm.js';
-import type { Endpoint } from '../../core/llm.js';
+import type { EndpointInput } from '../../core/llm.js';
 import type { NTKConfig } from '../../core/protocol.js';
 import { Pipeline } from '../../pipeline/pipeline.js';
 
@@ -103,7 +103,7 @@ function stats(arr: number[]) {
   };
 }
 
-async function runSingleNTK(config: NTKConfig, task: string, endpoint?: Endpoint): Promise<SingleRunResult> {
+async function runSingleNTK(config: NTKConfig, task: string, endpoint?: EndpointInput): Promise<SingleRunResult> {
   Pipeline.clearCache();
   const start = Date.now();
 
@@ -142,7 +142,7 @@ async function runSingleNTK(config: NTKConfig, task: string, endpoint?: Endpoint
   };
 }
 
-async function runSingleDirect(config: NTKConfig, task: string, model: string, modelKey: 'compressor' | 'planner', endpoint?: Endpoint): Promise<SingleRunResult> {
+async function runSingleDirect(config: NTKConfig, task: string, model: string, modelKey: 'compressor' | 'planner', endpoint?: EndpointInput): Promise<SingleRunResult> {
   const start = Date.now();
 
   let llmConfig = config[modelKey];
@@ -218,7 +218,7 @@ export async function runBenchmarkSuite(
   for (const ep of sharedWorkingEndpoints) {
     console.log(chalk.dim(`    ✅ ${ep.name}`));
   }
-  const skipped = allEndpoints.filter(ep => !sharedWorkingEndpoints.includes(ep));
+  const skipped = allEndpoints.filter(ep => !sharedWorkingEndpoints.some(w => w.name === ep.name));
   for (const ep of skipped) {
     console.log(chalk.dim(`    ❌ ${ep.name} — skipped`));
   }
