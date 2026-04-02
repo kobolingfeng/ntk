@@ -971,8 +971,8 @@ export class LLMClient {
         outputTokens = flushed2.outputTokens;
       }
     } catch {
-      // Stream read error — only unexpected if we didn't intentionally abort
-      if (!abortedByLimit) return null;
+      // Stream read error — preserve partial content if we accumulated enough
+      if (!abortedByLimit && contentParts.length === 0) return null;
     } finally {
       clearInterval(watchdog);
       reader.cancel().catch(() => {});

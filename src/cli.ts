@@ -476,7 +476,10 @@ async function main(): Promise<void> {
       const { readFileSync } = await import('node:fs');
       let tasks: string[];
       try {
-        tasks = readFileSync(batchFile, 'utf-8')
+        let raw = readFileSync(batchFile, 'utf-8');
+        // Strip UTF-8 BOM (Windows Notepad and other editors may add it)
+        if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
+        tasks = raw
           .split('\n')
           .map((l) => l.trim())
           .filter((l) => l && !l.startsWith('#'));
