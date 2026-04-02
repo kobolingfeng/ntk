@@ -11,6 +11,8 @@ interface CacheEntry {
   depth: string;
   tokensSaved: number;
   createdAt: number;
+  /** Stored for hash collision detection */
+  normalizedTask: string;
 }
 
 const DEFAULT_MAX_ENTRIES = 100;
@@ -63,6 +65,13 @@ export class ResponseCache {
       return null;
     }
 
+    // Collision detection: verify the normalized task matches
+    const normalized = `${depth ?? 'auto'}:${this.normalizeTask(task)}`;
+    if (entry.normalizedTask !== normalized) {
+      this.misses++;
+      return null;
+    }
+
     if (Date.now() - entry.createdAt > this.ttlMs) {
       this.cache.delete(key);
       this.misses++;
@@ -95,6 +104,7 @@ export class ResponseCache {
       depth,
       tokensSaved: totalTokens,
       createdAt: Date.now(),
+      normalizedTask: `${forceDepth ?? 'auto'}:${this.normalizeTask(task)}`,
     });
   }
 
