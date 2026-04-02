@@ -280,7 +280,7 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
   let lastVerification = '';
 
   while (retries < ctx.config.maxLocalRetries && !allPassed) {
-    const MAX_OUTPUT_CHARS = Math.min(1200, Math.floor(4000 / results.length));
+    const MAX_OUTPUT_CHARS = Math.max(100, Math.min(1200, Math.floor(4000 / results.length)));
     const verifyInput = results
       .map((r) => {
         let truncated = r.output;

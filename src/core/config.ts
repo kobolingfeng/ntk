@@ -10,15 +10,15 @@ import type { NTKConfig } from './protocol.js';
 /**
  * Discover API endpoints from environment variables.
  *
- * Searches API_ENDPOINT_{1..10}_{KEY,URL,NAME} first,
+ * Searches API_ENDPOINT_{1..20}_{KEY,URL,NAME} first,
  * falls back to UNIFIED_API_KEY + UNIFIED_BASE_URL.
  */
 export function discoverEndpoints(): EndpointInput[] {
   const endpoints: EndpointInput[] = [];
 
   for (let i = 1; i <= 20; i++) {
-    const key = process.env[`API_ENDPOINT_${i}_KEY`];
-    const url = process.env[`API_ENDPOINT_${i}_URL`];
+    const key = process.env[`API_ENDPOINT_${i}_KEY`]?.trim();
+    const url = process.env[`API_ENDPOINT_${i}_URL`]?.trim();
     const name = process.env[`API_ENDPOINT_${i}_NAME`] || `endpoint-${i}`;
     if (key && url) {
       if (!isValidUrl(url)) {
