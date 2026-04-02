@@ -218,9 +218,11 @@ export class Pipeline {
     // Compressor locale deferred to runNonDirectDepth() to avoid premature lazy init
 
     // Step 0a: Pipeline-level pre-filter (zero token cost, before cache to normalize keys)
-    const pfResult = preFilter(userRequest);
-    const cleanRequest = pfResult.filtered;
-    if (pfResult.charsRemoved > 0) {
+    // Fast skip: short single-line clean inputs won't be changed by preFilter
+    const skipPreFilter = userRequest.length < 200 && !userRequest.includes('\n') && !userRequest.includes('\x1b');
+    const pfResult = skipPreFilter ? null : preFilter(userRequest);
+    const cleanRequest = pfResult ? pfResult.filtered : userRequest;
+    if (pfResult && pfResult.charsRemoved > 0) {
       this.pipelinePreFilterCharsRemoved = pfResult.charsRemoved;
     }
 
@@ -240,7 +242,7 @@ export class Pipeline {
     }
 
     try {
-      if (pfResult.charsRemoved > 0) {
+      if (pfResult && pfResult.charsRemoved > 0) {
         this.emit({
           type: 'message',
           phase: 'gather',

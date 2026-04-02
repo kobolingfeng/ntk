@@ -903,20 +903,29 @@ export class LLMClient {
     }
 
     // Fallback safety net: character-based estimate when API doesn't report usage
-    // Use same 0.4 rate as streaming estimate to ensure consistent trigger threshold
+    // Reuse runningTokenEstimate from streaming loop when available to avoid O(n) rescan
     if (maxOutputTokens && outputTokens === 0) {
-      let tokens = 0;
-      let truncateAt = -1;
-      for (let i = 0; i < fullContent.length; i++) {
-        const ch = fullContent.charCodeAt(i);
-        tokens += (ch >= 0x4E00 && ch <= 0x9FFF) ? 1.5 : 0.4;
-        if (truncateAt < 0 && tokens >= maxOutputTokens) {
-          truncateAt = i + 1;
-        }
-      }
-      if (truncateAt >= 0) {
-        fullContent = fullContent.slice(0, truncateAt);
+      if (runningTokenEstimate >= maxOutputTokens) {
+        // Already truncated during streaming — no rescan needed
         abortedByLimit = true;
+      } else if (!abortedByLimit && runningTokenEstimate > 0) {
+        // Stream completed without hitting limit — use accumulated estimate
+        // No truncation needed
+      } else {
+        // No streaming estimate available (e.g., stream error) — scan fullContent
+        let tokens = 0;
+        let truncateAt = -1;
+        for (let i = 0; i < fullContent.length; i++) {
+          const ch = fullContent.charCodeAt(i);
+          tokens += (ch >= 0x4E00 && ch <= 0x9FFF) ? 1.5 : 0.4;
+          if (truncateAt < 0 && tokens >= maxOutputTokens) {
+            truncateAt = i + 1;
+          }
+        }
+        if (truncateAt >= 0) {
+          fullContent = fullContent.slice(0, truncateAt);
+          abortedByLimit = true;
+        }
       }
     }
 
@@ -989,7 +998,7 @@ export class LLMClient {
           signal: AbortSignal.timeout(120000),
         });
 
-        if ([429, 502, 503, 504].includes(response.status) && attempt < maxRetries) {
+        if ((response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
           const baseDelay = response.status === 429 ? 1000 : 500;
           const delay = baseDelay * 2 ** attempt + Math.random() * 200;
           console.error(

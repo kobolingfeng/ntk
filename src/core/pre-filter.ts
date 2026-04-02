@@ -115,8 +115,14 @@ export function preFilter(text: string): PreFilterResult {
 
   const detectedType = detectOutputType(text);
 
-  // Universal strategies always run
+  // Universal strategies — skip those that can't match based on quick heuristics
+  const hasAnsi = current.includes('\x1b');
+  const hasUrl = current.includes('http');
   for (const strategy of universalStrategies) {
+    // Skip ANSI strip if no escape chars present
+    if (strategy === stripAnsiCodes && !hasAnsi) continue;
+    // Skip URL shortening if no URLs present
+    if (strategy === shortenUrls && !hasUrl) continue;
     const before = current.length;
     const { result, name } = strategy(current);
     current = result;

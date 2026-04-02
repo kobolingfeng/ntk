@@ -20,6 +20,7 @@ export class Compressor {
   private llm: LLMClient;
   private locale: Locale = 'zh';
   private preFilterStats: PreFilterResult[] = [];
+  private preFilterStatsIdx = 0;
   private teeStore: Map<string, string> = new Map();
   private teeCounter = 0;
 
@@ -102,8 +103,13 @@ export class Compressor {
     // Stage 1: Deterministic pre-filter (zero token cost)
     const pfResult = preFilter(text);
     const preFiltered = pfResult.filtered;
-    this.preFilterStats.push(pfResult);
-    if (this.preFilterStats.length > 100) this.preFilterStats.shift();
+    // Circular buffer: overwrite oldest entry instead of O(n) shift()
+    if (this.preFilterStats.length < 100) {
+      this.preFilterStats.push(pfResult);
+    } else {
+      this.preFilterStats[this.preFilterStatsIdx] = pfResult;
+      this.preFilterStatsIdx = (this.preFilterStatsIdx + 1) % 100;
+    }
 
     // If already short enough after pre-filter, don't waste an API call
     if (preFiltered.length < 200 && level !== 'aggressive') {
