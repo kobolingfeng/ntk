@@ -485,17 +485,14 @@ export class LLMClient {
     maxTokensOverride?: number,
     temperatureOverride?: number,
   ): Promise<{ content: string; usage: TokenUsage }> {
-    const messages = systemPrompt
-      ? [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
-        ]
-      : [{ role: 'user', content: userMessage }];
-    const response = await this.callAPI(
-      messages,
-      maxTokensOverride,
-      temperatureOverride,
-    );
+    const effectiveMax = maxTokensOverride ?? this.maxTokens;
+    const effectiveTemp = temperatureOverride ?? this.temperature;
+    // Build JSON payload directly — avoids intermediate messages array + JSON.stringify overhead
+    const messagesJson = systemPrompt
+      ? `[{"role":"system","content":${JSON.stringify(systemPrompt)}},{"role":"user","content":${JSON.stringify(userMessage)}}]`
+      : `[{"role":"user","content":${JSON.stringify(userMessage)}}]`;
+    const body = `{"model":${this.modelJson},"messages":${messagesJson},"max_tokens":${effectiveMax},"max_completion_tokens":${effectiveMax},"temperature":${effectiveTemp}}`;
+    const response = await this.callAPIWithBody(body);
 
     const content = response.choices[0]?.message?.content ?? '';
     const usage: TokenUsage = {
@@ -949,15 +946,9 @@ export class LLMClient {
 
   // ─── Core API Call with Failover ──────────────────
 
-  private async callAPI(
-    messages: Array<{ role: string; content: string }>,
-    maxTokensOverride?: number,
-    temperatureOverride?: number,
+  private async callAPIWithBody(
+    body: string,
   ): Promise<ChatCompletionResponse> {
-    const effectiveMax = maxTokensOverride ?? this.maxTokens;
-    const effectiveTemp = temperatureOverride ?? this.temperature;
-    const body = `{"model":${this.modelJson},"messages":${JSON.stringify(messages)},"max_tokens":${effectiveMax},"max_completion_tokens":${effectiveMax},"temperature":${effectiveTemp}}`;
-
     const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
     const allEndpoints = this.endpointManager.getEndpoints();
 

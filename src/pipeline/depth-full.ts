@@ -14,7 +14,7 @@ import type { LLMClient } from '../core/llm.js';
 import type { Locale, PIPELINE_STRINGS } from '../core/prompts.js';
 import { getBandPrompt } from '../core/prompts.js';
 import type { AgentContext, NTKConfig, TokenReport } from '../core/protocol.js';
-import { createMessage } from '../core/protocol.js';
+import { createMessage, EMPTY_CONTEXT } from '../core/protocol.js';
 import type { Router, RouterStats } from '../core/router.js';
 import { assembleReport, FULL_SKIP_THRESHOLDS, isStructurallyComplete, parseVerificationResult } from './helpers.js';
 import type { ExecutionResult, PipelineEvent, PipelineResult, VerificationResult } from './types.js';
@@ -192,8 +192,7 @@ async function executeSerial(ctx: FullDepthContext, instructions: PlannerInstruc
       const streamedResponse = createMessage('executor', 'planner', inst.instruction, output);
       ctx.router.route(streamedResponse, 'execute');
     } else {
-      const context: AgentContext = { visibleMessages: [] };
-      const response = await ctx.executor.process(msg, context);
+      const response = await ctx.executor.process(msg, EMPTY_CONTEXT);
       ctx.router.route(response, 'execute');
       output = response.payload;
     }
@@ -229,8 +228,7 @@ async function executeParallel(ctx: FullDepthContext, instructions: PlannerInstr
       return null;
     }
 
-    const context: AgentContext = { visibleMessages: [] };
-    const response = await ctx.executor.process(msg, context);
+    const response = await ctx.executor.process(msg, EMPTY_CONTEXT);
     ctx.router.route(response, 'execute');
 
     ctx.emit({
@@ -359,8 +357,7 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
           );
           const fixDecision = ctx.router.route(fixMsg, 'execute');
           if (fixDecision.allowed) {
-            const execContext: AgentContext = { visibleMessages: [] };
-            const fixResponse = await ctx.executor.process(fixMsg, execContext);
+            const fixResponse = await ctx.executor.process(fixMsg, EMPTY_CONTEXT);
             ctx.router.route(fixResponse, 'execute');
             lastResult.output += `\n\n--- ${ctx.strings.fixSupplement} (tee recovery) ---\n${fixResponse.payload}`;
 
@@ -369,8 +366,7 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
             const reVerifyMsg = createMessage('executor', 'verifier', ctx.strings.verifyResults, reVerifyInput);
             const reDecision = ctx.router.route(reVerifyMsg, 'verify');
             if (reDecision.allowed) {
-              const reContext: AgentContext = { visibleMessages: [] };
-              const reResponse = await ctx.verifier.process(reVerifyMsg, reContext);
+              const reResponse = await ctx.verifier.process(reVerifyMsg, EMPTY_CONTEXT);
               ctx.router.route(reResponse, 'verify');
               allPassed = parseVerificationResult(reResponse.payload);
               lastVerification = reResponse.payload;

@@ -8,7 +8,7 @@ import type { LLMClient } from '../core/llm.js';
 import { getBandPrompt, CODE_TASK_PATTERN, type Locale } from '../core/prompts.js';
 import { estimateTokens } from '../core/llm.js';
 import type { TokenReport } from '../core/protocol.js';
-import { createMessage } from '../core/protocol.js';
+import { createMessage, EMPTY_CONTEXT } from '../core/protocol.js';
 import type { RouterStats } from '../core/router.js';
 import type { ToolDefinition } from '../tools/definitions.js';
 import { runToolLoop } from '../tools/loop.js';
@@ -115,17 +115,17 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
       rawContent = content.trim();
     } else {
       const msg = createMessage('planner', 'executor', effectiveRequest, '');
-      const context = { visibleMessages: [] as never[] };
-      const response = await ctx.executor.process(msg, context);
+      const response = await ctx.executor.process(msg, EMPTY_CONTEXT);
       rawContent = response.payload.trim();
     }
   }
 
   const success = rawContent.length > 0;
   let report = rawContent || emptyOutputMessage(ctx.locale);
-  report = report
-    .replace(RE_DONE_SUFFIX, '')
-    .trimEnd();
+  // Guard regex with fast suffix check — [完成]/[done] suffixes are rare
+  if (report.length > 3 && (report.charCodeAt(report.length - 1) === 93 /* ] */)) {
+    report = report.replace(RE_DONE_SUFFIX, '').trimEnd();
+  }
 
   ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (direct)' });
 

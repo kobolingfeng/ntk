@@ -11,7 +11,7 @@ import type { Verifier } from '../agents/verifier.js';
 import type { LLMClient } from '../core/llm.js';
 import { getBandPrompt, type Locale, type PIPELINE_STRINGS } from '../core/prompts.js';
 import type { AgentContext, TokenReport } from '../core/protocol.js';
-import { createMessage } from '../core/protocol.js';
+import { createMessage, EMPTY_CONTEXT } from '../core/protocol.js';
 import type { Router, RouterStats } from '../core/router.js';
 import { emptyOutputMessage, isStructurallyComplete, parseVerificationResult } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
@@ -45,8 +45,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
     const streamedResponse = createMessage('executor', 'planner', ctx.userRequest, rawContent);
     ctx.router.route(streamedResponse, 'execute');
   } else {
-    const context: AgentContext = { visibleMessages: [] };
-    const response = await ctx.executor.process(msg, context);
+    const response = await ctx.executor.process(msg, EMPTY_CONTEXT);
     ctx.router.route(response, 'execute');
     rawContent = response.payload.trim();
   }
@@ -61,8 +60,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
     ctx.emit({ type: 'phase', phase: 'verify', detail: 'Light verification...' });
 
     const verifyMsg = createMessage('executor', 'verifier', ctx.strings.quickCheck, rawContent);
-    const verifyCtx: AgentContext = { visibleMessages: [] };
-    const verifyResponse = await ctx.verifier.process(verifyMsg, verifyCtx);
+    const verifyResponse = await ctx.verifier.process(verifyMsg, EMPTY_CONTEXT);
 
     passed = parseVerificationResult(verifyResponse.payload);
     verifyFeedback = verifyResponse.payload;
@@ -78,8 +76,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
       ctx.userRequest,
       `${ctx.strings.verifyFeedback}: ${verifyFeedback.slice(0, 300)}`,
     );
-    const fixCtx: AgentContext = { visibleMessages: [] };
-    const fixResponse = await ctx.executor.process(fixMsg, fixCtx);
+    const fixResponse = await ctx.executor.process(fixMsg, EMPTY_CONTEXT);
     report = fixResponse.payload.trim() || report;
   }
 

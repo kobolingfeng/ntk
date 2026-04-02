@@ -177,6 +177,9 @@ export interface AgentContext {
   localScratchpad?: string;
 }
 
+/** Reusable empty context — avoids allocating a new empty array per call */
+export const EMPTY_CONTEXT: AgentContext = Object.freeze({ visibleMessages: [] as Message[] });
+
 // ─── Routing ──────────────────────────────────────────
 
 /** Defines who can talk to whom and what gets compressed */
