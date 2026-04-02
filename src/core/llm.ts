@@ -622,6 +622,8 @@ export class LLMClient {
     cachedToolsJson?: string,
     /** Pre-serialized messages JSON — avoids re-serializing entire growing array each round */
     cachedMessagesJson?: string,
+    /** External abort signal for cancellation */
+    signal?: AbortSignal,
   ): Promise<{ content?: string; toolCalls?: Array<{ id: string; name: string; arguments: string }>; usage: TokenUsage }> {
     const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
     const allEndpoints = this.endpointManager.getEndpoints();
@@ -636,7 +638,7 @@ export class LLMClient {
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
       const startMs = Date.now();
-      const result = await this.tryStreamToolEndpoint(ep, payload, onToken);
+      const result = await this.tryStreamToolEndpoint(ep, payload, onToken, signal);
       if (result) {
         this.endpointManager.recordSuccess(epIndex, Date.now() - startMs);
         const usage: TokenUsage = {
@@ -663,8 +665,12 @@ export class LLMClient {
     ep: Endpoint,
     body: string,
     onToken?: (token: string) => void,
+    externalSignal?: AbortSignal,
   ): Promise<{ content: string; toolCalls: Array<{ id: string; name: string; arguments: string }>; inputTokens: number; outputTokens: number } | null> {
     let response: Response;
+    const fetchSignal = externalSignal
+      ? AbortSignal.any([externalSignal, AbortSignal.timeout(120_000)])
+      : AbortSignal.timeout(120_000);
     const maxRetries = 2;
     for (let attempt = 0; ; attempt++) {
       try {
@@ -672,7 +678,7 @@ export class LLMClient {
           method: 'POST',
           headers: ep.headers,
           body,
-          signal: AbortSignal.timeout(120_000),
+          signal: fetchSignal,
         });
       } catch { return null; }
 

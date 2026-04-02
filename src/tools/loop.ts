@@ -129,7 +129,7 @@ export async function runToolLoop(
       needRejoin = false;
     }
     const messagesJson = `[${cachedJsonBody}]`;
-    const result = await llm.chatWithTools(messages, tools, agent, phase, onToken, toolsJson, messagesJson);
+    const result = await llm.chatWithTools(messages, tools, agent, phase, onToken, toolsJson, messagesJson, signal);
 
     if (result.toolCalls && result.toolCalls.length > 0) {
       // LLM wants to call tools
