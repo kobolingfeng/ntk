@@ -437,9 +437,12 @@ export class LLMClient {
   private tokenLog: TokenUsage[] = [];
   private static readonly MAX_TOKEN_LOG = 200;
   private endpointManager: EndpointManager;
+  /** Pre-computed JSON-escaped model name — avoids JSON.stringify on every LLM call */
+  private readonly modelJson: string;
 
   constructor(config: LLMConfig, endpointManager?: EndpointManager) {
     this.model = config.model;
+    this.modelJson = JSON.stringify(config.model);
     this.maxTokens = config.maxTokens ?? 2048;
     this.temperature = config.temperature ?? 0.3;
     this.endpointManager = endpointManager ?? defaultEndpointManager;
@@ -525,7 +528,7 @@ export class LLMClient {
 
     // Build payload with optional pre-serialized tools to avoid redundant JSON.stringify on tools array
     const toolsJson = cachedToolsJson ?? JSON.stringify(tools);
-    const payload = `{"model":${JSON.stringify(this.model)},"messages":${JSON.stringify(messages)},"tools":${toolsJson},"tool_choice":"auto","max_tokens":${this.maxTokens},"max_completion_tokens":${this.maxTokens},"temperature":${this.temperature},"stream":true,"stream_options":{"include_usage":true}}`;
+    const payload = `{"model":${this.modelJson},"messages":${JSON.stringify(messages)},"tools":${toolsJson},"tool_choice":"auto","max_tokens":${this.maxTokens},"max_completion_tokens":${this.maxTokens},"temperature":${this.temperature},"stream":true,"stream_options":{"include_usage":true}}`;
 
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
@@ -714,7 +717,7 @@ export class LLMClient {
     const messagesJson = systemPrompt
       ? `[{"role":"system","content":${JSON.stringify(systemPrompt)}},{"role":"user","content":${JSON.stringify(userMessage)}}]`
       : `[{"role":"user","content":${JSON.stringify(userMessage)}}]`;
-    const payload = `{"model":${JSON.stringify(this.model)},"messages":${messagesJson},"max_tokens":${effectiveMax},"max_completion_tokens":${effectiveMax},"temperature":${effectiveTemp},"stream":true,"stream_options":{"include_usage":true}}`;
+    const payload = `{"model":${this.modelJson},"messages":${messagesJson},"max_tokens":${effectiveMax},"max_completion_tokens":${effectiveMax},"temperature":${effectiveTemp},"stream":true,"stream_options":{"include_usage":true}}`;
 
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
@@ -948,7 +951,7 @@ export class LLMClient {
   ): Promise<ChatCompletionResponse> {
     const effectiveMax = maxTokensOverride ?? this.maxTokens;
     const effectiveTemp = temperatureOverride ?? this.temperature;
-    const body = `{"model":${JSON.stringify(this.model)},"messages":${JSON.stringify(messages)},"max_tokens":${effectiveMax},"max_completion_tokens":${effectiveMax},"temperature":${effectiveTemp}}`;
+    const body = `{"model":${this.modelJson},"messages":${JSON.stringify(messages)},"max_tokens":${effectiveMax},"max_completion_tokens":${effectiveMax},"temperature":${effectiveTemp}}`;
 
     const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
     const allEndpoints = this.endpointManager.getEndpoints();

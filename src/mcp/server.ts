@@ -48,8 +48,9 @@ function loadConfig(): NTKConfig {
 }
 
 let initialized = false;
+let cachedConfig: NTKConfig | null = null;
 
-async function ensureInitialized(): Promise<void> {
+async function ensureInitialized(): Promise<NTKConfig> {
   if (!initialized) {
     loadEndpoints();
     const plannerModel = process.env.PLANNER_MODEL || process.env.MODEL || 'gpt-5.4';
@@ -58,8 +59,10 @@ async function ensureInitialized(): Promise<void> {
     if (compressorModel !== plannerModel) {
       endpointManager.shareProbeResult(plannerModel, compressorModel);
     }
+    cachedConfig = loadConfig();
     initialized = true;
   }
+  return cachedConfig!;
 }
 
 // ─── MCP Server ───────────────────────────────────────
@@ -83,8 +86,7 @@ server.tool(
   },
   async ({ task, forceDepth, skipScout }) => {
     try {
-      await ensureInitialized();
-      const config = loadConfig();
+      const config = await ensureInitialized();
 
       const pipeline = new Pipeline(config, () => {}, {
         forceDepth: forceDepth as PipelineDepth | undefined,
@@ -136,8 +138,7 @@ server.tool(
   },
   async ({ task }) => {
     try {
-      await ensureInitialized();
-      const config = loadConfig();
+      const config = await ensureInitialized();
       const fastConfig = { ...config, planner: { ...config.compressor } };
       const pipeline = new Pipeline(fastConfig, () => {}, { forceDepth: 'direct' as PipelineDepth, endpointManager });
       let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
@@ -182,8 +183,7 @@ server.tool(
   },
   async ({ text, level }) => {
     try {
-      await ensureInitialized();
-      const config = loadConfig();
+      const config = await ensureInitialized();
 
       const compressor = new Compressor(new LLMClient(config.compressor, endpointManager));
       const result = await compressor.compress(text, level || 'standard', 'summarizer', 'gather');
