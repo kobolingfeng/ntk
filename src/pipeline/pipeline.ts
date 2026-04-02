@@ -270,59 +270,80 @@ export class Pipeline {
         // Smart speculative execution: use history to predict depth
         // Lower threshold for 'direct' (safe to speculate, common case)
         const prediction = predictDepth(cleanRequest);
-        const speculateDepth = prediction
-          ? (prediction.depth === 'direct' && prediction.confidence > 0.5
-              ? 'direct'
-              : prediction.confidence > 0.7 ? prediction.depth : 'direct')
-          : 'direct';
 
-        // Only speculate if high confidence — launch classifier + direct execution in parallel
-        // Uses AbortController to cancel speculative LLM request on miss
-        let speculativePromise: Promise<PipelineResult> | null = null;
-        let speculativeAbort: AbortController | null = null;
-        if (speculateDepth === 'direct') {
-          speculativeAbort = new AbortController();
-          speculativePromise = runDirect(this.directCtx(cleanRequest, { emit: () => {}, signal: speculativeAbort.signal }));
-        }
-
-        const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
-        this.traceClassifierResult = depth;
-        this.tracePredictionConfidence = prediction?.confidence ?? null;
-        const predictionInfo = prediction ? ` pred=${speculateDepth}@${(prediction.confidence * 100).toFixed(0)}%` : '';
-        this.emit({
-          type: 'start',
-          phase: 'gather',
-          detail: `[${depth}/speculative${predictionInfo}] ${cleanRequest}`,
-        });
-
-        if (depth === speculateDepth && speculativePromise) {
-          this.traceSpeculativeHit = true;
-          this.setPhase('execute');
-          try {
-            result = await speculativePromise;
-          } catch {
-            result = await runDirect(this.directCtx(cleanRequest));
-          }
-          this.emit({ type: 'complete', phase: 'report', detail: `Done (${depth}/speculative-hit)` });
-        } else {
-          this.traceSpeculativeHit = speculativePromise ? false : null;
-          // Speculation missed — abort the speculative LLM request to save bandwidth
-          if (speculativeAbort) {
-            speculativeAbort.abort();
-          }
-          if (speculativePromise) {
-            speculativePromise.catch(() => {});
-          }
-
-          if (depth === 'direct') {
+        // Very high confidence prediction — skip classifier entirely
+        // This saves ~50 tokens per call for well-known task patterns
+        if (prediction && prediction.confidence >= 0.9) {
+          const predictedDepth = prediction.depth;
+          this.tracePredictionConfidence = prediction.confidence;
+          this.traceClassifierResult = null;
+          this.emit({
+            type: 'start',
+            phase: 'gather',
+            detail: `[${predictedDepth}/predicted@${(prediction.confidence * 100).toFixed(0)}%] ${cleanRequest}`,
+          });
+          if (predictedDepth === 'direct') {
             this.setPhase('execute');
-            result = await runDirect(this.directCtx(cleanRequest));
+            result = await runDirect(this.directCtx(cleanRequest, { onToken: this.onToken }));
           } else {
-            result = await this.runNonDirectDepth(depth, cleanRequest);
+            result = await this.runNonDirectDepth(predictedDepth, cleanRequest);
           }
-        }
+          recordDepth(cleanRequest, predictedDepth);
+        } else {
+          const speculateDepth = prediction
+            ? (prediction.depth === 'direct' && prediction.confidence > 0.5
+                ? 'direct'
+                : prediction.confidence > 0.7 ? prediction.depth : 'direct')
+            : 'direct';
 
-        recordDepth(cleanRequest, depth);
+          // Only speculate if high confidence — launch classifier + direct execution in parallel
+          // Uses AbortController to cancel speculative LLM request on miss
+          let speculativePromise: Promise<PipelineResult> | null = null;
+          let speculativeAbort: AbortController | null = null;
+          if (speculateDepth === 'direct') {
+            speculativeAbort = new AbortController();
+            speculativePromise = runDirect(this.directCtx(cleanRequest, { emit: () => {}, signal: speculativeAbort.signal }));
+          }
+
+          const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
+          this.traceClassifierResult = depth;
+          this.tracePredictionConfidence = prediction?.confidence ?? null;
+          const predictionInfo = prediction ? ` pred=${speculateDepth}@${(prediction.confidence * 100).toFixed(0)}%` : '';
+          this.emit({
+            type: 'start',
+            phase: 'gather',
+            detail: `[${depth}/speculative${predictionInfo}] ${cleanRequest}`,
+          });
+
+          if (depth === speculateDepth && speculativePromise) {
+            this.traceSpeculativeHit = true;
+            this.setPhase('execute');
+            try {
+              result = await speculativePromise;
+            } catch {
+              result = await runDirect(this.directCtx(cleanRequest));
+            }
+            this.emit({ type: 'complete', phase: 'report', detail: `Done (${depth}/speculative-hit)` });
+          } else {
+            this.traceSpeculativeHit = speculativePromise ? false : null;
+            // Speculation missed — abort the speculative LLM request to save bandwidth
+            if (speculativeAbort) {
+              speculativeAbort.abort();
+            }
+            if (speculativePromise) {
+              speculativePromise.catch(() => {});
+            }
+
+            if (depth === 'direct') {
+              this.setPhase('execute');
+              result = await runDirect(this.directCtx(cleanRequest));
+            } else {
+              result = await this.runNonDirectDepth(depth, cleanRequest);
+            }
+          }
+
+          recordDepth(cleanRequest, depth);
+        }
       } else {
         // Sequential: classify first, then execute
         const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
