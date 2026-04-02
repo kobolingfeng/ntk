@@ -281,7 +281,8 @@ function compactStandaloneJson(text: string): string {
     const trimmed = line.trim();
 
     if (!inJson) {
-      if (!/^[{[]/.test(trimmed)) {
+      const c = trimmed.charCodeAt(0);
+      if (c !== 123 /* { */ && c !== 91 /* [ */) {
         output.push(line);
         continue;
       }

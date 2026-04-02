@@ -88,7 +88,7 @@ Completion: [done] or [partial: needs more space]`,
 export type TaskBand = 'code' | 'analysis' | 'passthrough' | 'general';
 
 export const CODE_TASK_PATTERN =
-  /写|实现|编写|创建|模块|重构|生成|write|implement|create|function|class|module|refactor|generate/i;
+  /写|实现|编写|创建|设计|模块|重构|生成|write|implement|create|design|function|class|module|refactor|generate/i;
 export const ANALYSIS_TASK_PATTERN =
   /分析|检查|审查|比较|对比|解释|评估|总结|compare|analyze|explain|review|evaluate|summarize/i;
 export const PASSTHROUGH_TASK_PATTERN =
