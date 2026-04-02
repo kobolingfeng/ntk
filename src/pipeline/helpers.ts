@@ -6,6 +6,11 @@ import { ANALYSIS_TASK_PATTERN, CODE_TASK_PATTERN, type Locale } from '../core/p
 import type { TokenReport, TokenUsage } from '../core/protocol.js';
 import type { ExecutionResult, PipelineTrace } from './types.js';
 
+// Pre-compiled regex for parseVerificationResult
+const PASS_KEYWORD = /\b(?:pass(?:ed)?|all correct|no issues)\b|通过|正确|没有问题|无问题/;
+const FAIL_KEYWORD = /\b(?:fail(?:ed)?|errors?|incorrect|wrong)\b|失败|错误|不正确|有问题/;
+const NEGATION_PASS = /没有问题|无问题|没有错误|无错误|no issues|no errors?|0 errors?|without error|error[- ]free/g;
+
 /**
  * Parse verifier output to determine pass/fail.
  * Uses emoji first, then falls back to keyword matching.
@@ -19,14 +24,11 @@ export function parseVerificationResult(payload: string): boolean {
 
   // Fallback: keyword matching (case-insensitive)
   const lower = payload.toLowerCase();
-  const hasPassKeyword = /\b(?:pass(?:ed)?|all correct|no issues)\b|通过|正确|没有问题|无问题/.test(lower);
+  const hasPassKeyword = PASS_KEYWORD.test(lower);
 
   // Strip negation-pass patterns before checking fail keywords
-  let lowerForFailCheck = lower.replace(
-    /没有问题|无问题|没有错误|无错误|no issues|no errors?|0 errors?|without error|error[- ]free/g,
-    '',
-  );
-  const hasFailKeyword = /\b(?:fail(?:ed)?|errors?|incorrect|wrong)\b|失败|错误|不正确|有问题/.test(lowerForFailCheck);
+  const lowerForFailCheck = lower.replace(NEGATION_PASS, '');
+  const hasFailKeyword = FAIL_KEYWORD.test(lowerForFailCheck);
 
   if (hasPassKeyword && !hasFailKeyword) return true;
   if (hasFailKeyword) return false;
@@ -109,6 +111,11 @@ interface SkipThresholds {
 const DEFAULT_SKIP_THRESHOLDS: SkipThresholds = { codeMinLen: 200, analysisMinLen: 150, generalMinLen: 500 };
 const FULL_SKIP_THRESHOLDS: SkipThresholds = { codeMinLen: 300, analysisMinLen: 300, generalMinLen: 800 };
 
+// Pre-compiled regex for isStructurallyComplete
+const HAS_CODE_BLOCK = /```[\s\S]{20,}```/;
+const HAS_NUMBERED_LIST = /^\d+\.\s/m;
+const HAS_BULLET_LIST = /^[-*]\s/m;
+
 /**
  * Heuristic: check if output looks structurally complete enough to skip verification.
  * Shared by depth-light and depth-full.
@@ -120,9 +127,9 @@ export function isStructurallyComplete(
 ): boolean {
   if (output.length < 100) return true;
 
-  const hasCodeBlock = /```[\s\S]{20,}```/.test(output);
-  const hasNumberedList = /^\d+\.\s/m.test(output);
-  const hasBulletList = /^[-*]\s/m.test(output);
+  const hasCodeBlock = HAS_CODE_BLOCK.test(output);
+  const hasNumberedList = HAS_NUMBERED_LIST.test(output);
+  const hasBulletList = HAS_BULLET_LIST.test(output);
 
   const isCodeTask = CODE_TASK_PATTERN.test(userRequest);
   const isAnalysisTask = ANALYSIS_TASK_PATTERN.test(userRequest);

@@ -198,7 +198,7 @@ export class Pipeline {
         success: false,
         report: 'No task provided.',
         tokenReport: this.getTokenReport(),
-        routerStats: this.router.getStats(),
+        routerStats: this._router?.getStats() ?? { totalRouted: 0, totalBlocked: 0, blockRate: 0, byRoute: {} },
         blockedMessages: [],
         depth: 'direct',
       };

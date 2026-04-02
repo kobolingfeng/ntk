@@ -5,7 +5,7 @@
 
 import type { Executor } from '../agents/executor.js';
 import type { LLMClient } from '../core/llm.js';
-import { getBandPrompt, PASSTHROUGH_TASK_PATTERN, CODE_TASK_PATTERN, type Locale } from '../core/prompts.js';
+import { getBandPrompt, CODE_TASK_PATTERN, type Locale } from '../core/prompts.js';
 import { estimateTokens } from '../core/llm.js';
 import type { TokenReport } from '../core/protocol.js';
 import { createMessage } from '../core/protocol.js';
@@ -70,7 +70,7 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
 
   let rawContent = '';
   // Use planner model for passthrough and micro tasks — native conciseness
-  const isPassthrough = !bandPrompt && PASSTHROUGH_TASK_PATTERN.test(effectiveRequest);
+  const isPassthrough = !bandPrompt;
   const usePlanner = (isPassthrough || isMicroTask) && !!ctx.plannerLLM;
   const activeLLM = usePlanner ? ctx.plannerLLM : ctx.llm;
   if (activeLLM) {
