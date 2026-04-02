@@ -310,15 +310,19 @@ function htmlToText(html: string, maxLength: number): string {
 
 // ─── Glob to Regex ─────────────────────────────────
 
-/** LRU-1 cache for glob→regex conversion */
-let _lastGlob = '';
-let _lastGlobRe: RegExp | null = null;
+/** Small cache for glob→regex conversion (avoids recompilation for alternating patterns) */
+const globCache = new Map<string, RegExp>();
+const GLOB_CACHE_MAX = 16;
 
 function cachedGlobToRegex(glob: string): RegExp {
-  if (glob === _lastGlob && _lastGlobRe) return _lastGlobRe;
-  _lastGlob = glob;
-  _lastGlobRe = globToRegex(glob);
-  return _lastGlobRe;
+  let re = globCache.get(glob);
+  if (re) return re;
+  re = globToRegex(glob);
+  if (globCache.size >= GLOB_CACHE_MAX) {
+    globCache.delete(globCache.keys().next().value!);
+  }
+  globCache.set(glob, re);
+  return re;
 }
 
 function globToRegex(glob: string): RegExp {
@@ -367,12 +371,15 @@ export async function executeTool(call: ParsedToolCall, cwd: string): Promise<To
 
     let content: string;
     if (ASYNC_TOOLS.has(call.name)) {
-      // Async tools need timeout protection
+      // Async tools need timeout protection with proper timer cleanup
       const timeout = TOOL_TIMEOUTS[call.name] ?? DEFAULT_TIMEOUT;
+      let timer: ReturnType<typeof setTimeout>;
       content = await Promise.race([
         fn(call.args, cwd) as Promise<string>,
-        new Promise<string>((_, reject) => setTimeout(() => reject(new Error(`超时 (${timeout / 1000}s)`)), timeout)),
-      ]);
+        new Promise<string>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`超时 (${timeout / 1000}s)`)), timeout);
+        }),
+      ]).finally(() => clearTimeout(timer!));
     } else {
       // Sync tools — direct call, no timer overhead
       content = fn(call.args, cwd) as string;
