@@ -122,16 +122,23 @@ export interface Endpoint extends EndpointInput {
   readonly headers: Readonly<Record<string, string>>;
 }
 
-/** Estimate token count accounting for CJK characters (~1.5 tokens each vs ASCII ~0.25) */
+/** Estimate token count with per-character-class coefficients.
+ *  CJK ~1.5, letters ~0.25 (4 chars/token), digits/symbols ~0.5, whitespace ~0.1 */
 export function estimateTokens(text: string): number {
-  let cjkCount = 0;
+  let tokens = 0;
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
     if ((c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF) || (c >= 0xF900 && c <= 0xFAFF)) {
-      cjkCount++;
+      tokens += 1.5; // CJK ideographs
+    } else if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
+      tokens += 0.25; // Letters — ~4 chars per token
+    } else if (c === 32 || c === 10 || c === 9 || c === 13) {
+      tokens += 0.1; // Whitespace — merged with adjacent tokens
+    } else {
+      tokens += 0.5; // Digits, punctuation, symbols — ~2 chars per token
     }
   }
-  return Math.ceil(cjkCount * 1.5 + (text.length - cjkCount) / 4);
+  return Math.ceil(tokens);
 }
 
 /**
