@@ -19,6 +19,8 @@ import { executeTools } from './executor.js';
 export interface ToolLoopConfig {
   /** Maximum number of tool-calling rounds (default: 8) */
   maxRounds?: number;
+  /** Maximum total duration in milliseconds (default: 180000 = 3 min). 0 = no limit */
+  maxDurationMs?: number;
   /** Working directory for file/command tools */
   cwd?: string;
   /** Tool definitions to expose (default: all built-in tools) */
@@ -63,6 +65,7 @@ export async function runToolLoop(
 ): Promise<ToolLoopResult> {
   const {
     maxRounds = 8,
+    maxDurationMs = 180_000,
     cwd = process.cwd(),
     tools = TOOL_DEFINITIONS,
     onToken,
@@ -83,8 +86,18 @@ export async function runToolLoop(
   let round = 0;
   // Pre-serialize tools once — avoids re-serializing the tools array on every round
   const toolsJson = JSON.stringify(tools);
+  const startTime = maxDurationMs > 0 ? Date.now() : 0;
 
   for (round = 0; round < maxRounds; round++) {
+    // Global timeout check
+    if (maxDurationMs > 0 && Date.now() - startTime >= maxDurationMs) {
+      return {
+        content: `[工具循环超时 (${(maxDurationMs / 1000).toFixed(0)}s)]`,
+        toolCallCount: totalToolCalls,
+        rounds: round,
+        completed: false,
+      };
+    }
     const result = await llm.chatWithTools(messages, tools, agent, phase, onToken, toolsJson);
 
     if (result.toolCalls && result.toolCalls.length > 0) {

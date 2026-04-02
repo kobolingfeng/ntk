@@ -701,6 +701,7 @@ export class LLMClient {
     maxTokensOverride?: number,
     temperatureOverride?: number,
     maxOutputTokens?: number,
+    signal?: AbortSignal,
   ): Promise<{ content: string; usage: TokenUsage }> {
     const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
     const allEndpoints = this.endpointManager.getEndpoints();
@@ -727,7 +728,7 @@ export class LLMClient {
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
       const startMs = Date.now();
-      const result = await this.tryStreamEndpoint(ep, payload, onToken, maxOutputTokens, systemPrompt, userMessage);
+      const result = await this.tryStreamEndpoint(ep, payload, onToken, maxOutputTokens, systemPrompt, userMessage, signal);
       if (result) {
         this.endpointManager.recordSuccess(epIndex, Date.now() - startMs);
         const usage: TokenUsage = { agent, ...result, timestamp: Date.now(), phase };
@@ -749,8 +750,14 @@ export class LLMClient {
     maxOutputTokens?: number,
     systemPrompt?: string,
     userMessage?: string,
+    externalSignal?: AbortSignal,
   ): Promise<{ content: string; inputTokens: number; outputTokens: number } | null> {
     const url = `${ep.baseUrl}/chat/completions`;
+
+    // Combine external abort signal with default timeout
+    const fetchSignal = externalSignal
+      ? AbortSignal.any([externalSignal, AbortSignal.timeout(120000)])
+      : AbortSignal.timeout(120000);
 
     let response: Response;
     try {
@@ -761,7 +768,7 @@ export class LLMClient {
           Authorization: `Bearer ${ep.apiKey}`,
         },
         body,
-        signal: AbortSignal.timeout(120000),
+        signal: fetchSignal,
       });
     } catch {
       return null;

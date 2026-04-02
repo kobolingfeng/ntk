@@ -287,10 +287,12 @@ export class Pipeline {
           : 'direct';
 
         // Only speculate if high confidence — launch classifier + direct execution in parallel
-        // When speculation misses, the direct result is awaited and discarded to avoid leaked promises
+        // Uses AbortController to cancel speculative LLM request on miss
         let speculativePromise: Promise<PipelineResult> | null = null;
+        let speculativeAbort: AbortController | null = null;
         if (speculateDepth === 'direct') {
-          speculativePromise = runDirect(this.directCtx(cleanRequest, { emit: () => {} }));
+          speculativeAbort = new AbortController();
+          speculativePromise = runDirect(this.directCtx(cleanRequest, { emit: () => {}, signal: speculativeAbort.signal }));
         }
 
         const depth = await classifyDepth(cleanRequest, this.compressorLLM, this.locale);
@@ -314,7 +316,10 @@ export class Pipeline {
           this.emit({ type: 'complete', phase: 'report', detail: `Done (${depth}/speculative-hit)` });
         } else {
           this.traceSpeculativeHit = speculativePromise ? false : null;
-          // Speculation missed — await and discard the speculative result to prevent leaked promises
+          // Speculation missed — abort the speculative LLM request to save bandwidth
+          if (speculativeAbort) {
+            speculativeAbort.abort();
+          }
           if (speculativePromise) {
             speculativePromise.catch(() => {});
           }
@@ -523,7 +528,7 @@ export class Pipeline {
 
   private directCtx(
     userRequest: string,
-    overrides?: { onToken?: (token: string) => void; emit?: (e: PipelineEvent) => void },
+    overrides?: { onToken?: (token: string) => void; emit?: (e: PipelineEvent) => void; signal?: AbortSignal },
   ): DirectDepthContext {
     return {
       userRequest,
@@ -537,6 +542,7 @@ export class Pipeline {
       onToken: overrides?.onToken,
       tools: this.tools,
       toolsCwd: this.toolsCwd,
+      signal: overrides?.signal,
     };
   }
 

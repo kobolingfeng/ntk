@@ -31,6 +31,8 @@ export interface DirectDepthContext {
   tools?: ToolDefinition[];
   /** Working directory for tool execution */
   toolsCwd?: string;
+  /** Abort signal for cancellation (e.g., speculative execution miss) */
+  signal?: AbortSignal;
 }
 
 export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult> {
@@ -108,6 +110,7 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
         adaptiveMaxTokens,
         adaptiveTemp,
         maxOutputTokens,
+        ctx.signal,
       );
       rawContent = content.trim();
     } else {
