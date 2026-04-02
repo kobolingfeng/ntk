@@ -11,8 +11,6 @@
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
-import { NTKServer } from './api/server.js';
-import { DiffContext } from './cli/diff-context.js';
 import { cmdGain, recordGain } from './cli/gain.js';
 import { handleEvent, printTokenReport, printTrace } from './cli/output.js';
 import { buildConfig, discoverEndpoints } from './core/config.js';
@@ -108,6 +106,7 @@ async function cmdRun(
 
 async function cmdInteractive(config: NTKConfig): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const { DiffContext } = await import('./cli/diff-context.js');
   const diffCtx = new DiffContext();
 
   const ask = (): void => {
@@ -227,6 +226,7 @@ async function cmdInteractive(config: NTKConfig): Promise<void> {
 }
 
 async function cmdServe(port: number, config: NTKConfig): Promise<void> {
+  const { NTKServer } = await import('./api/server.js');
   const server = new NTKServer(config, endpointManager);
   await server.start(port);
 }
