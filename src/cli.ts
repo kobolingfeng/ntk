@@ -48,17 +48,20 @@ function loadConfig(): NTKConfig {
 async function cmdRun(
   task: string,
   config: NTKConfig,
-  opts?: { forceDepth?: string; skipScout?: boolean; stream?: boolean; verbose?: boolean },
+  opts?: { forceDepth?: string; skipScout?: boolean; stream?: boolean; verbose?: boolean; json?: boolean },
 ): Promise<void> {
-  console.log(chalk.blue.bold(`\n  ⚡ Running task: "${task}"\n`));
-  if (opts?.forceDepth) console.log(chalk.dim(`  Force depth: ${opts.forceDepth}`));
-  if (opts?.skipScout) console.log(chalk.dim(`  Skip scout: true`));
+  const jsonOutput = opts?.json;
+  if (!jsonOutput) {
+    console.log(chalk.blue.bold(`\n  ⚡ Running task: "${task}"\n`));
+    if (opts?.forceDepth) console.log(chalk.dim(`  Force depth: ${opts.forceDepth}`));
+    if (opts?.skipScout) console.log(chalk.dim(`  Skip scout: true`));
+  }
 
-  const useStream = opts?.stream !== false;
+  const useStream = !jsonOutput && opts?.stream !== false;
   let streamStarted = false;
 
   const startTime = Date.now();
-  const pipeline = new Pipeline(config, handleEvent, {
+  const pipeline = new Pipeline(config, jsonOutput ? () => {} : handleEvent, {
     ...(opts as any),
     endpointManager,
     onToken: useStream
@@ -75,18 +78,31 @@ async function cmdRun(
   const result = await pipeline.run(task);
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-  if (streamStarted) {
-    console.log('');
+  if (jsonOutput) {
+    const tr = result.tokenReport;
+    const totalTok = tr.totalInput + tr.totalOutput;
+    console.log(JSON.stringify({
+      success: result.success,
+      report: result.report,
+      depth: result.depth ?? 'full',
+      tokens: { total: totalTok, input: tr.totalInput, output: tr.totalOutput },
+      durationMs: Date.now() - startTime,
+      cached: result.cached ?? false,
+    }));
   } else {
-    console.log(chalk.cyan.bold('\n  === Final Report ==='));
-    console.log(`  ${result.report.replace(/\n/g, '\n  ')}`);
-  }
-  console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
+    if (streamStarted) {
+      console.log('');
+    } else {
+      console.log(chalk.cyan.bold('\n  === Final Report ==='));
+      console.log(`  ${result.report.replace(/\n/g, '\n  ')}`);
+    }
+    console.log(chalk.dim(`\n  ⏱️  Duration: ${duration}s | Depth: ${result.depth ?? 'full'}`));
 
-  printTokenReport(result);
+    printTokenReport(result);
 
-  if ((opts?.verbose || config.debug) && result.trace) {
-    printTrace(result.trace);
+    if ((opts?.verbose || config.debug) && result.trace) {
+      printTrace(result.trace);
+    }
   }
 
   // Record gain stats
@@ -301,7 +317,7 @@ async function main(): Promise<void> {
     if (!task) {
       console.log(
         chalk.yellow(
-          '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout]',
+          '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout] [--json]',
         ),
       );
       return;
@@ -354,6 +370,7 @@ async function main(): Promise<void> {
       }
       const skipScout = args.includes('--skip-scout');
       const verbose = args.includes('--verbose') || args.includes('-v');
+      const jsonFlag = args.includes('--json');
       const skipIndices = new Set<number>();
       if (fdIdx >= 0) {
         skipIndices.add(fdIdx);
@@ -368,12 +385,12 @@ async function main(): Promise<void> {
       if (!task) {
         console.log(
           chalk.yellow(
-            '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout]',
+            '  Usage: npx tsx src/cli.ts run "your task here" [--force-depth direct|light|standard|full] [--skip-scout] [--json]',
           ),
         );
         return;
       }
-      await cmdRun(task, config, { forceDepth, skipScout: skipScout || undefined, verbose });
+      await cmdRun(task, config, { forceDepth, skipScout: skipScout || undefined, verbose, json: jsonFlag });
       break;
     }
 
@@ -614,6 +631,7 @@ async function main(): Promise<void> {
         console.log(chalk.dim('    --force-depth <d> — Force depth (direct|light|standard|full)'));
         console.log(chalk.dim('    --skip-scout      — Skip scout in standard depth'));
         console.log(chalk.dim('    --verbose / -v    — Show pipeline trace (routing, compression, token details)'));
+        console.log(chalk.dim('    --json            — Output result as JSON (for programmatic use)'));
         console.log(chalk.dim('    --fast-start      — Skip compressor model probe'));
       }
     }
