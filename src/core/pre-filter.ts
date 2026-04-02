@@ -30,13 +30,12 @@ const typeSpecificStrategies: Record<OutputType, FilterStrategy[]> = {
   test: [stripProgressBars, deduplicateLines, stripPassedTests],
   json: [deduplicateLines, compactJson],
   log: [stripProgressBars, deduplicateLines],
-  build: [stripProgressBars, deduplicateLines, stripBoilerplateNotices, compressCodeBlocks],
+  build: [stripProgressAndBoilerplate, deduplicateLines, compressCodeBlocks],
   general: [
-    stripProgressBars,
+    stripProgressAndBoilerplate,
     deduplicateLines,
     stripPassedTests,
     compactJson,
-    stripBoilerplateNotices,
     compressCodeBlocks,
   ],
 };
@@ -372,6 +371,13 @@ function stripBoilerplateNotices(text: string): { result: string; name: string }
   const lines = text.split('\n');
   const filtered = lines.filter((line) => !BOILERPLATE.test(line));
   return { result: filtered.join('\n'), name: 'boilerplate-strip' };
+}
+
+/** Combined progress bar + boilerplate filter — single split+join instead of two */
+function stripProgressAndBoilerplate(text: string): { result: string; name: string } {
+  const lines = text.split('\n');
+  const filtered = lines.filter((line) => !PROGRESS_BAR.test(line.trimStart()) && !BOILERPLATE.test(line));
+  return { result: filtered.join('\n'), name: 'progress+boilerplate-strip' };
 }
 
 function compressCodeBlocks(text: string): { result: string; name: string } {

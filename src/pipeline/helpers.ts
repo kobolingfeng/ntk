@@ -54,8 +54,9 @@ export function assembleReport(results: ExecutionResult[]): string {
 
 /**
  * Generate token usage report from LLM logs.
+ * Accepts multiple log arrays to avoid array spread allocation.
  */
-export function generateTokenReport(allUsage: readonly TokenUsage[]): TokenReport {
+export function generateTokenReport(...logs: readonly (readonly TokenUsage[])[]): TokenReport {
   const report: TokenReport = {
     totalInput: 0,
     totalOutput: 0,
@@ -64,19 +65,21 @@ export function generateTokenReport(allUsage: readonly TokenUsage[]): TokenRepor
     estimatedSavingsVsTraditional: 0,
   };
 
-  for (const u of allUsage) {
-    report.totalInput += u.inputTokens;
-    report.totalOutput += u.outputTokens;
+  for (const log of logs) {
+    for (const u of log) {
+      report.totalInput += u.inputTokens;
+      report.totalOutput += u.outputTokens;
 
-    const agentEntry = report.byAgent[u.agent] ?? { input: 0, output: 0 };
-    agentEntry.input += u.inputTokens;
-    agentEntry.output += u.outputTokens;
-    report.byAgent[u.agent] = agentEntry;
+      const agentEntry = report.byAgent[u.agent] ?? { input: 0, output: 0 };
+      agentEntry.input += u.inputTokens;
+      agentEntry.output += u.outputTokens;
+      report.byAgent[u.agent] = agentEntry;
 
-    const phaseEntry = report.byPhase[u.phase] ?? { input: 0, output: 0 };
-    phaseEntry.input += u.inputTokens;
-    phaseEntry.output += u.outputTokens;
-    report.byPhase[u.phase] = phaseEntry;
+      const phaseEntry = report.byPhase[u.phase] ?? { input: 0, output: 0 };
+      phaseEntry.input += u.inputTokens;
+      phaseEntry.output += u.outputTokens;
+      report.byPhase[u.phase] = phaseEntry;
+    }
   }
 
   // Cost-weighted savings estimate

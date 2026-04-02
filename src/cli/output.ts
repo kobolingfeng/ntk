@@ -5,32 +5,32 @@
 import chalk from 'chalk';
 import type { PipelineEvent, PipelineResult, PipelineTrace } from '../pipeline/pipeline.js';
 
+const PHASE_ICONS: Record<string, string> = {
+  gather: '🔍',
+  plan: '🧠',
+  execute: '🔧',
+  verify: '✅',
+  report: '📋',
+};
+
+const TYPE_STYLES: Record<string, (s: string) => string> = {
+  phase: chalk.cyan.bold,
+  message: chalk.gray,
+  plan: chalk.yellow,
+  execution: chalk.green,
+  compressed: chalk.magenta,
+  blocked: chalk.red.dim,
+  retry: chalk.yellow.dim,
+  verified: chalk.green.bold,
+  'verification-failed': chalk.red.bold,
+  error: chalk.red.bold,
+  start: chalk.blue.bold,
+  complete: chalk.green.bold,
+};
+
 export function handleEvent(event: PipelineEvent): void {
-  const phaseIcons: Record<string, string> = {
-    gather: '🔍',
-    plan: '🧠',
-    execute: '🔧',
-    verify: '✅',
-    report: '📋',
-  };
-
-  const typeStyles: Record<string, (s: string) => string> = {
-    phase: chalk.cyan.bold,
-    message: chalk.gray,
-    plan: chalk.yellow,
-    execution: chalk.green,
-    compressed: chalk.magenta,
-    blocked: chalk.red.dim,
-    retry: chalk.yellow.dim,
-    verified: chalk.green.bold,
-    'verification-failed': chalk.red.bold,
-    error: chalk.red.bold,
-    start: chalk.blue.bold,
-    complete: chalk.green.bold,
-  };
-
-  const icon = phaseIcons[event.phase] || '•';
-  const styleFn = typeStyles[event.type] || chalk.white;
+  const icon = PHASE_ICONS[event.phase] || '•';
+  const styleFn = TYPE_STYLES[event.type] || chalk.white;
   console.log(`  ${icon} ${styleFn(event.detail)}`);
 }
 

@@ -459,7 +459,7 @@ export class Pipeline {
     const compressorLog = this.compressorLLM.getTokenLog();
     if (!plannerLog || plannerLog.length === 0) return generateTokenReport(compressorLog);
     if (compressorLog.length === 0) return generateTokenReport(plannerLog);
-    return generateTokenReport([...plannerLog, ...compressorLog]);
+    return generateTokenReport(plannerLog, compressorLog);
   }
 
   private buildTrace(result: PipelineResult): PipelineTrace {
