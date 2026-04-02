@@ -446,12 +446,15 @@ async function main(): Promise<void> {
 
       const concIdx = args.indexOf('--concurrency');
       const concurrency = concIdx >= 0 ? Math.max(1, parseInt(args[concIdx + 1], 10) || 1) : 1;
+      const outIdx = args.indexOf('--output');
+      const outputDir = outIdx >= 0 ? args[outIdx + 1] : undefined;
 
-      console.log(chalk.cyan.bold(`\n  📦 Batch Mode — ${tasks.length} task(s)${concurrency > 1 ? ` (concurrency: ${concurrency})` : ''}\n`));
+      console.log(chalk.cyan.bold(`\n  📦 Batch Mode — ${tasks.length} task(s)${concurrency > 1 ? ` (concurrency: ${concurrency})` : ''}${outputDir ? ` → ${outputDir}` : ''}\n`));
 
       let totalTokens = 0;
       let totalTime = 0;
       const results: Array<{ task: string; tokens: number; depth: string; time: number; ok: boolean }> = [];
+      const reports: string[] = [];
       let completedCount = 0;
 
       async function runBatchTask(t: string, idx: number): Promise<void> {
@@ -473,6 +476,7 @@ async function main(): Promise<void> {
           totalTime += elapsed;
           completedCount++;
           results[idx] = { task: t, tokens: tok, depth: r.depth ?? 'full', time: elapsed, ok: r.success };
+          reports[idx] = r.report;
           console.log(chalk.green(`  [${completedCount}/${tasks.length}] ✅ ${tok} tok, ${elapsed.toFixed(1)}s, depth=${r.depth} — ${t.length > 40 ? `${t.slice(0, 40)}...` : t}`));
         } catch (e: any) {
           clearTimeout(batchTimer);
@@ -480,6 +484,7 @@ async function main(): Promise<void> {
           totalTime += elapsed;
           completedCount++;
           results[idx] = { task: t, tokens: 0, depth: 'error', time: elapsed, ok: false };
+          reports[idx] = `Error: ${e.message?.slice(0, 200) ?? 'unknown'}`;
           console.log(chalk.red(`  [${completedCount}/${tasks.length}] ❌ ${e.message?.slice(0, 80)}`));
         }
       }
@@ -507,7 +512,26 @@ async function main(): Promise<void> {
       console.log(`  Total tokens: ${totalTokens}`);
       console.log(`  Total time: ${totalTime.toFixed(1)}s`);
       console.log(`  Avg tokens/task: ${Math.round(totalTokens / tasks.length)}`);
-      console.log(`  Avg time/task: ${(totalTime / tasks.length).toFixed(1)}s\n`);
+      console.log(`  Avg time/task: ${(totalTime / tasks.length).toFixed(1)}s`);
+
+      // Save individual results to files if --output specified
+      if (outputDir) {
+        const { mkdirSync, writeFileSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        try {
+          mkdirSync(outputDir, { recursive: true });
+          for (let i = 0; i < reports.length; i++) {
+            if (reports[i]) {
+              const fileName = `task-${String(i + 1).padStart(3, '0')}.md`;
+              writeFileSync(join(outputDir, fileName), reports[i], 'utf-8');
+            }
+          }
+          console.log(chalk.green(`  📁 Results saved to ${outputDir}/`));
+        } catch (e: any) {
+          console.log(chalk.red(`  ⚠️ Failed to save output: ${e.message}`));
+        }
+      }
+      console.log('');
       break;
     }
 
@@ -528,7 +552,7 @@ async function main(): Promise<void> {
         console.log(chalk.dim('    serve [--port N]  — Start API server'));
         console.log(chalk.dim('    mcp               — Start MCP server (stdio transport)'));
         console.log(chalk.dim('    estimate <task>   — Predict token usage (zero cost)'));
-        console.log(chalk.dim('    batch <file>      — Run multiple tasks from file [--concurrency N]'));
+        console.log(chalk.dim('    batch <file>      — Run multiple tasks from file [--concurrency N] [--output <dir>]'));
         console.log(chalk.dim('    gain              — Show cumulative savings statistics'));
         console.log(chalk.dim('    compare           — Three-way comparison benchmark'));
         console.log(chalk.dim('    test              — Run test suite (9 tasks)'));
@@ -547,6 +571,13 @@ async function main(): Promise<void> {
     }
   }
 }
+
+// Graceful shutdown — flush debounced data even on Ctrl-C
+process.on('SIGINT', () => {
+  flushGain();
+  flushDepthPredictor();
+  process.exit(130);
+});
 
 main().catch((err) => {
   console.error(chalk.red(`  Fatal: ${err.message}`));
