@@ -709,21 +709,12 @@ export class LLMClient {
     if (endpointsToTry.length === 0) throw new AllEndpointsFailedError(0);
 
     const effectiveMax = maxTokensOverride ?? this.maxTokens;
-    const messages = systemPrompt
-      ? [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
-        ]
-      : [{ role: 'user', content: userMessage }];
-    const payload = JSON.stringify({
-      model: this.model,
-      messages,
-      max_tokens: effectiveMax,
-      max_completion_tokens: effectiveMax,
-      temperature: temperatureOverride ?? this.temperature,
-      stream: true,
-      stream_options: { include_usage: true },
-    });
+    const effectiveTemp = temperatureOverride ?? this.temperature;
+    // Build JSON payload directly via template literal — avoids intermediate object + JSON.stringify overhead
+    const messagesJson = systemPrompt
+      ? `[{"role":"system","content":${JSON.stringify(systemPrompt)}},{"role":"user","content":${JSON.stringify(userMessage)}}]`
+      : `[{"role":"user","content":${JSON.stringify(userMessage)}}]`;
+    const payload = `{"model":${JSON.stringify(this.model)},"messages":${messagesJson},"max_tokens":${effectiveMax},"max_completion_tokens":${effectiveMax},"temperature":${effectiveTemp},"stream":true,"stream_options":{"include_usage":true}}`;
 
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
@@ -956,14 +947,8 @@ export class LLMClient {
     temperatureOverride?: number,
   ): Promise<ChatCompletionResponse> {
     const effectiveMax = maxTokensOverride ?? this.maxTokens;
-    const payload = {
-      model: this.model,
-      messages,
-      max_tokens: effectiveMax,
-      max_completion_tokens: effectiveMax,
-      temperature: temperatureOverride ?? this.temperature,
-    };
-    const body = JSON.stringify(payload);
+    const effectiveTemp = temperatureOverride ?? this.temperature;
+    const body = `{"model":${JSON.stringify(this.model)},"messages":${JSON.stringify(messages)},"max_tokens":${effectiveMax},"max_completion_tokens":${effectiveMax},"temperature":${effectiveTemp}}`;
 
     const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
     const allEndpoints = this.endpointManager.getEndpoints();
