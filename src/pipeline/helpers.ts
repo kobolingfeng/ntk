@@ -114,8 +114,13 @@ interface SkipThresholds {
 const DEFAULT_SKIP_THRESHOLDS: SkipThresholds = { codeMinLen: 200, analysisMinLen: 150, generalMinLen: 500 };
 const FULL_SKIP_THRESHOLDS: SkipThresholds = { codeMinLen: 300, analysisMinLen: 300, generalMinLen: 800 };
 
-// Pre-compiled regex for isStructurallyComplete
-const HAS_CODE_BLOCK = /```[\s\S]{20,}```/;
+// Fast code-block check: avoids [\s\S]{20,} backtracking on large outputs
+function hasCodeBlock(output: string): boolean {
+  const open = output.indexOf('```');
+  if (open < 0) return false;
+  const close = output.indexOf('```', open + 3);
+  return close >= 0 && (close - open - 3) >= 20;
+}
 const HAS_NUMBERED_LIST = /^\d+\.\s/m;
 const HAS_BULLET_LIST = /^[-*]\s/m;
 
@@ -130,16 +135,16 @@ export function isStructurallyComplete(
 ): boolean {
   if (output.length < 100) return true;
 
-  const hasCodeBlock = HAS_CODE_BLOCK.test(output);
+  const hasCode = hasCodeBlock(output);
   const hasNumberedList = HAS_NUMBERED_LIST.test(output);
   const hasBulletList = HAS_BULLET_LIST.test(output);
 
   const isCodeTask = CODE_TASK_PATTERN.test(userRequest);
   const isAnalysisTask = ANALYSIS_TASK_PATTERN.test(userRequest);
 
-  if (isCodeTask && hasCodeBlock && output.length > thresholds.codeMinLen) return true;
+  if (isCodeTask && hasCode && output.length > thresholds.codeMinLen) return true;
   if (isAnalysisTask && (hasNumberedList || hasBulletList) && output.length > thresholds.analysisMinLen) return true;
-  if (output.length > thresholds.generalMinLen && (hasCodeBlock || hasNumberedList)) return true;
+  if (output.length > thresholds.generalMinLen && (hasCode || hasNumberedList)) return true;
 
   return false;
 }

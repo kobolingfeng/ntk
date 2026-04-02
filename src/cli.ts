@@ -454,10 +454,10 @@ async function main(): Promise<void> {
         const t = tasks[i];
         console.log(chalk.dim(`  [${i + 1}/${tasks.length}] ${t.length > 50 ? `${t.slice(0, 50)}...` : t}`));
         const start = Date.now();
+        let batchTimer: ReturnType<typeof setTimeout> | undefined;
         try {
           const p = new Pipeline(config, () => {}, { endpointManager });
           const taskTimeout = 300_000; // 5 min per task
-          let batchTimer: ReturnType<typeof setTimeout> | undefined;
           const r = await Promise.race([
             p.run(t),
             new Promise<never>((_, reject) => {
@@ -472,6 +472,7 @@ async function main(): Promise<void> {
           results.push({ task: t, tokens: tok, depth: r.depth ?? 'full', time: elapsed, ok: r.success });
           console.log(chalk.green(`    ✅ ${tok} tok, ${elapsed.toFixed(1)}s, depth=${r.depth}`));
         } catch (e: any) {
+          clearTimeout(batchTimer);
           const elapsed = (Date.now() - start) / 1000;
           totalTime += elapsed;
           results.push({ task: t, tokens: 0, depth: 'error', time: elapsed, ok: false });

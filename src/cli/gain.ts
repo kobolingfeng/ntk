@@ -32,8 +32,8 @@ function loadGainData(): GainData {
     if (existsSync(GAIN_FILE)) {
       return JSON.parse(readFileSync(GAIN_FILE, 'utf-8'));
     }
-  } catch {
-    // Corrupted file, start fresh
+  } catch (err) {
+    console.warn(`[Gain] 数据加载失败，已重置: ${err instanceof Error ? err.message : err}`);
   }
   return { version: 1, entries: [] };
 }
@@ -51,6 +51,11 @@ const GAIN_DEBOUNCE_MS = 2000;
 
 export function recordGain(entry: GainEntry): void {
   pendingEntries.push(entry);
+  // Force flush if too many pending to prevent unbounded growth
+  if (pendingEntries.length >= 100) {
+    flushGain();
+    return;
+  }
   if (gainDebounceTimer) clearTimeout(gainDebounceTimer);
   gainDebounceTimer = setTimeout(flushGain, GAIN_DEBOUNCE_MS);
   if (gainDebounceTimer && typeof gainDebounceTimer === 'object' && 'unref' in gainDebounceTimer) {
