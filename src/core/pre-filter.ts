@@ -188,6 +188,7 @@ const RE_PASS_TEST = /^\s*(?:[✓✔√]\s|PASS\s|ok\s+\d|\.\.\.\s*$|测试通�
 const RE_FAIL_TEST = /^\s*(?:[✗✘×❌]\s|FAIL\s|not ok\s)/;
 
 function stripProgressBars(text: string): { result: string; name: string } {
+  if (!text.includes('\n')) return { result: text, name: 'progress-bar-strip' };
   const lines = text.split('\n');
   const filtered = lines.filter((line) => !PROGRESS_BAR.test(line.trimStart()));
   return { result: filtered.join('\n'), name: 'progress-bar-strip' };
@@ -210,8 +211,9 @@ function normalizeForDedup(line: string): string {
 }
 
 function deduplicateLines(text: string): { result: string; name: string } {
+  // Skip split() allocation when too few lines to dedup
+  if (newlineCount(text) < 3) return { result: text, name: 'dedup-lines' };
   const lines = text.split('\n');
-  if (lines.length < 4) return { result: text, name: 'dedup-lines' };
 
   const output: string[] = [];
   let prevNormalized = '';
@@ -338,6 +340,7 @@ function compactJson(text: string): { result: string; name: string } {
 }
 
 function stripPassedTests(text: string): { result: string; name: string } {
+  if (!text.includes('\n')) return { result: text, name: 'test-pass-strip' };
   const lines = text.split('\n');
   let hasTestOutput = false;
   let strippedCount = 0;
@@ -391,6 +394,7 @@ function stripBoilerplateNotices(text: string): { result: string; name: string }
 
 /** Combined progress bar + boilerplate filter — single split+join instead of two */
 function stripProgressAndBoilerplate(text: string): { result: string; name: string } {
+  if (!text.includes('\n')) return { result: text, name: 'progress+boilerplate-strip' };
   const lines = text.split('\n');
   const filtered = lines.filter((line) => !PROGRESS_BAR.test(line.trimStart()) && !BOILERPLATE.test(line));
   return { result: filtered.join('\n'), name: 'progress+boilerplate-strip' };

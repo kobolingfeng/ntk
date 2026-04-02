@@ -436,6 +436,8 @@ export class LLMClient {
   private temperature: number;
   private tokenLog: TokenUsage[] = [];
   private static readonly MAX_TOKEN_LOG = 200;
+  /** Circular buffer index — avoids O(n) shift() on full log */
+  private tokenLogIdx = 0;
   private endpointManager: EndpointManager;
   /** Pre-computed JSON-escaped model name — avoids JSON.stringify on every LLM call */
   private readonly modelJson: string;
@@ -682,10 +684,12 @@ export class LLMClient {
   }
 
   private pushTokenLog(usage: TokenUsage): void {
-    if (this.tokenLog.length >= LLMClient.MAX_TOKEN_LOG) {
-      this.tokenLog.shift();
+    if (this.tokenLog.length < LLMClient.MAX_TOKEN_LOG) {
+      this.tokenLog.push(usage);
+    } else {
+      this.tokenLog[this.tokenLogIdx] = usage;
+      this.tokenLogIdx = (this.tokenLogIdx + 1) % LLMClient.MAX_TOKEN_LOG;
     }
-    this.tokenLog.push(usage);
   }
 
   getTokenLog(): readonly TokenUsage[] {
@@ -693,6 +697,7 @@ export class LLMClient {
   }
   resetTokenLog(): void {
     this.tokenLog = [];
+    this.tokenLogIdx = 0;
   }
 
   async chatStream(

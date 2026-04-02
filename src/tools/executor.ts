@@ -258,7 +258,9 @@ const RE_ENTITY = /&(?:amp|lt|gt|quot|nbsp|#39);/g;
 const HTML_ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ' };
 
 function htmlToText(html: string, maxLength: number): string {
-  let text = html;
+  // Pre-truncate large HTML — avoid running 8 regex passes over megabytes
+  // Use 3x multiplier to account for tag overhead
+  let text = html.length > maxLength * 3 ? html.slice(0, maxLength * 3) : html;
   text = text.replace(RE_SCRIPT, '');
   text = text.replace(RE_STYLE, '');
   text = text.replace(RE_HEAD, '');

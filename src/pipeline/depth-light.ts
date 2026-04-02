@@ -53,7 +53,7 @@ export async function runLight(ctx: LightDepthContext): Promise<PipelineResult> 
 
   let report = rawContent || emptyOutputMessage(ctx.locale);
 
-	const skipVerify = isStructurallyComplete(rawContent, ctx.userRequest);
+  const skipVerify = isStructurallyComplete(rawContent, ctx.userRequest);
 
   let passed = true;
   let verifyFeedback = '';
