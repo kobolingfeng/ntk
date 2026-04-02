@@ -68,6 +68,15 @@ export abstract class BaseAgent implements Agent {
    * The agent only sees what it needs to see.
    */
   protected buildUserPrompt(message: Message, context: AgentContext): string {
+    const instrLabel = this.locale === 'zh' ? '指令' : 'Instruction';
+
+    // Fast path: no context, no scratchpad — most common case (direct/light depth)
+    if (context.visibleMessages.length === 0 && !context.localScratchpad) {
+      return message.payload
+        ? `${instrLabel}: ${message.action}\n\n${message.payload}`
+        : `${instrLabel}: ${message.action}`;
+    }
+
     const parts: string[] = [];
 
     // Add relevant context (already filtered — this is the magic)
@@ -85,7 +94,7 @@ export abstract class BaseAgent implements Agent {
     }
 
     // Add the actual instruction
-    parts.push(`${this.locale === 'zh' ? '指令' : 'Instruction'}: ${message.action}`);
+    parts.push(`${instrLabel}: ${message.action}`);
     if (message.payload) {
       parts.push(message.payload);
     }

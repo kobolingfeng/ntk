@@ -513,9 +513,8 @@ export class LLMClient {
 
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];
-      const messageContent = systemPrompt ? systemPrompt + ' ' + userMessage : userMessage;
       const startMs = Date.now();
-      const result = await this.tryStreamEndpoint(ep, payload, onToken, maxOutputTokens, messageContent);
+      const result = await this.tryStreamEndpoint(ep, payload, onToken, maxOutputTokens, systemPrompt, userMessage);
       if (result) {
         this.endpointManager.recordSuccess(epIndex, Date.now() - startMs);
         const usage: TokenUsage = { agent, ...result, timestamp: Date.now(), phase };
@@ -535,7 +534,8 @@ export class LLMClient {
     body: string,
     onToken: (token: string) => void,
     maxOutputTokens?: number,
-    messageContent?: string,
+    systemPrompt?: string,
+    userMessage?: string,
   ): Promise<{ content: string; inputTokens: number; outputTokens: number } | null> {
     const url = `${ep.baseUrl}/chat/completions`;
 
@@ -712,7 +712,9 @@ export class LLMClient {
     }
 
     if (inputTokens === 0) {
-      inputTokens = estimateTokens(messageContent || body);
+      // Lazy concatenation — only needed when API doesn't report usage
+      const messageContent = systemPrompt ? (userMessage ? systemPrompt + ' ' + userMessage : systemPrompt) : (userMessage || body);
+      inputTokens = estimateTokens(messageContent);
     }
     if (outputTokens === 0 || abortedByLimit) {
       outputTokens = estimateTokens(fullContent);
