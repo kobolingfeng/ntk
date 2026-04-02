@@ -45,8 +45,9 @@ export class Planner extends BaseAgent {
       // Format 1: → agent: instruction
       const arrowMatch = trimmed.match(ARROW_INSTRUCTION);
       if (arrowMatch) {
-        const target = VALID_TARGETS.has(arrowMatch[1]) ? arrowMatch[1] : 'executor';
-        results.push({ target: target as any, instruction: arrowMatch[2].trim() });
+        const rawTarget = arrowMatch[1].toLowerCase();
+        const target = VALID_TARGETS.has(rawTarget) ? rawTarget : 'executor';
+        results.push({ target: target as PlannerInstruction['target'], instruction: arrowMatch[2].trim() });
         continue;
       }
 
@@ -57,7 +58,7 @@ export class Planner extends BaseAgent {
         const target = VALID_TARGETS.has(rawTarget) ? rawTarget : 'executor';
         const instruction = bracketMatch[2].trim();
         if (instruction.length >= 2) {
-          results.push({ target: target as any, instruction });
+          results.push({ target: target as PlannerInstruction['target'], instruction });
         }
         continue;
       }

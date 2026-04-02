@@ -261,8 +261,9 @@ export class EndpointManager {
                   this.modelEndpointMap.set(model, workingSet);
                   const name = ep.name;
                   this.probeCache.set(model, { name, timestamp: Date.now() });
-                  this.saveDiskProbeCache(model, name, epIndex);
                   firstResolve!(name);
+                  // Disk write AFTER resolve — don't block probe result for I/O
+                  this.saveDiskProbeCache(model, name, epIndex);
                 }
                 return;
               }

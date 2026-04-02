@@ -51,12 +51,12 @@ const GAIN_DEBOUNCE_MS = 2000;
 
 export function recordGain(entry: GainEntry): void {
   pendingEntries.push(entry);
+  if (gainDebounceTimer) clearTimeout(gainDebounceTimer);
   // Force flush if too many pending to prevent unbounded growth
   if (pendingEntries.length >= 100) {
     flushGain();
     return;
   }
-  if (gainDebounceTimer) clearTimeout(gainDebounceTimer);
   gainDebounceTimer = setTimeout(flushGain, GAIN_DEBOUNCE_MS);
   if (gainDebounceTimer && typeof gainDebounceTimer === 'object' && 'unref' in gainDebounceTimer) {
     gainDebounceTimer.unref();

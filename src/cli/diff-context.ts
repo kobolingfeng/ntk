@@ -83,7 +83,9 @@ export class DiffContext {
   }
 
   private summarizeResponse(report: string): string {
-    const lines = report.split('\n').filter((l) => l.trim());
+    // Pre-truncate to avoid splitting huge reports into massive arrays
+    const bounded = report.length > this.summaryMaxLen * 10 ? report.slice(0, this.summaryMaxLen * 10) : report;
+    const lines = bounded.split('\n').filter((l) => l.trim());
     if (lines.length === 0) return '(empty)';
 
     let summary = '';
