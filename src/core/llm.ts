@@ -587,6 +587,8 @@ export class LLMClient {
     onToken?: (token: string) => void,
     /** Pre-serialized tools JSON fragment to avoid re-serializing tools each round */
     cachedToolsJson?: string,
+    /** Pre-serialized messages JSON — avoids re-serializing entire growing array each round */
+    cachedMessagesJson?: string,
   ): Promise<{ content?: string; toolCalls?: Array<{ id: string; name: string; arguments: string }>; usage: TokenUsage }> {
     const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
     const allEndpoints = this.endpointManager.getEndpoints();
@@ -595,7 +597,8 @@ export class LLMClient {
 
     // Build payload with optional pre-serialized tools to avoid redundant JSON.stringify on tools array
     const toolsJson = cachedToolsJson ?? JSON.stringify(tools);
-    const payload = `{"model":${this.modelJson},"messages":${JSON.stringify(messages)},"tools":${toolsJson},"tool_choice":"auto","max_tokens":${this.maxTokens},"max_completion_tokens":${this.maxTokens},"temperature":${this.temperature},"stream":true,"stream_options":{"include_usage":true}}`;
+    const messagesJson = cachedMessagesJson ?? JSON.stringify(messages);
+    const payload = `{"model":${this.modelJson},"messages":${messagesJson},"tools":${toolsJson},"tool_choice":"auto","max_tokens":${this.maxTokens},"max_completion_tokens":${this.maxTokens},"temperature":${this.temperature},"stream":true,"stream_options":{"include_usage":true}}`;
 
     for (const epIndex of endpointsToTry) {
       const ep = allEndpoints[epIndex];

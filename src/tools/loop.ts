@@ -97,6 +97,10 @@ export async function runToolLoop(
   const KEEP_RECENT_RESULTS = 6;
   const CLEARED_MSG = '[旧工具结果已清除]';
 
+  // Per-message JSON cache — avoids re-serializing unchanged messages each round
+  const messageJsons: string[] = [];
+  for (const msg of messages) messageJsons.push(JSON.stringify(msg));
+
   for (round = 0; round < maxRounds; round++) {
     // Abort signal check (e.g. speculative execution cancelled)
     if (signal?.aborted) {
@@ -116,18 +120,22 @@ export async function runToolLoop(
         completed: false,
       };
     }
-    const result = await llm.chatWithTools(messages, tools, agent, phase, onToken, toolsJson);
+    // Build messages JSON incrementally — only new/changed messages are serialized
+    const messagesJson = `[${messageJsons.join(',')}]`;
+    const result = await llm.chatWithTools(messages, tools, agent, phase, onToken, toolsJson, messagesJson);
 
     if (result.toolCalls && result.toolCalls.length > 0) {
       // LLM wants to call tools
-      messages.push({
+      const assistantMsg = {
         role: 'assistant',
         tool_calls: result.toolCalls.map(tc => ({
           id: tc.id,
           type: 'function',
           function: { name: tc.name, arguments: tc.arguments },
         })),
-      });
+      };
+      messages.push(assistantMsg);
+      messageJsons.push(JSON.stringify(assistantMsg));
 
       // Parse and execute
       const parsed = result.toolCalls.map(tc => {
@@ -155,11 +163,13 @@ export async function runToolLoop(
         } else {
           truncated = r.content;
         }
-        messages.push({
+        const toolMsg = {
           role: 'tool',
           tool_call_id: r.toolCallId,
           content: truncated,
-        });
+        };
+        messages.push(toolMsg);
+        messageJsons.push(JSON.stringify(toolMsg));
         toolResultIndices.push(messages.length - 1);
       }
 
@@ -170,6 +180,8 @@ export async function runToolLoop(
         for (let i = 0; i < clearCount; i++) {
           const msgIdx = toolResultIndices[i];
           messages[msgIdx].content = CLEARED_MSG;
+          // Re-serialize only the compacted messages
+          messageJsons[msgIdx] = JSON.stringify(messages[msgIdx]);
         }
         toolResultIndices.splice(0, clearCount);
       }
