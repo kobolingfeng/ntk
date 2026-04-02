@@ -581,17 +581,19 @@ export class LLMClient {
               onToken?.(delta.content);
             }
 
-            // Tool calls (streamed incrementally)
-            for (const tc of delta.tool_calls ?? []) {
-              const idx = tc.index ?? 0;
-              let entry = toolCallsMap.get(idx);
-              if (!entry) {
-                entry = { id: '', name: '', arguments: '' };
-                toolCallsMap.set(idx, entry);
+            // Tool calls (streamed incrementally) — guard avoids `?? []` empty array allocation
+            if (delta.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index ?? 0;
+                let entry = toolCallsMap.get(idx);
+                if (!entry) {
+                  entry = { id: '', name: '', arguments: '' };
+                  toolCallsMap.set(idx, entry);
+                }
+                if (tc.id) entry.id = tc.id;
+                if (tc.function?.name) entry.name = tc.function.name;
+                if (tc.function?.arguments) entry.arguments += tc.function.arguments;
               }
-              if (tc.id) entry.id = tc.id;
-              if (tc.function?.name) entry.name = tc.function.name;
-              if (tc.function?.arguments) entry.arguments += tc.function.arguments;
             }
 
             if (json.usage) {
