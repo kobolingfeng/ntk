@@ -424,7 +424,7 @@ async function main(): Promise<void> {
     case 'batch': {
       const batchFile = args[1];
       if (!batchFile) {
-        console.log(chalk.yellow('  Usage: npx tsx src/cli.ts batch <tasks.txt>'));
+        console.log(chalk.yellow('  Usage: npx tsx src/cli.ts batch <tasks.txt> [--concurrency N]'));
         console.log(chalk.dim('  File format: one task per line'));
         break;
       }
@@ -444,15 +444,17 @@ async function main(): Promise<void> {
         break;
       }
 
-      console.log(chalk.cyan.bold(`\n  📦 Batch Mode — ${tasks.length} task(s)\n`));
+      const concIdx = args.indexOf('--concurrency');
+      const concurrency = concIdx >= 0 ? Math.max(1, parseInt(args[concIdx + 1], 10) || 1) : 1;
+
+      console.log(chalk.cyan.bold(`\n  📦 Batch Mode — ${tasks.length} task(s)${concurrency > 1 ? ` (concurrency: ${concurrency})` : ''}\n`));
 
       let totalTokens = 0;
       let totalTime = 0;
       const results: Array<{ task: string; tokens: number; depth: string; time: number; ok: boolean }> = [];
+      let completedCount = 0;
 
-      for (let i = 0; i < tasks.length; i++) {
-        const t = tasks[i];
-        console.log(chalk.dim(`  [${i + 1}/${tasks.length}] ${t.length > 50 ? `${t.slice(0, 50)}...` : t}`));
+      async function runBatchTask(t: string, idx: number): Promise<void> {
         const start = Date.now();
         let batchTimer: ReturnType<typeof setTimeout> | undefined;
         try {
@@ -469,23 +471,43 @@ async function main(): Promise<void> {
           const tok = r.tokenReport.totalInput + r.tokenReport.totalOutput;
           totalTokens += tok;
           totalTime += elapsed;
-          results.push({ task: t, tokens: tok, depth: r.depth ?? 'full', time: elapsed, ok: r.success });
-          console.log(chalk.green(`    ✅ ${tok} tok, ${elapsed.toFixed(1)}s, depth=${r.depth}`));
+          completedCount++;
+          results[idx] = { task: t, tokens: tok, depth: r.depth ?? 'full', time: elapsed, ok: r.success };
+          console.log(chalk.green(`  [${completedCount}/${tasks.length}] ✅ ${tok} tok, ${elapsed.toFixed(1)}s, depth=${r.depth} — ${t.length > 40 ? `${t.slice(0, 40)}...` : t}`));
         } catch (e: any) {
           clearTimeout(batchTimer);
           const elapsed = (Date.now() - start) / 1000;
           totalTime += elapsed;
-          results.push({ task: t, tokens: 0, depth: 'error', time: elapsed, ok: false });
-          console.log(chalk.red(`    ❌ Error: ${e.message?.slice(0, 80)}`));
+          completedCount++;
+          results[idx] = { task: t, tokens: 0, depth: 'error', time: elapsed, ok: false };
+          console.log(chalk.red(`  [${completedCount}/${tasks.length}] ❌ ${e.message?.slice(0, 80)}`));
         }
       }
 
+      if (concurrency <= 1) {
+        // Sequential mode (backward compatible)
+        for (let i = 0; i < tasks.length; i++) {
+          await runBatchTask(tasks[i], i);
+        }
+      } else {
+        // Parallel mode with concurrency limit
+        let nextIdx = 0;
+        async function worker(): Promise<void> {
+          while (nextIdx < tasks.length) {
+            const idx = nextIdx++;
+            await runBatchTask(tasks[idx], idx);
+          }
+        }
+        await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker()));
+      }
+
       console.log(chalk.cyan.bold(`\n  ═══ Batch Summary ═══`));
-      console.log(`  Tasks: ${results.length} | Passed: ${results.reduce((n, r) => n + (r.ok ? 1 : 0), 0)}`);
+      const passed = results.filter(r => r?.ok).length;
+      console.log(`  Tasks: ${tasks.length} | Passed: ${passed}`);
       console.log(`  Total tokens: ${totalTokens}`);
       console.log(`  Total time: ${totalTime.toFixed(1)}s`);
-      console.log(`  Avg tokens/task: ${Math.round(totalTokens / results.length)}`);
-      console.log(`  Avg time/task: ${(totalTime / results.length).toFixed(1)}s\n`);
+      console.log(`  Avg tokens/task: ${Math.round(totalTokens / tasks.length)}`);
+      console.log(`  Avg time/task: ${(totalTime / tasks.length).toFixed(1)}s\n`);
       break;
     }
 
@@ -506,7 +528,7 @@ async function main(): Promise<void> {
         console.log(chalk.dim('    serve [--port N]  — Start API server'));
         console.log(chalk.dim('    mcp               — Start MCP server (stdio transport)'));
         console.log(chalk.dim('    estimate <task>   — Predict token usage (zero cost)'));
-        console.log(chalk.dim('    batch <file>      — Run multiple tasks from file'));
+        console.log(chalk.dim('    batch <file>      — Run multiple tasks from file [--concurrency N]'));
         console.log(chalk.dim('    gain              — Show cumulative savings statistics'));
         console.log(chalk.dim('    compare           — Three-way comparison benchmark'));
         console.log(chalk.dim('    test              — Run test suite (9 tasks)'));
