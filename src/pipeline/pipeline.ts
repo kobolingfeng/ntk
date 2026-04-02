@@ -20,6 +20,7 @@ import { Verifier } from '../agents/verifier.js';
 import { ResponseCache } from '../core/cache.js';
 import { Compressor } from '../core/compressor.js';
 import { predictDepth, recordDepth } from '../core/depth-predictor.js';
+import { AllEndpointsFailedError } from '../core/errors.js';
 import type { EndpointManager } from '../core/llm.js';
 import { LLMClient } from '../core/llm.js';
 import { preFilter } from '../core/pre-filter.js';
@@ -419,6 +420,23 @@ export class Pipeline {
   }
 
   private async runNonDirectDepth(depth: PipelineDepth, cleanRequest: string): Promise<PipelineResult> {
+    try {
+      return await this.executeDepth(depth, cleanRequest);
+    } catch (err) {
+      // Don't fall back on explicit cancellation or total endpoint failure
+      if (err instanceof Error && err.name === 'AbortError') throw err;
+      if (this.signal?.aborted) throw err;
+      if (err instanceof AllEndpointsFailedError) throw err;
+
+      // Graceful depth fallback: if complex depth fails, try direct
+      const errMsg = err instanceof Error ? err.message : String(err);
+      this.emit({ type: 'error', phase: this.state.phase, detail: `${depth} depth failed: ${errMsg}, falling back to direct` });
+      this.setPhase('execute');
+      return await runDirect(this.directCtx(cleanRequest, { onToken: this.onToken }));
+    }
+  }
+
+  private async executeDepth(depth: PipelineDepth, cleanRequest: string): Promise<PipelineResult> {
     // Propagate locale/phase only to agents the depth actually uses
     // Avoids triggering lazy init of unused agents (e.g. planner/scout for light depth)
     const phase = this.state.phase;
