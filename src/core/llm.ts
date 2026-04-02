@@ -32,16 +32,21 @@ const REPEAT_PAT_LENS = [150, 80, 40, 20] as const;
 const REPEAT_REQUIRED = 3;
 
 function hasStreamRepetition(buf: string): boolean {
+  const len = buf.length;
   for (const patLen of REPEAT_PAT_LENS) {
     const needed = patLen * REPEAT_REQUIRED;
-    if (buf.length < needed) continue;
-    const tail = buf.slice(-needed);
-    const pat = tail.slice(-patLen);
+    if (len < needed) continue;
+    // Compare pattern segments using charCodeAt — avoids slice() string allocation
+    const tailStart = len - needed;
+    const patStart = len - patLen; // last segment = the pattern
     let allMatch = true;
-    for (let i = 0; i < REPEAT_REQUIRED - 1; i++) {
-      if (tail.slice(i * patLen, (i + 1) * patLen) !== pat) {
-        allMatch = false;
-        break;
+    for (let seg = 0; seg < REPEAT_REQUIRED - 1 && allMatch; seg++) {
+      const segStart = tailStart + seg * patLen;
+      for (let k = 0; k < patLen; k++) {
+        if (buf.charCodeAt(segStart + k) !== buf.charCodeAt(patStart + k)) {
+          allMatch = false;
+          break;
+        }
       }
     }
     if (allMatch) return true;
