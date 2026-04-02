@@ -106,12 +106,12 @@ describe('DiffContext', () => {
     expect(result!.length).toBeLessThan(300);
   });
 
-  it('39-char question is always follow-up (below threshold)', () => {
+  it('39-char question without follow-up pattern is NOT a follow-up', () => {
     const dc = new DiffContext();
     dc.addTurn('Previous question', 'Previous answer', 'direct', 50);
 
     const shortQ = 'a'.repeat(39);
-    expect(dc.buildAugmentedQuery(shortQ)).toBeDefined();
+    expect(dc.buildAugmentedQuery(shortQ)).toBeUndefined();
   });
 
   it('40-char question without follow-up pattern returns undefined', () => {

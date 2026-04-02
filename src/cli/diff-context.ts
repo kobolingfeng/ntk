@@ -76,7 +76,9 @@ export class DiffContext {
   }
 
   private isFollowUp(question: string): boolean {
-    if (question.length < 40) return true;
+    // Short questions are follow-ups ONLY if they contain a follow-up marker.
+    // Previously, <40 chars unconditionally returned true, wasting tokens on
+    // unrelated short queries like "What?" or "Hello".
     return FOLLOW_UP_COMBINED.test(question);
   }
 

@@ -53,7 +53,12 @@ export class Planner extends BaseAgent {
       // Format 2: [agent name][...]: instruction (GPT style)
       const bracketMatch = trimmed.match(BRACKET_INSTRUCTION);
       if (bracketMatch) {
-        results.push({ target: 'executor' as const, instruction: bracketMatch[2].trim() });
+        const rawTarget = bracketMatch[1].trim().toLowerCase();
+        const target = VALID_TARGETS.has(rawTarget) ? rawTarget : 'executor';
+        const instruction = bracketMatch[2].trim();
+        if (instruction.length >= 2) {
+          results.push({ target: target as any, instruction });
+        }
         continue;
       }
 

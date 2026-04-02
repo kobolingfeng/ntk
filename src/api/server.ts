@@ -242,27 +242,33 @@ export class NTKServer {
 
     const config = { ...this.config, debug: debug === true ? true : this.config.debug };
 
+    // Keep-alive heartbeat — prevents proxy/client timeouts during long tasks
+    const heartbeat = setInterval(() => {
+      try {
+        if (!res.destroyed) res.write(': heartbeat\n\n');
+      } catch { /* ignore */ }
+    }, 15_000);
+
+    /** Write SSE event with backpressure awareness */
+    const writeSse = (data: string): void => {
+      try {
+        if (!res.destroyed) {
+          res.write(`data: ${data}\n\n`);
+        }
+      } catch {
+        // Response destroyed mid-write, safe to ignore
+      }
+    };
+
     const pipeline = new Pipeline(
       config,
       (event) => {
-        try {
-          if (!res.destroyed) {
-            res.write(`data: ${JSON.stringify(event)}\n\n`);
-          }
-        } catch {
-          // Response destroyed mid-write, safe to ignore
-        }
+        writeSse(JSON.stringify(event));
       },
       {
         endpointManager: this.endpointManager,
         onToken: (token: string) => {
-          try {
-            if (!res.destroyed) {
-              res.write(`data: ${JSON.stringify({ type: 'token', phase: 'execute', detail: token })}\n\n`);
-            }
-          } catch {
-            // Response destroyed mid-write, safe to ignore
-          }
+          writeSse(JSON.stringify({ type: 'token', phase: 'execute', detail: token }));
         },
       },
     );
@@ -303,6 +309,7 @@ export class NTKServer {
       }
     } finally {
       clearTimeout(streamTimeoutTimer);
+      clearInterval(heartbeat);
       res.end();
     }
   }
