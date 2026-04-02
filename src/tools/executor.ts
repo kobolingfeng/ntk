@@ -276,12 +276,13 @@ async function toolFetchWebpage(args: Record<string, unknown>): Promise<string> 
         'User-Agent': 'Mozilla/5.0 (compatible; NTK/1.0)',
         Accept: 'text/html,application/xhtml+xml,text/plain',
       },
+      redirect: 'follow',
       signal: AbortSignal.timeout(TOOL_TIMEOUTS.fetch_webpage ?? DEFAULT_TIMEOUT),
     });
 
     if (!response.ok) return `HTTP ${response.status}: ${response.statusText}`;
 
-    const contentType = response.headers.get('content-type') ?? '';
+    const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
     const text = await response.text();
 
     if (contentType.includes('text/html')) {
@@ -359,8 +360,10 @@ function globToRegex(glob: string): RegExp {
   let seq = 0;
   const alternations: string[] = [];
   const expanded = glob.replace(/\{([^}]+)\}/g, (_m, inner: string) => {
+    const parts = inner.split(',');
+    if (parts.length > 50) throw new Error('Glob alternation too complex (max 50 items)');
     const id = `§ALT${seq++}§`;
-    alternations.push(`(${inner.split(',').map(s => s.replace(/[.+^${}()|[\]\\]/g, '\\$&')).join('|')})`);
+    alternations.push(`(${parts.map(s => s.replace(/[.+^${}()|[\]\\]/g, '\\$&')).join('|')})`);
     return id;
   });
   let re = expanded
