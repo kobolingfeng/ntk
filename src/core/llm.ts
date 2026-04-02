@@ -669,6 +669,9 @@ export class LLMClient {
     onToken?: (token: string) => void,
     externalSignal?: AbortSignal,
   ): Promise<{ content: string; toolCalls: Array<{ id: string; name: string; arguments: string }>; inputTokens: number; outputTokens: number } | null> {
+    // Fast bail: skip network call if already cancelled
+    if (externalSignal?.aborted) return null;
+
     let response: Response;
     const fetchSignal = externalSignal
       ? AbortSignal.any([externalSignal, AbortSignal.timeout(120_000)])
@@ -704,7 +707,7 @@ export class LLMClient {
     let lastActivityMs = Date.now();
     const watchdog = setInterval(() => {
       if (Date.now() - lastActivityMs > STREAM_INACTIVITY_TIMEOUT) reader.cancel().catch(() => {});
-    }, 5000);
+    }, 15_000);
 
     try {
       while (true) {
@@ -857,6 +860,9 @@ export class LLMClient {
     userMessage?: string,
     externalSignal?: AbortSignal,
   ): Promise<{ content: string; inputTokens: number; outputTokens: number } | null> {
+    // Fast bail: skip network call if already cancelled
+    if (externalSignal?.aborted) return null;
+
     // Combine external abort signal with default timeout
     const fetchSignal = externalSignal
       ? AbortSignal.any([externalSignal, AbortSignal.timeout(120000)])
@@ -902,7 +908,7 @@ export class LLMClient {
       if (Date.now() - lastActivityMs > STREAM_INACTIVITY_TIMEOUT) {
         reader.cancel().catch(() => {});
       }
-    }, 5000);
+    }, 15_000);
 
     try {
       while (true) {
@@ -1070,6 +1076,9 @@ export class LLMClient {
     body: string,
     externalSignal?: AbortSignal,
   ): Promise<{ success: boolean; data?: ChatCompletionResponse; error?: string }> {
+    // Fast bail: skip network call if already cancelled
+    if (externalSignal?.aborted) return { success: false, error: 'Aborted' };
+
     const maxRetries = 2;
     const fetchSignal = externalSignal
       ? AbortSignal.any([externalSignal, AbortSignal.timeout(120000)])

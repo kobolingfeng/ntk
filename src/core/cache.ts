@@ -31,7 +31,8 @@ export class ResponseCache {
     this.ttlMs = ttlMs;
   }
 
-  private hash(task: string, depth?: string): string {
+  /** Compute normalized key + FNV-1a hash in one pass (avoids double normalizeTask) */
+  private hashAndNormalize(task: string, depth?: string): { key: string; normalized: string } {
     const normalized = `${depth ?? 'auto'}:${this.normalizeTask(task)}`;
     // FNV-1a hash — fast, sufficient collision resistance for 100-entry cache
     let h = 0x811c9dc5;
@@ -39,7 +40,7 @@ export class ResponseCache {
       h ^= normalized.charCodeAt(i);
       h = (h * 0x01000193) >>> 0;
     }
-    return h.toString(36);
+    return { key: h.toString(36), normalized };
   }
 
   /** Normalize task text for cache matching:
@@ -57,7 +58,7 @@ export class ResponseCache {
   }
 
   get(task: string, depth?: string): CacheEntry | null {
-    const key = this.hash(task, depth);
+    const { key, normalized } = this.hashAndNormalize(task, depth);
     const entry = this.cache.get(key);
 
     if (!entry) {
@@ -66,7 +67,6 @@ export class ResponseCache {
     }
 
     // Collision detection: verify the normalized task matches
-    const normalized = `${depth ?? 'auto'}:${this.normalizeTask(task)}`;
     if (entry.normalizedTask !== normalized) {
       this.misses++;
       return null;
@@ -88,7 +88,7 @@ export class ResponseCache {
   }
 
   set(task: string, result: string, depth: string, totalTokens: number, forceDepth?: string): void {
-    const key = this.hash(task, forceDepth);
+    const { key, normalized } = this.hashAndNormalize(task, forceDepth);
 
     // If key exists, delete first to update position
     if (this.cache.has(key)) {
@@ -104,7 +104,7 @@ export class ResponseCache {
       depth,
       tokensSaved: totalTokens,
       createdAt: Date.now(),
-      normalizedTask: `${forceDepth ?? 'auto'}:${this.normalizeTask(task)}`,
+      normalizedTask: normalized,
     });
   }
 
