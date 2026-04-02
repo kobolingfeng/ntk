@@ -258,6 +258,10 @@ async function executeParallel(ctx: FullDepthContext, instructions: PlannerInstr
 }
 
 async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): Promise<VerificationResult> {
+  if (results.length === 0) {
+    return { passed: false, attempts: 0, detail: '', plannerSummary: ctx.locale === 'zh' ? '❌ 无执行结果' : '❌ No results' };
+  }
+
   const combinedOutput = results.map((r) => r.output).join('\n');
   if (results.length > 0 && isStructurallyComplete(combinedOutput, ctx.userRequest, FULL_SKIP_THRESHOLDS)) {
     ctx.emit({ type: 'message', phase: 'verify', detail: 'Smart skip: all results look structurally complete' });

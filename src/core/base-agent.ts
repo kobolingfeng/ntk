@@ -83,12 +83,12 @@ export abstract class BaseAgent implements Agent {
     if (context.visibleMessages.length > 0) {
       const msgs = context.visibleMessages;
       const start = Math.max(0, msgs.length - 5);
-      let contextLines = '';
+      const contextLabel = this.locale === 'zh' ? '背景' : 'Context';
+      const contextParts: string[] = [];
       for (let i = start; i < msgs.length; i++) {
-        if (i > start) contextLines += '\n';
-        contextLines += `[${msgs[i].from}]: ${msgs[i].payload}`;
+        contextParts.push(`[${msgs[i].from}]: ${msgs[i].payload}`);
       }
-      parts.push(`${this.locale === 'zh' ? '背景' : 'Context'}:\n${contextLines}`);
+      parts.push(`${contextLabel}:\n${contextParts.join('\n')}`);
     }
 
     // Add local scratchpad if in a local loop

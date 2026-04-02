@@ -18,6 +18,7 @@ import { createMessage } from '../core/protocol.js';
 const ARROW_INSTRUCTION = /→\s*(\w+):\s*(.+)/;
 const BRACKET_INSTRUCTION = /^\[([^\]]+)\](?:\[[^\]]*\])*[：:]\s*(.+)/;
 const NUMBERED_INSTRUCTION = /^\d+[.)、]\s*(.+)/;
+const VALID_TARGETS = new Set(['scout', 'summarizer', 'executor']);
 
 export class Planner extends BaseAgent {
   constructor(llm: LLMClient) {
@@ -35,7 +36,6 @@ export class Planner extends BaseAgent {
    *   → executor: 做xxx
    */
   parseInstructions(output: string): PlannerInstruction[] {
-    const validTargets = new Set(['scout', 'summarizer', 'executor']);
     const results: PlannerInstruction[] = [];
 
     for (const line of output.split('\n')) {
@@ -45,7 +45,7 @@ export class Planner extends BaseAgent {
       // Format 1: → agent: instruction
       const arrowMatch = trimmed.match(ARROW_INSTRUCTION);
       if (arrowMatch) {
-        const target = validTargets.has(arrowMatch[1]) ? arrowMatch[1] : 'executor';
+        const target = VALID_TARGETS.has(arrowMatch[1]) ? arrowMatch[1] : 'executor';
         results.push({ target: target as any, instruction: arrowMatch[2].trim() });
         continue;
       }

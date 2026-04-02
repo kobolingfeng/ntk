@@ -262,7 +262,7 @@ async function toolFetchWebpage(args: Record<string, unknown>): Promise<string> 
         'User-Agent': 'Mozilla/5.0 (compatible; NTK/1.0)',
         Accept: 'text/html,application/xhtml+xml,text/plain',
       },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(TOOL_TIMEOUTS.fetch_webpage ?? DEFAULT_TIMEOUT),
     });
 
     if (!response.ok) return `HTTP ${response.status}: ${response.statusText}`;
