@@ -191,12 +191,18 @@ const RE_FAIL_TEST = /^\s*(?:[✗✘×❌]\s|FAIL\s|not ok\s)/;
 
 function stripProgressBars(text: string): { result: string; name: string } {
   if (!text.includes('\n')) return { result: text, name: 'progress-bar-strip' };
+  // Fast guard: skip split/join when no progress‐bar markers present
+  if (!text.includes('%') && !text.includes('█') && !text.includes('▓') && !text.includes('░')) {
+    return { result: text, name: 'progress-bar-strip' };
+  }
   const lines = text.split('\n');
   const filtered = lines.filter((line) => !PROGRESS_BAR.test(line.trimStart()));
   return { result: filtered.join('\n'), name: 'progress-bar-strip' };
 }
 
 function collapseBlankLines(text: string): { result: string; name: string } {
+  // Fast guard: skip regex when no triple-newlines exist
+  if (!text.includes('\n\n\n')) return { result: text, name: 'blank-line-collapse' };
   const result = text.replace(RE_BLANK_LINES, '\n\n');
   return { result, name: 'blank-line-collapse' };
 }
@@ -343,6 +349,10 @@ function compactJson(text: string): { result: string; name: string } {
 
 function stripPassedTests(text: string): { result: string; name: string } {
   if (!text.includes('\n')) return { result: text, name: 'test-pass-strip' };
+  // Fast guard: skip split/filter when no test-pass indicators present
+  if (!text.includes('✓') && !text.includes('✔') && !text.includes('√') && !text.includes('PASS') && !text.includes('ok ') && !text.includes('测试通过') && !text.includes('... ok')) {
+    return { result: text, name: 'test-pass-strip' };
+  }
   const lines = text.split('\n');
   let hasTestOutput = false;
   let strippedCount = 0;
@@ -390,6 +400,10 @@ function shortenUrls(text: string): { result: string; name: string } {
 /** Combined progress bar + boilerplate filter — single split+join instead of two */
 function stripProgressAndBoilerplate(text: string): { result: string; name: string } {
   if (!text.includes('\n')) return { result: text, name: 'progress+boilerplate-strip' };
+  // Fast guard: skip split/join when neither progress-bar nor boilerplate markers present
+  const hasProgress = text.includes('%') || text.includes('█') || text.includes('▓') || text.includes('░');
+  const hasBoilerplate = text.includes('npm') || text.includes('vulnerabilit');
+  if (!hasProgress && !hasBoilerplate) return { result: text, name: 'progress+boilerplate-strip' };
   const lines = text.split('\n');
   const filtered = lines.filter((line) => !PROGRESS_BAR.test(line.trimStart()) && !BOILERPLATE.test(line));
   return { result: filtered.join('\n'), name: 'progress+boilerplate-strip' };

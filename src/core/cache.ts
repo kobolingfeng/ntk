@@ -47,16 +47,11 @@ export class ResponseCache {
    *  - remove common filler prefixes (帮我/请/帮忙/please/can you/could you)
    */
   private normalizeTask(task: string): string {
-    let s = task.trim().toLowerCase()
+    return task.trim().toLowerCase()
       .replace(/[。！？.!?]+$/, '')
-      .replace(/\s+/g, ' ');
-    // Strip filler prefixes — repeat to handle "请帮我" → "帮我" → ""
-    for (let i = 0; i < 2; i++) {
-      const stripped = s.replace(/^(?:帮我|请|帮忙|please |can you |could you )\s*/, '');
-      if (stripped === s) break;
-      s = stripped;
-    }
-    return s;
+      .replace(/\s+/g, ' ')
+      // Single-pass filler strip — `+` handles nested prefixes like "请帮我" or "please can you"
+      .replace(/^(?:(?:帮我|请|帮忙|please |can you |could you )\s*)+/, '');
   }
 
   get(task: string, depth?: string): CacheEntry | null {

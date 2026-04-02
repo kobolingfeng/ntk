@@ -120,6 +120,8 @@ export class Router {
   private blockedLog: Array<{ message: Message; reason: string }> = [];
   /** Per-agent message index: agent → messages where agent is sender or receiver */
   private agentIndex: Map<AgentType, Message[]> = new Map();
+  /** Incrementally maintained route counts — avoids O(n) rebuild in getStats() */
+  private routeCounts: Record<string, number> = {};
 
   /**
    * Route a message. Returns true if delivered, false if blocked.
@@ -182,6 +184,9 @@ export class Router {
     const decision = this.canRoute(message, currentPhase);
     if (decision.allowed) {
       this.messageLog.push(message);
+      // Increment route count inline — avoids O(n) rebuild in getStats()
+      const route = `${message.from}→${message.to}`;
+      this.routeCounts[route] = (this.routeCounts[route] || 0) + 1;
       // Maintain per-agent index
       const fromList = this.agentIndex.get(message.from);
       if (fromList) fromList.push(message);
@@ -229,17 +234,8 @@ export class Router {
       totalRouted: this.messageLog.length,
       totalBlocked: this.blockedLog.length,
       blockRate: this.blockedLog.length / (this.messageLog.length + this.blockedLog.length) || 0,
-      byRoute: this.getRouteCounts(),
+      byRoute: this.routeCounts,
     };
-  }
-
-  private getRouteCounts(): Record<string, number> {
-    const counts: Record<string, number> = {};
-    for (const msg of this.messageLog) {
-      const route = `${msg.from}→${msg.to}`;
-      counts[route] = (counts[route] || 0) + 1;
-    }
-    return counts;
   }
 }
 
