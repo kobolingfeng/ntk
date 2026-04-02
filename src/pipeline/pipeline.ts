@@ -63,19 +63,20 @@ export class Pipeline {
   }
 
   private config: NTKConfig;
-  private router: Router;
-  private compressor: Compressor;
+  private _router?: Router;
+  private _compressor?: Compressor;
 
-  // Agents
-  private planner: Planner;
-  private scout: Scout;
-  private summarizer: Summarizer;
+  // Agents — lazy-initialized (direct depth only needs executor)
+  private _planner?: Planner;
+  private _scout?: Scout;
+  private _summarizer?: Summarizer;
   private executor: Executor;
-  private verifier: Verifier;
+  private _verifier?: Verifier;
 
   // LLM clients (may be different models)
   private plannerLLM: LLMClient;
   private compressorLLM: LLMClient;
+  private em?: EndpointManager;
 
   // State
   private state: PipelineState;
@@ -90,6 +91,42 @@ export class Pipeline {
 
   private speculative: boolean;
   private onToken?: (token: string) => void;
+
+  // Lazy accessors for agents/infrastructure only needed in non-direct paths
+  private get planner(): Planner {
+    if (!this._planner) {
+      this._planner = new Planner(this.plannerLLM);
+      if (this.config.tokenBudget?.planner !== undefined) this._planner.tokenBudget = this.config.tokenBudget.planner;
+    }
+    return this._planner;
+  }
+  private get scout(): Scout {
+    if (!this._scout) {
+      this._scout = new Scout(this.compressorLLM);
+      if (this.config.tokenBudget?.scout !== undefined) this._scout.tokenBudget = this.config.tokenBudget.scout;
+    }
+    return this._scout;
+  }
+  private get summarizer(): Summarizer {
+    if (!this._summarizer) {
+      this._summarizer = new Summarizer(this.compressorLLM);
+      if (this.config.tokenBudget?.summarizer !== undefined) this._summarizer.tokenBudget = this.config.tokenBudget.summarizer;
+    }
+    return this._summarizer;
+  }
+  private get verifier(): Verifier {
+    if (!this._verifier) {
+      this._verifier = new Verifier(this.compressorLLM);
+      if (this.config.tokenBudget?.verifier !== undefined) this._verifier.tokenBudget = this.config.tokenBudget.verifier;
+    }
+    return this._verifier;
+  }
+  private get router(): Router {
+    return this._router ??= new Router();
+  }
+  private get compressor(): Compressor {
+    return this._compressor ??= new Compressor(this.compressorLLM);
+  }
 
   // Trace collection
   private traceEvents: PipelineEvent[] = [];
@@ -122,32 +159,19 @@ export class Pipeline {
     this.speculative = options?.speculative ?? true;
     this.onToken = options?.onToken;
 
-    const em = options?.endpointManager;
+    this.em = options?.endpointManager;
 
-    // Create LLM clients — planner gets the strong model
-    this.plannerLLM = new LLMClient(config.planner, em);
-    this.compressorLLM = new LLMClient(config.compressor, em);
+    // Create LLM clients eagerly — lightweight objects
+    this.plannerLLM = new LLMClient(config.planner, this.em);
+    this.compressorLLM = new LLMClient(config.compressor, this.em);
 
-    // Create agents
-    this.planner = new Planner(this.plannerLLM);
-    this.scout = new Scout(this.compressorLLM);
-    this.summarizer = new Summarizer(this.compressorLLM);
+    // Only executor is created eagerly — always needed
     this.executor = new Executor(this.compressorLLM);
-    this.verifier = new Verifier(this.compressorLLM);
 
-    // Apply token budgets if configured
-    if (config.tokenBudget) {
-      const agents = [this.planner, this.scout, this.summarizer, this.executor, this.verifier];
-      for (const agent of agents) {
-        if (config.tokenBudget[agent.type] !== undefined) {
-          agent.tokenBudget = config.tokenBudget[agent.type];
-        }
-      }
+    // Apply executor token budget
+    if (config.tokenBudget?.executor !== undefined) {
+      this.executor.tokenBudget = config.tokenBudget.executor;
     }
-
-    // Create router & compressor
-    this.router = new Router();
-    this.compressor = new Compressor(this.compressorLLM);
 
     // Initialize state
     this.state = {
@@ -430,13 +454,12 @@ export class Pipeline {
   }
 
   private getTokenReport() {
+    // If plannerLLM was never created (direct depth), skip its log entirely
     const plannerLog = this.plannerLLM.getTokenLog();
     const compressorLog = this.compressorLLM.getTokenLog();
-    // Avoid spread when one is empty (common for direct-depth: planner unused)
-    const allUsage = plannerLog.length === 0 ? compressorLog
-      : compressorLog.length === 0 ? plannerLog
-      : [...plannerLog, ...compressorLog];
-    return generateTokenReport(allUsage);
+    if (!plannerLog || plannerLog.length === 0) return generateTokenReport(compressorLog);
+    if (compressorLog.length === 0) return generateTokenReport(plannerLog);
+    return generateTokenReport([...plannerLog, ...compressorLog]);
   }
 
   private buildTrace(result: PipelineResult): PipelineTrace {
@@ -497,7 +520,7 @@ export class Pipeline {
       executor: this.executor,
       locale: this.locale,
       getTokenReport: () => this.getTokenReport(),
-      getRouterStats: () => this.router.getStats(),
+      getRouterStats: () => this._router?.getStats() ?? { totalRouted: 0, totalBlocked: 0, blockRate: 0, byRoute: {} },
       emit: overrides?.emit ?? ((e) => this.emit(e)),
       llm: this.compressorLLM,
       plannerLLM: this.plannerLLM,
