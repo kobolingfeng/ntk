@@ -9,7 +9,7 @@ import { getBandPrompt, type Locale, type PIPELINE_STRINGS } from '../core/promp
 import type { AgentContext, TokenReport } from '../core/protocol.js';
 import { createMessage, EMPTY_CONTEXT } from '../core/protocol.js';
 import type { Router, RouterStats } from '../core/router.js';
-import { emptyOutputMessage } from './helpers.js';
+import { emptyOutputMessage, fixUnbalancedFences } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
 
 export interface StandardDepthContext {
@@ -61,7 +61,7 @@ export async function runStandard(ctx: StandardDepthContext): Promise<PipelineRe
     ctx.router.route(execResponse, 'execute');
     rawContent = execResponse.payload.trim();
   }
-  const report = rawContent || emptyOutputMessage(ctx.locale);
+  const report = fixUnbalancedFences(rawContent || emptyOutputMessage(ctx.locale));
   ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (standard)' });
 
   return {

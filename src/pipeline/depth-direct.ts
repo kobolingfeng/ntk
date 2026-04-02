@@ -12,7 +12,7 @@ import { createMessage, EMPTY_CONTEXT } from '../core/protocol.js';
 import type { RouterStats } from '../core/router.js';
 import type { ToolDefinition } from '../tools/definitions.js';
 import { runToolLoop } from '../tools/loop.js';
-import { emptyOutputMessage } from './helpers.js';
+import { emptyOutputMessage, fixUnbalancedFences } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
 
 const RE_DONE_SUFFIX = /\n*\[(?:完成|done)\]\s*$/i;
@@ -127,6 +127,7 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
   if (report.length > 3 && (report.charCodeAt(report.length - 1) === 93 /* ] */)) {
     report = report.replace(RE_DONE_SUFFIX, '').trimEnd();
   }
+  report = fixUnbalancedFences(report);
 
   ctx.emit({ type: 'complete', phase: 'report', detail: 'Done (direct)' });
 

@@ -105,6 +105,15 @@ export function emptyOutputMessage(locale: Locale): string {
     : 'No output generated. Please retry or rephrase the task.';
 }
 
+/** Fix unclosed code fences from truncated output */
+export function fixUnbalancedFences(text: string): string {
+  if (!text.includes('```')) return text;
+  let count = 0;
+  let idx = 0;
+  while ((idx = text.indexOf('```', idx)) !== -1) { count++; idx += 3; }
+  return count % 2 !== 0 ? text + '\n```' : text;
+}
+
 interface SkipThresholds {
   codeMinLen: number;
   analysisMinLen: number;

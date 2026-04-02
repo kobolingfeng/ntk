@@ -16,7 +16,7 @@ import { getBandPrompt } from '../core/prompts.js';
 import type { AgentContext, NTKConfig, TokenReport } from '../core/protocol.js';
 import { createMessage, EMPTY_CONTEXT } from '../core/protocol.js';
 import type { Router, RouterStats } from '../core/router.js';
-import { assembleReport, FULL_SKIP_THRESHOLDS, isStructurallyComplete, parseVerificationResult } from './helpers.js';
+import { assembleReport, fixUnbalancedFences, FULL_SKIP_THRESHOLDS, isStructurallyComplete, parseVerificationResult } from './helpers.js';
 import type { ExecutionResult, PipelineEvent, PipelineResult, VerificationResult } from './types.js';
 
 /** Dependencies needed by the full depth runner */
@@ -426,7 +426,7 @@ async function verifyPhase(ctx: FullDepthContext, results: ExecutionResult[]): P
 }
 
 function reportPhaseV2(results: ExecutionResult[], verification: VerificationResult): string {
-  const executorContent = assembleReport(results);
+  const executorContent = fixUnbalancedFences(assembleReport(results));
 
   if (verification.passed) {
     return executorContent;
