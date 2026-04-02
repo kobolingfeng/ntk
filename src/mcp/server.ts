@@ -215,6 +215,34 @@ server.tool(
   },
 );
 
+// Tool: ntk_estimate — Zero-cost token estimation
+server.tool(
+  'ntk_estimate',
+  'Estimate token usage for a task without executing it. Zero LLM cost — uses heuristic classification. Useful to decide whether to use ntk_run or ntk_run_fast.',
+  {
+    task: z.string().max(10000).describe('The task to estimate'),
+  },
+  async ({ task }) => {
+    const { classifyDepthFastPath } = await import('../pipeline/classifier.js');
+    const { predictTokenUsage } = await import('../pipeline/helpers.js');
+    const { detectLocale, detectTaskBand } = await import('../core/prompts.js');
+
+    const depth = classifyDepthFastPath(task) ?? 'light';
+    const locale = detectLocale(task);
+    const band = detectTaskBand(task);
+    const prediction = predictTokenUsage(depth, task.length);
+
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Depth: ${depth} | Band: ${band} | Locale: ${locale}\nEstimated tokens: ${prediction.estimated} (range: ${prediction.range[0]}~${prediction.range[1]})\nZero LLM cost — heuristic classification`,
+        },
+      ],
+    };
+  },
+);
+
 // ─── Start Server ─────────────────────────────────────
 
 export async function startMcpServer() {
