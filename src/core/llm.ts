@@ -17,6 +17,10 @@ import type { AgentType, LLMConfig, Phase, TokenUsage } from './protocol.js';
 
 /** Shared TextDecoder instance for SSE stream parsing */
 const sseDecoder = new TextDecoder();
+/** 1MB safety limit for SSE buffer */
+const MAX_BUFFER = 1_048_576;
+/** 30s inactivity timeout for stream reading */
+const STREAM_INACTIVITY_TIMEOUT = 30_000;
 
 interface ChatCompletionResponse {
   id: string;
@@ -541,7 +545,7 @@ export class LLMClient {
     let buffer = '';
     let lastActivityMs = Date.now();
     const watchdog = setInterval(() => {
-      if (Date.now() - lastActivityMs > 30_000) reader.cancel().catch(() => {});
+      if (Date.now() - lastActivityMs > STREAM_INACTIVITY_TIMEOUT) reader.cancel().catch(() => {});
     }, 5000);
 
     try {
@@ -551,7 +555,7 @@ export class LLMClient {
         if (done) break;
 
         buffer += sseDecoder.decode(value, { stream: true });
-        if (buffer.length > 1_048_576) buffer = buffer.slice(-524_288);
+        if (buffer.length > MAX_BUFFER) buffer = buffer.slice(-MAX_BUFFER / 2);
 
         let nlIdx: number;
         let searchFrom = 0;
@@ -731,12 +735,9 @@ export class LLMClient {
     let abortedByLimit = false;
     let chunkCount = 0;
     let runningTokenEstimate = 0;
-    const MAX_BUFFER = 1_048_576; // 1MB safety limit for SSE buffer
-    const STREAM_INACTIVITY_TIMEOUT = 30_000; // 30s inactivity timeout for stream reading
 
     const reader = response.body.getReader();
     let buffer = '';
-    // Timestamp-based inactivity watchdog: avoids per-chunk clearTimeout+setTimeout pair
     let lastActivityMs = Date.now();
     const watchdog = setInterval(() => {
       if (Date.now() - lastActivityMs > STREAM_INACTIVITY_TIMEOUT) {
@@ -756,8 +757,7 @@ export class LLMClient {
 
         buffer += sseDecoder.decode(value, { stream: true });
         if (buffer.length > MAX_BUFFER) {
-          buffer = buffer.slice(-MAX_BUFFER / 2);
-        }
+          buffer = buffer.slice(-MAX_BUFFER / 2);        }
 
         // Index-based line parsing: avoid split('\n') array allocation
         let nlIdx: number;

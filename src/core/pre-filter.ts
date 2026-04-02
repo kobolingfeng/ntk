@@ -60,11 +60,9 @@ export function detectOutputType(text: string): OutputType {
   }
   sample = sampleEnd > 0 ? text.slice(0, sampleEnd) : text;
 
-  const testIndicators = /[✓✔✗✘×]|^PASS\s|^FAIL\s|Tests?:\s+\d+\s+(passed|failed)|^\s*(ok|not ok)\s+\d/im;
-  if (testIndicators.test(sample)) return 'test';
+  if (TEST_INDICATORS.test(sample)) return 'test';
 
-  const jsonIndicators = /^\s*[{[]/m;
-  if (jsonIndicators.test(sample)) {
+  if (JSON_START.test(sample)) {
     // Count JSON-like lines without filter+length
     let jsonLines = 0;
     let totalLines = 0;
@@ -85,11 +83,9 @@ export function detectOutputType(text: string): OutputType {
     if (jsonLines > totalLines * 0.4) return 'json';
   }
 
-  const logIndicators = /\[\d{4}-\d{2}-\d{2}|^\d{4}-\d{2}-\d{2}T|\b(INFO|WARN|ERROR|DEBUG)\b/;
-  if (logIndicators.test(sample)) return 'log';
+  if (LOG_INDICATORS.test(sample)) return 'log';
 
-  const buildIndicators = /\d+%|Building|Compiling|Bundling|Downloading|Installing/i;
-  if (buildIndicators.test(sample)) return 'build';
+  if (BUILD_INDICATORS.test(sample)) return 'build';
 
   return 'general';
 }
@@ -162,12 +158,28 @@ function newlineCount(text: string): number {
 // ─── Strategies ────────────────────────────────────────
 
 function stripAnsiCodes(text: string): { result: string; name: string } {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences use control characters by design
-  const result = text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+  const result = text.replace(RE_ANSI, '');
   return { result, name: 'ansi-strip' };
 }
 
 const PROGRESS_BAR = /^[▓░█▒■□●○◆◇\-=>#\s|]*\d{1,3}%|^\s*[|/\-\\]\s*$|^\s*\[=+>?\s*\]\s*\d+%|^\s*(?:Downloading|Uploading|Installing|Progress).*\.\.\.\s*\d+%/i;
+const BOILERPLATE = /^\s*(?:\d+ packages? are looking for funding|run `npm (?:fund|audit(?: fix)?)` for details|run `npm audit` for details|found \d+ vulnerabilit(?:y|ies)|npm warn deprecated)/i;
+
+// ─── Precompiled regex for detectOutputType ────────
+const TEST_INDICATORS = /[✓✔✗✘×]|^PASS\s|^FAIL\s|Tests?:\s+\d+\s+(passed|failed)|^\s*(ok|not ok)\s+\d/im;
+const JSON_START = /^\s*[{[]/m;
+const LOG_INDICATORS = /\[\d{4}-\d{2}-\d{2}|^\d{4}-\d{2}-\d{2}T|\b(INFO|WARN|ERROR|DEBUG)\b/;
+const BUILD_INDICATORS = /\d+%|Building|Compiling|Bundling|Downloading|Installing/i;
+
+// ─── Precompiled regex for strategies ──────────────
+// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences use control characters by design
+const RE_ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
+const RE_BLANK_LINES = /\n{3,}/g;
+const RE_TRAILING_WS = /[ \t]+$/gm;
+const RE_LONG_URL = /https?:\/\/[^\s)>\]"']{80,}/g;
+const RE_CODE_BLOCK_JSON = /```(?:json)?\s*\n([\s\S]*?)```/g;
+const RE_PASS_TEST = /^\s*(?:[✓✔√]\s|PASS\s|ok\s+\d|\.\.\.\s*$|测试通过|Tests?:\s+\d+\s+passed,\s+\d+\s+total)|^test\s+.*\s+\.\.\.\s+ok\s*$/i;
+const RE_FAIL_TEST = /^\s*(?:[✗✘×❌]\s|FAIL\s|not ok\s)/;
 
 function stripProgressBars(text: string): { result: string; name: string } {
   const lines = text.split('\n');
@@ -176,12 +188,12 @@ function stripProgressBars(text: string): { result: string; name: string } {
 }
 
 function collapseBlankLines(text: string): { result: string; name: string } {
-  const result = text.replace(/\n{3,}/g, '\n\n');
+  const result = text.replace(RE_BLANK_LINES, '\n\n');
   return { result, name: 'blank-line-collapse' };
 }
 
 function trimTrailingWhitespace(text: string): { result: string; name: string } {
-  const result = text.replace(/[ \t]+$/gm, '');
+  const result = text.replace(RE_TRAILING_WS, '');
   return { result, name: 'trailing-ws-trim' };
 }
 
@@ -241,8 +253,8 @@ function tryCompactJsonString(raw: string, threshold: number): string | null {
 }
 
 function compactCodeBlockJson(text: string): string {
-  const pattern = /```(?:json)?\s*\n([\s\S]*?)```/g;
-  return text.replace(pattern, (fullMatch, raw: string) => {
+  RE_CODE_BLOCK_JSON.lastIndex = 0;
+  return text.replace(RE_CODE_BLOCK_JSON, (fullMatch, raw: string) => {
     const compact = tryCompactJsonString(raw, 0.95);
     return compact ? `\`\`\`json\n${compact}\n\`\`\`` : fullMatch;
   });
@@ -323,12 +335,9 @@ function stripPassedTests(text: string): { result: string; name: string } {
   let hasTestOutput = false;
   let strippedCount = 0;
 
-  const PASS = /^\s*(?:[✓✔√]\s|PASS\s|ok\s+\d|\.\.\.\s*$|测试通过|Tests?:\s+\d+\s+passed,\s+\d+\s+total)|^test\s+.*\s+\.\.\.\s+ok\s*$/i;
-  const FAIL = /^\s*(?:[✗✘×❌]\s|FAIL\s|not ok\s)/;
-
   const filtered = lines.filter((line) => {
-    const isPass = PASS.test(line);
-    const isFail = FAIL.test(line);
+    const isPass = RE_PASS_TEST.test(line);
+    const isFail = RE_FAIL_TEST.test(line);
 
     if (isPass || isFail) hasTestOutput = true;
 
@@ -340,7 +349,7 @@ function stripPassedTests(text: string): { result: string; name: string } {
   });
 
   if (hasTestOutput && strippedCount > 0) {
-    const insertIdx = filtered.findIndex((l) => FAIL.test(l));
+    const insertIdx = filtered.findIndex((l) => RE_FAIL_TEST.test(l));
     const summary = `  [${strippedCount} passed tests hidden]`;
     if (insertIdx >= 0) {
       filtered.splice(insertIdx, 0, summary);
@@ -353,7 +362,8 @@ function stripPassedTests(text: string): { result: string; name: string } {
 }
 
 function shortenUrls(text: string): { result: string; name: string } {
-  const result = text.replace(/https?:\/\/[^\s)>\]"']{80,}/g, (url) => {
+  RE_LONG_URL.lastIndex = 0;
+  const result = text.replace(RE_LONG_URL, (url) => {
     try {
       const u = new URL(url);
       const path = u.pathname.length > 30 ? `${u.pathname.slice(0, 30)}...` : u.pathname;
@@ -365,7 +375,6 @@ function shortenUrls(text: string): { result: string; name: string } {
   return { result, name: 'url-shorten' };
 }
 
-const BOILERPLATE = /^\s*(?:\d+ packages? are looking for funding|run `npm (?:fund|audit(?: fix)?)` for details|run `npm audit` for details|found \d+ vulnerabilit(?:y|ies)|npm warn deprecated)/i;
 
 function stripBoilerplateNotices(text: string): { result: string; name: string } {
   const lines = text.split('\n');
