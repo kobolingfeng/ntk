@@ -251,31 +251,21 @@ export class Pipeline {
       }
 
       // Step 0b: Classify + speculative direct execution
-      // If fast path already returns "direct", skip classifier entirely
+      // If fast path returns a depth, skip classifier entirely
       let result: PipelineResult;
       const fastPathDepth = this.forceDepth ?? classifyDepthFastPath(cleanRequest);
       this.traceFastPathResult = fastPathDepth;
 
-      if (fastPathDepth === 'direct') {
-        // Fast path hit — skip classifier LLM call, execute directly
-        this.emit({ type: 'start', phase: 'gather', detail: `[direct/fast] ${cleanRequest}` });
-        this.setPhase('execute');
-        result = await runDirect(this.directCtx(cleanRequest, { onToken: this.onToken }));
-      } else if (this.forceDepth) {
-        // Forced depth — no speculation needed
-        const depth = this.forceDepth;
-        this.emit({ type: 'start', phase: 'gather', detail: `[${depth}] ${cleanRequest}` });
-        switch (depth) {
-          case 'direct':
-            this.setPhase('execute');
-            result = await runDirect(this.directCtx(cleanRequest));
-            break;
-          default: {
-            const d = await this.runNonDirectDepth(depth, cleanRequest);
-            result = d;
-            break;
-          }
+      if (fastPathDepth) {
+        // Fast path hit — skip classifier LLM call, execute at determined depth
+        this.emit({ type: 'start', phase: 'gather', detail: `[${fastPathDepth}/fast] ${cleanRequest}` });
+        if (fastPathDepth === 'direct') {
+          this.setPhase('execute');
+          result = await runDirect(this.directCtx(cleanRequest, { onToken: this.onToken }));
+        } else {
+          result = await this.runNonDirectDepth(fastPathDepth, cleanRequest);
         }
+        recordDepth(cleanRequest, fastPathDepth);
       } else if (this.speculative) {
         // Smart speculative execution: use history to predict depth
         // Lower threshold for 'direct' (safe to speculate, common case)
