@@ -10,6 +10,8 @@ import { estimateTokens } from '../core/llm.js';
 import type { TokenReport } from '../core/protocol.js';
 import { createMessage } from '../core/protocol.js';
 import type { RouterStats } from '../core/router.js';
+import type { ToolDefinition } from '../tools/definitions.js';
+import { runToolLoop } from '../tools/loop.js';
 import { emptyOutputMessage } from './helpers.js';
 import type { PipelineEvent, PipelineResult } from './types.js';
 
@@ -23,6 +25,10 @@ export interface DirectDepthContext {
   llm?: LLMClient;
   plannerLLM?: LLMClient;
   onToken?: (token: string) => void;
+  /** Tool definitions to enable tool-calling mode */
+  tools?: ToolDefinition[];
+  /** Working directory for tool execution */
+  toolsCwd?: string;
 }
 
 export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult> {
@@ -69,29 +75,45 @@ export async function runDirect(ctx: DirectDepthContext): Promise<PipelineResult
     : adaptiveMaxTokens;
 
   let rawContent = '';
-  // Use planner model for passthrough and micro tasks — native conciseness
-  const isPassthrough = !bandPrompt;
-  const usePlanner = (isPassthrough || isMicroTask) && !!ctx.plannerLLM;
-  const activeLLM = usePlanner ? ctx.plannerLLM : ctx.llm;
-  if (activeLLM) {
-    // Always use streaming for reliable output token limit enforcement
-    const onToken = ctx.onToken ?? (() => {});
-    const { content } = await activeLLM.chatStream(
-      bandPrompt,
-      effectiveRequest,
-      'executor',
-      'execute',
-      onToken,
-      adaptiveMaxTokens,
-      adaptiveTemp,
-      maxOutputTokens,
-    );
-    rawContent = content.trim();
+
+  // ─── Tool-calling path ───────────────────────────
+  if (ctx.tools && ctx.tools.length > 0 && ctx.llm) {
+    const toolResult = await runToolLoop(ctx.llm, bandPrompt, effectiveRequest, {
+      cwd: ctx.toolsCwd,
+      tools: ctx.tools,
+      onToken: ctx.onToken,
+      onToolCall: (name, args) => {
+        ctx.emit({ type: 'message', phase: 'execute', detail: `Tool: ${name}(${Object.keys(args).join(', ')})` });
+      },
+    });
+    rawContent = toolResult.content.trim();
+    if (toolResult.toolCallCount > 0) {
+      ctx.emit({ type: 'message', phase: 'execute', detail: `工具调用 ${toolResult.toolCallCount} 次, ${toolResult.rounds} 轮` });
+    }
   } else {
-    const msg = createMessage('planner', 'executor', effectiveRequest, '');
-    const context = { visibleMessages: [] as never[] };
-    const response = await ctx.executor.process(msg, context);
-    rawContent = response.payload.trim();
+    // ─── Normal chat path ────────────────────────────
+    const isPassthrough = !bandPrompt;
+    const usePlanner = (isPassthrough || isMicroTask) && !!ctx.plannerLLM;
+    const activeLLM = usePlanner ? ctx.plannerLLM : ctx.llm;
+    if (activeLLM) {
+      const onToken = ctx.onToken ?? (() => {});
+      const { content } = await activeLLM.chatStream(
+        bandPrompt,
+        effectiveRequest,
+        'executor',
+        'execute',
+        onToken,
+        adaptiveMaxTokens,
+        adaptiveTemp,
+        maxOutputTokens,
+      );
+      rawContent = content.trim();
+    } else {
+      const msg = createMessage('planner', 'executor', effectiveRequest, '');
+      const context = { visibleMessages: [] as never[] };
+      const response = await ctx.executor.process(msg, context);
+      rawContent = response.payload.trim();
+    }
   }
 
   const success = rawContent.length > 0;

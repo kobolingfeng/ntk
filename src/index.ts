@@ -66,3 +66,11 @@ export type {
   PipelineTrace,
   VerificationResult,
 } from './pipeline/types.js';
+
+// Tools
+export type { ParsedToolCall, ToolCall, ToolDefinition } from './tools/definitions.js';
+export { parseToolCall, TOOL_DEFINITIONS, TOOL_NAMES } from './tools/definitions.js';
+export type { ToolResult } from './tools/executor.js';
+export { executeTool, executeTools } from './tools/executor.js';
+export type { ToolLoopConfig, ToolLoopResult } from './tools/loop.js';
+export { runToolLoop } from './tools/loop.js';

@@ -26,6 +26,7 @@ import { preFilter } from '../core/pre-filter.js';
 import { detectLocale, type Locale, PIPELINE_STRINGS } from '../core/prompts.js';
 import type { NTKConfig, Phase, PipelineState } from '../core/protocol.js';
 import { Router } from '../core/router.js';
+import type { ToolDefinition } from '../tools/definitions.js';
 
 // Submodules
 import { classifyDepth, classifyDepthFastPath } from './classifier.js';
@@ -91,6 +92,8 @@ export class Pipeline {
 
   private speculative: boolean;
   private onToken?: (token: string) => void;
+  private tools?: ToolDefinition[];
+  private toolsCwd?: string;
 
   // Lazy accessors for agents/infrastructure only needed in non-direct paths
   private get planner(): Planner {
@@ -150,6 +153,8 @@ export class Pipeline {
       speculative?: boolean;
       onToken?: (token: string) => void;
       endpointManager?: EndpointManager;
+      tools?: ToolDefinition[];
+      toolsCwd?: string;
     },
   ) {
     this.config = config;
@@ -158,6 +163,8 @@ export class Pipeline {
     this.skipScout = options?.skipScout ?? false;
     this.speculative = options?.speculative ?? true;
     this.onToken = options?.onToken;
+    this.tools = options?.tools;
+    this.toolsCwd = options?.toolsCwd;
 
     this.em = options?.endpointManager;
 
@@ -525,6 +532,8 @@ export class Pipeline {
       llm: this.compressorLLM,
       plannerLLM: this.plannerLLM,
       onToken: overrides?.onToken,
+      tools: this.tools,
+      toolsCwd: this.toolsCwd,
     };
   }
 

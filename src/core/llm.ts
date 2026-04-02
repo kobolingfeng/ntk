@@ -465,6 +465,162 @@ export class LLMClient {
     return { content, usage };
   }
 
+  /**
+   * Chat with tool-calling support (streaming).
+   * Returns either text content or tool calls — never both.
+   */
+  async chatWithTools(
+    messages: Array<{ role: string; content?: string; tool_calls?: unknown[]; tool_call_id?: string }>,
+    tools: unknown[],
+    agent: AgentType,
+    phase: Phase,
+    onToken?: (token: string) => void,
+  ): Promise<{ content?: string; toolCalls?: Array<{ id: string; name: string; arguments: string }>; usage: TokenUsage }> {
+    const endpointsToTry = this.endpointManager.getEndpointOrder(this.model);
+    const allEndpoints = this.endpointManager.getEndpoints();
+
+    if (endpointsToTry.length === 0) throw new AllEndpointsFailedError(0);
+
+    const payload = JSON.stringify({
+      model: this.model,
+      messages,
+      tools,
+      tool_choice: 'auto',
+      max_tokens: this.maxTokens,
+      max_completion_tokens: this.maxTokens,
+      temperature: this.temperature,
+      stream: true,
+      stream_options: { include_usage: true },
+    });
+
+    for (const epIndex of endpointsToTry) {
+      const ep = allEndpoints[epIndex];
+      const startMs = Date.now();
+      const result = await this.tryStreamToolEndpoint(ep, payload, onToken);
+      if (result) {
+        this.endpointManager.recordSuccess(epIndex, Date.now() - startMs);
+        const usage: TokenUsage = {
+          agent,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          timestamp: Date.now(),
+          phase,
+        };
+        this.pushTokenLog(usage);
+        if (result.toolCalls.length > 0) {
+          return { toolCalls: result.toolCalls, usage };
+        }
+        return { content: result.content, usage };
+      }
+      this.endpointManager.recordFailure(epIndex);
+      this.endpointManager.invalidateProbeCacheFor(ep.name);
+    }
+
+    throw new AllEndpointsFailedError(allEndpoints.length);
+  }
+
+  private async tryStreamToolEndpoint(
+    ep: Endpoint,
+    body: string,
+    onToken?: (token: string) => void,
+  ): Promise<{ content: string; toolCalls: Array<{ id: string; name: string; arguments: string }>; inputTokens: number; outputTokens: number } | null> {
+    const url = `${ep.baseUrl}/chat/completions`;
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
+        body,
+        signal: AbortSignal.timeout(120_000),
+      });
+    } catch { return null; }
+
+    if (!response.ok || !response.body) return null;
+
+    const contentParts: string[] = [];
+    const toolCallsMap: Map<number, { id: string; name: string; arguments: string }> = new Map();
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    const reader = response.body.getReader();
+    let buffer = '';
+    let lastActivityMs = Date.now();
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastActivityMs > 30_000) reader.cancel().catch(() => {});
+    }, 5000);
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        lastActivityMs = Date.now();
+        if (done) break;
+
+        buffer += sseDecoder.decode(value, { stream: true });
+        if (buffer.length > 1_048_576) buffer = buffer.slice(-524_288);
+
+        let nlIdx: number;
+        let searchFrom = 0;
+        while ((nlIdx = buffer.indexOf('\n', searchFrom)) !== -1) {
+          const line = buffer.substring(searchFrom, nlIdx);
+          searchFrom = nlIdx + 1;
+          if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+
+          try {
+            const json = JSON.parse(line.slice(6));
+            const delta = json.choices?.[0]?.delta;
+            if (!delta) {
+              if (json.usage) {
+                inputTokens = json.usage.prompt_tokens || 0;
+                outputTokens = json.usage.completion_tokens || 0;
+              }
+              continue;
+            }
+
+            // Text content
+            if (delta.content) {
+              contentParts.push(delta.content);
+              onToken?.(delta.content);
+            }
+
+            // Tool calls (streamed incrementally)
+            for (const tc of delta.tool_calls ?? []) {
+              const idx = tc.index ?? 0;
+              let entry = toolCallsMap.get(idx);
+              if (!entry) {
+                entry = { id: '', name: '', arguments: '' };
+                toolCallsMap.set(idx, entry);
+              }
+              if (tc.id) entry.id = tc.id;
+              if (tc.function?.name) entry.name = tc.function.name;
+              if (tc.function?.arguments) entry.arguments += tc.function.arguments;
+            }
+
+            if (json.usage) {
+              inputTokens = json.usage.prompt_tokens || 0;
+              outputTokens = json.usage.completion_tokens || 0;
+            }
+          } catch { /* malformed SSE */ }
+        }
+        buffer = buffer.substring(searchFrom);
+      }
+    } catch {
+      // stream error
+    } finally {
+      clearInterval(watchdog);
+      reader.cancel().catch(() => {});
+    }
+
+    const content = contentParts.join('');
+    const toolCalls = [...toolCallsMap.values()].filter(tc => tc.id && tc.name);
+
+    // Fallback token estimation
+    if (inputTokens === 0) inputTokens = estimateTokens(body);
+    if (outputTokens === 0) outputTokens = estimateTokens(content || JSON.stringify(toolCalls));
+
+    return { content, toolCalls, inputTokens, outputTokens };
+  }
+
   private pushTokenLog(usage: TokenUsage): void {
     if (this.tokenLog.length >= LLMClient.MAX_TOKEN_LOG) {
       this.tokenLog.shift();
