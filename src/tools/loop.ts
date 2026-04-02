@@ -87,6 +87,12 @@ export async function runToolLoop(
   // Pre-serialize tools once — avoids re-serializing the tools array on every round
   const toolsJson = JSON.stringify(tools);
   const startTime = maxDurationMs > 0 ? Date.now() : 0;
+  // Track tool result message indices for micro-compaction (inspired by Claude Code)
+  // After enough rounds, old read-only tool results are cleared to manage context window
+  const toolResultIndices: number[] = [];
+  const COMPACT_AFTER_ROUND = 3;
+  const KEEP_RECENT_RESULTS = 6;
+  const CLEARED_MSG = '[旧工具结果已清除]';
 
   for (round = 0; round < maxRounds; round++) {
     // Global timeout check
@@ -141,6 +147,17 @@ export async function runToolLoop(
           tool_call_id: r.toolCallId,
           content: truncated,
         });
+        toolResultIndices.push(messages.length - 1);
+      }
+
+      // Micro-compaction: clear old tool results to manage context window
+      // Keeps the most recent results intact for LLM continuity
+      if (round >= COMPACT_AFTER_ROUND && toolResultIndices.length > KEEP_RECENT_RESULTS) {
+        const clearCount = toolResultIndices.length - KEEP_RECENT_RESULTS;
+        for (let i = 0; i < clearCount; i++) {
+          const msgIdx = toolResultIndices[i];
+          messages[msgIdx].content = CLEARED_MSG;
+        }
       }
     } else {
       // LLM returned final text response
