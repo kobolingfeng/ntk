@@ -117,7 +117,9 @@ export class Compressor {
     }
 
     // If already short enough after pre-filter, don't waste an API call
-    if (preFiltered.length < 200 && level !== 'aggressive') {
+    // When pre-filter removed >60% of content, raise threshold — remaining text is likely clean
+    const skipThreshold = pfResult.charsRemoved > originalLength * 0.6 ? 400 : 200;
+    if (preFiltered.length < skipThreshold && level !== 'aggressive') {
       return {
         compressed: preFiltered,
         originalLength,
